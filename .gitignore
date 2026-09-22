@@ -1,0 +1,16 @@
+target/
+.idea/
+.vscode/
+*.iml
+*.class
+*.log
+*.tmp
+.DS_Store
+.env
+*.env
+application.properties
+*.doc
+*.docx
+*.pdf
+*.drawio
+*.zip

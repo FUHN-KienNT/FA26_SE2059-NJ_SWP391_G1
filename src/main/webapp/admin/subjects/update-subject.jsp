@@ -1,0 +1,3 @@
+<%@ page contentType="text/html;charset=UTF-8" %>
+<!doctype html><html><head><meta charset="UTF-8"><title>Update Subject | AMS</title><link rel="stylesheet" href="${pageContext.request.contextPath}/css/app.css"></head>
+<body><main><nav><a href="${pageContext.request.contextPath}/">AMS</a></nav><h1>Update Subject</h1><p>Initial screen skeleton. Data actions are pending service implementation.</p><form action="${pageContext.request.contextPath}/admin/subjects" method="post"><input type="hidden" name="action" value="update"><label>Subject ID <input name="subjectId" required></label><label>Name <input name="subjectName" required></label><label>Description <textarea name="description"></textarea></label><button>Update</button></form></main></body></html>

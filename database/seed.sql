@@ -1,0 +1,2 @@
+-- Intentionally empty. Create accounts through the future authenticated admin workflow.
+-- Do not commit seeded credentials or password hashes.
