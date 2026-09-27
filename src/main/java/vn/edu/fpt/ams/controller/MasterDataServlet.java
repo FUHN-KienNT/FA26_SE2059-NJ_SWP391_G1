@@ -6,16 +6,23 @@ import jakarta.servlet.http.*;
 import java.io.IOException;
 import vn.edu.fpt.ams.service.MasterDataService;
 
-@WebServlet("/admin/terms")
+@WebServlet("/admin/master-data")
 public class MasterDataServlet extends HttpServlet {
     private final MasterDataService service = new MasterDataService();
     @Override protected void doGet(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException {
+        String view = "/WEB-INF/views/master-data/list.jsp";
         try {
-            req.setAttribute("terms", service.listTerms(req.getParameter("keyword"), null));
+            String mode = req.getParameter("mode");
+            if ("view".equals(mode) || "create".equals(mode) || "edit".equals(mode)) {
+                view = "/WEB-INF/views/master-data/detail.jsp";
+                req.setAttribute("mode", mode);
+            } else {
+                req.setAttribute("terms", service.listTerms(req.getParameter("keyword"), null));
+            }
         } catch (UnsupportedOperationException | IllegalArgumentException ex) {
             req.setAttribute("featurePending", "Data loading is pending in this initial iteration.");
         }
-        req.getRequestDispatcher("/admin/terms/term-list.jsp").forward(req, res);
+        req.getRequestDispatcher(view).forward(req, res);
     }
     @Override protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {
         // Mutations remain unavailable until ownership checks and JDBC transactions are implemented.

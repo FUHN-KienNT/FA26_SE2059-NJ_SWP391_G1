@@ -1,6 +1,8 @@
 package vn.edu.fpt.ams.dao;
 
 import vn.edu.fpt.ams.model.*;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 
 /** JDBC operations for UserAccount; implementations are reserved for the next iteration. */
 public class UserDAO {
@@ -14,5 +16,15 @@ public java.util.List<UserAccount> search(String keyword, UserRole role, Account
 public long insert(UserAccount user) { throw pending(); }
 public void update(UserAccount user) { throw pending(); }
 public void updateStatus(long id, AccountStatus status) { throw pending(); }
+
+static UserAccount mapUser(ResultSet rs) throws SQLException {
+    return new UserAccount(rs.getLong("user_id"), rs.getString("full_name"),
+            rs.getString("email"), UserRole.valueOf(rs.getString("role")),
+            AccountStatus.valueOf(rs.getString("account_status")),
+            rs.getString("google_subject"), rs.getString("password_hash"),
+            ResultSetSupport.instant(rs, "created_at"),
+            ResultSetSupport.instant(rs, "last_login_at"),
+            ResultSetSupport.instant(rs, "updated_at"));
+}
 
 }

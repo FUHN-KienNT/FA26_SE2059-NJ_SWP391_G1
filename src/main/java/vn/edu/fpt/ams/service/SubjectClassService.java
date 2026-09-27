@@ -7,7 +7,6 @@ import vn.edu.fpt.ams.dao.SubjectExpertDAO;
 import vn.edu.fpt.ams.dao.UserDAO;
 import vn.edu.fpt.ams.dto.SubjectClassDTO;
 import vn.edu.fpt.ams.dto.SubjectClassFormDTO;
-import vn.edu.fpt.ams.integration.EmailClient;
 import vn.edu.fpt.ams.integration.EmailService;
 import vn.edu.fpt.ams.model.SubjectClass;
 import vn.edu.fpt.ams.util.ValidationUtil;
@@ -18,7 +17,7 @@ public class SubjectClassService {
     private final SubjectExpertDAO expertDAO = new SubjectExpertDAO();
     private final EnrollmentDAO enrollmentDAO = new EnrollmentDAO();
     private final UserDAO userDAO = new UserDAO();
-    private final EmailClient emailClient = new EmailService();
+    private final EmailService emailService = new EmailService();
 
     public List<SubjectClassDTO> listClasses(long expertId, Long subjectId, Long termId) {
         requirePositive(expertId, "Expert ID");
@@ -44,7 +43,11 @@ public class SubjectClassService {
         requirePositive(expertId, "Expert ID");
         validateForm(form);
         requirePositive(form.classId(), "Class ID");
-        // TODO: lock the class; capacity cannot fall below its active roster count.
+        // These counts and the eventual update must run while the class row is locked
+        // in the same transaction.
+        long activeEnrollments = enrollmentDAO.countActiveStudents(form.classId());
+        long reservedInvitationSeats = enrollmentDAO.countActiveReservedInvitationSeats(form.classId());
+        validateCapacityReduction(form.capacity(), activeEnrollments, reservedInvitationSeats);
         throw pending();
     }
 
@@ -54,7 +57,7 @@ public class SubjectClassService {
         requirePositive(teacherId, "Teacher ID");
         // TODO: follow SDS sequence: load class via classDAO, verify active Expert ownership
         // and active TEACHER via userDAO, then updateTeacher. Notify only after commit.
-        // Do not write first and validate later. Reuse emailClient if notification is enabled.
+        // Do not write first and validate later. Reuse emailService if notification is enabled.
         throw pending();
     }
 
@@ -68,7 +71,18 @@ public class SubjectClassService {
         requirePositive(form.subjectTermId(), "Subject Term ID");
         ValidationUtil.required(form.classCode(), "Class code");
         ValidationUtil.required(form.className(), "Class name");
-        if (form.capacity() <= 0) throw new IllegalArgumentException("Capacity must be positive");
+        if (form.capacity() < 10 || form.capacity() > 40) {
+            throw new IllegalArgumentException("Capacity must be between 10 and 40");
+        }
+    }
+
+    static void validateCapacityReduction(int capacity, long activeEnrollments,
+                                          long activeReservedInvitationSeats) {
+        long committedSeats = Math.addExact(activeEnrollments, activeReservedInvitationSeats);
+        if (capacity < committedSeats) {
+            throw new IllegalArgumentException(
+                    "Capacity cannot be lower than active enrollments plus reserved invitation seats");
+        }
     }
 
     private static void requirePositive(long id, String name) {

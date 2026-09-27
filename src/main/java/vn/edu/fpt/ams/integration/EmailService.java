@@ -1,11 +1,11 @@
 package vn.edu.fpt.ams.integration;
 
-/** SMTP integration is not configured in the initial codebase. */
-public class EmailService implements EmailClient {
-    @Override public void sendWelcomeEmail(String address, String temporaryPassword) {
-        throw new UnsupportedOperationException("TODO: configure secure email delivery");
-    }
-    @Override public void sendPasswordResetEmail(String address, String resetLink) {
-        throw new UnsupportedOperationException("TODO: configure secure email delivery");
+/** Single integration boundary for all application email. */
+public class EmailService {
+    public void sendPasswordReset(String address, String resetLink) { sendNotification(address, "AMS password reset", resetLink); }
+    public void sendStudentInvitation(String address, String invitationLink) { sendNotification(address, "AMS class invitation", invitationLink); }
+    public void sendAdditionalClassAssignmentOffer(String address, String offerLink) { sendNotification(address, "AMS class assignment offer", offerLink); }
+    public void sendNotification(String address, String subject, String message) {
+        throw new UnsupportedOperationException("TODO: centralize SMTP configuration, templates and delivery errors");
     }
 }

@@ -21,14 +21,14 @@ public class EnrollmentServlet extends HttpServlet {
 
     @Override protected void doGet(HttpServletRequest req, HttpServletResponse res)
             throws ServletException, IOException {
-        String view = "/teacher/assigned-class-list.jsp";
+        String view = "/WEB-INF/views/enrollments/list.jsp";
         try {
             long teacherId = (Long) req.getSession().getAttribute("userId");
             Long classId = optionalId(req, "classId");
             if (classId == null) {
                 req.setAttribute("classes", classService.listAssignedClasses(teacherId));
             } else {
-                view = "/teacher/class-roster.jsp";
+                view = "/WEB-INF/views/enrollments/detail.jsp";
                 req.setAttribute("students", service.listStudents(teacherId, classId));
             }
         } catch (UnsupportedOperationException ex) {

@@ -1,3 +1,3 @@
 package vn.edu.fpt.ams.model;
 
-public enum EnrollmentMethod { AUTO, MANUAL, IMPORT, CLASS_CHANGE }
+public enum EnrollmentMethod { SELF_REGISTRATION, MANUAL, IMPORT, INVITATION, CLASS_CHANGE }

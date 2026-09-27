@@ -1,3 +1,0 @@
-<%@ page contentType="text/html;charset=UTF-8" %>
-<!doctype html><html><head><meta charset="UTF-8"><title>Subject detail | AMS</title><link rel="stylesheet" href="${pageContext.request.contextPath}/css/app.css"></head>
-<body><main><nav><a href="${pageContext.request.contextPath}/">AMS</a></nav><h1>Subject detail</h1><p>Initial screen skeleton. Data actions are pending service implementation.</p><p>Subject identity, status, assigned Experts and term openings.</p><p><a href="update-subject.jsp">Edit</a> · <a href="assign-experts.jsp">Manage Experts</a> · <a href="subject-term.jsp">Open for term</a></p></main></body></html>

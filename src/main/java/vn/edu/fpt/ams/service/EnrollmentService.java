@@ -30,7 +30,7 @@ public class EnrollmentService {
         requirePositive(classId, "Class ID");
         requirePositive(studentId, "Student ID");
         // TODO: in one transaction, lock class and registration; verify active Teacher,
-        // class status, registration_enabled, capacity, Student role and matching Subject Term.
+        // class status, Subject Term registration window, capacity, Student role and matching Subject Term.
         // Reuse the unique Student + Subject Term registration and avoid a second active placement.
         throw pending();
     }

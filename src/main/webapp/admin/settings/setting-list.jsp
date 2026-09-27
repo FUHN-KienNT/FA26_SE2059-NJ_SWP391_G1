@@ -1,3 +1,0 @@
-<%@ page contentType="text/html;charset=UTF-8" %>
-<!doctype html><html><head><meta charset="UTF-8"><title>System Settings | AMS</title><link rel="stylesheet" href="${pageContext.request.contextPath}/css/app.css"></head>
-<body><main><nav><a href="${pageContext.request.contextPath}/">AMS</a></nav><h1>System Settings</h1><p>Initial screen skeleton. Data actions are pending service implementation.</p><form action="${pageContext.request.contextPath}/admin/settings" method="post"><input type="hidden" name="action" value="update"><label>Key <input name="key" required></label><label>Value <input name="value" required></label><button>Update setting</button></form></main></body></html>

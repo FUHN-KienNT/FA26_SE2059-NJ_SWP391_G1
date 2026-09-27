@@ -16,9 +16,15 @@ public class SubjectClassServlet extends HttpServlet {
 
     @Override protected void doGet(HttpServletRequest req, HttpServletResponse res)
             throws ServletException, IOException {
+        String view = "/WEB-INF/views/subject-classes/list.jsp";
         try {
+            String mode = req.getParameter("mode");
+            if ("view".equals(mode) || "create".equals(mode) || "edit".equals(mode) || "teacher".equals(mode)) {
+                view = "/WEB-INF/views/subject-classes/detail.jsp";
+                req.setAttribute("mode", mode);
+            }
             long expertId = (Long) req.getSession().getAttribute("userId");
-            req.setAttribute("classes", service.listClasses(expertId,
+            if (view.endsWith("list.jsp")) req.setAttribute("classes", service.listClasses(expertId,
                     optionalId(req, "subjectId"), optionalId(req, "termId")));
         } catch (UnsupportedOperationException ex) {
             req.setAttribute("featurePending", "Class data loading is pending in this initial iteration.");
@@ -26,7 +32,7 @@ public class SubjectClassServlet extends HttpServlet {
             res.sendError(HttpServletResponse.SC_BAD_REQUEST, ex.getMessage());
             return;
         }
-        req.getRequestDispatcher("/expert/subject-class-list.jsp").forward(req, res);
+        req.getRequestDispatcher(view).forward(req, res);
     }
 
     @Override protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {
@@ -50,8 +56,7 @@ public class SubjectClassServlet extends HttpServlet {
         Long classId = optionalId(req, "classId");
         return new SubjectClassFormDTO(classId == null ? 0 : classId,
                 requiredId(req, "subjectTermId"), req.getParameter("classCode"),
-                req.getParameter("className"), Math.toIntExact(requiredId(req, "capacity")),
-                req.getParameter("registrationEnabled") != null);
+                req.getParameter("className"), Math.toIntExact(requiredId(req, "capacity")));
     }
 
     private static Long optionalId(HttpServletRequest req, String name) {

@@ -10,12 +10,20 @@ import vn.edu.fpt.ams.service.AssignmentService;
 public class AssignmentServlet extends HttpServlet {
     private final AssignmentService service = new AssignmentService();
     @Override protected void doGet(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException {
+        String view = "/WEB-INF/views/assignments/list.jsp";
         try {
-            req.setAttribute("assignments", service.listAssignments((Long) req.getSession().getAttribute("userId"), Long.parseLong(req.getParameter("classId"))));
+            String mode = req.getParameter("mode");
+            if ("view".equals(mode) || "create".equals(mode) || "edit".equals(mode)
+                    || "publish".equals(mode) || "cancel".equals(mode)) {
+                view = "/WEB-INF/views/assignments/detail.jsp";
+                req.setAttribute("mode", mode);
+            } else {
+                req.setAttribute("assignments", service.listAssignments((Long) req.getSession().getAttribute("userId"), Long.parseLong(req.getParameter("classId"))));
+            }
         } catch (UnsupportedOperationException | IllegalArgumentException ex) {
             req.setAttribute("featurePending", "Data loading is pending in this initial iteration.");
         }
-        req.getRequestDispatcher("/teacher/assignments/assignment-list.jsp").forward(req, res);
+        req.getRequestDispatcher(view).forward(req, res);
     }
     @Override protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {
         // Mutations remain unavailable until ownership checks and JDBC transactions are implemented.

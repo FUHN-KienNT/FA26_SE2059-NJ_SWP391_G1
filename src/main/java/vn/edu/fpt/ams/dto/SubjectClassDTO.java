@@ -6,4 +6,4 @@ import vn.edu.fpt.ams.model.ClassStatus;
 public record SubjectClassDTO(long classId, long subjectTermId, String classCode,
                               String className, int capacity, long activeRosterCount,
                               Long teacherId, String teacherName, String teacherEmail,
-                              boolean registrationEnabled, ClassStatus status) {}
+                              ClassStatus status) {}

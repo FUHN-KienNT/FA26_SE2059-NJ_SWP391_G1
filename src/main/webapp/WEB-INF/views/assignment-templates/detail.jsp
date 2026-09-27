@@ -1,0 +1,4 @@
+<%@ page contentType="text/html;charset=UTF-8" %>
+<!doctype html><html><head><title>Assignment Template Details | AMS</title><link rel="stylesheet" href="${pageContext.request.contextPath}/css/app.css"></head><body><main>
+<nav><a href="${pageContext.request.contextPath}/expert/templates?subjectId=1">Assignment Template List</a></nav><h1>Assignment Template Details</h1><p>Mode: ${mode}. Template Status Confirmation is handled here.</p><form action="${pageContext.request.contextPath}/expert/templates" method="post"><label>Subject ID <input type="number" name="subjectId" required></label><label>Title <input name="title" required></label><label>Instructions <textarea name="instructions" required></textarea></label><label>Maximum score <input type="number" min="0.01" step="0.01" name="maximumScore" required></label><button>Save Template</button></form>
+</main></body></html>

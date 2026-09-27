@@ -10,12 +10,20 @@ import vn.edu.fpt.ams.service.SubjectService;
 public class SubjectServlet extends HttpServlet {
     private final SubjectService service = new SubjectService();
     @Override protected void doGet(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException {
+        String view = "/WEB-INF/views/subjects/list.jsp";
         try {
-            req.setAttribute("subjects", service.listSubjects(req.getParameter("keyword"), null));
+            String mode = req.getParameter("mode");
+            if ("view".equals(mode) || "create".equals(mode) || "edit".equals(mode)
+                    || "experts".equals(mode) || "term".equals(mode) || "status".equals(mode)) {
+                view = "/WEB-INF/views/subjects/detail.jsp";
+                req.setAttribute("mode", mode);
+            } else {
+                req.setAttribute("subjects", service.listSubjects(req.getParameter("keyword"), null));
+            }
         } catch (UnsupportedOperationException | IllegalArgumentException ex) {
             req.setAttribute("featurePending", "Data loading is pending in this initial iteration.");
         }
-        req.getRequestDispatcher("/admin/subjects/subject-list.jsp").forward(req, res);
+        req.getRequestDispatcher(view).forward(req, res);
     }
     @Override protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {
         // Mutations remain unavailable until ownership checks and JDBC transactions are implemented.

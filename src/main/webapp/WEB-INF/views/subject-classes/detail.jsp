@@ -1,0 +1,5 @@
+<%@ page contentType="text/html;charset=UTF-8" %>
+<!doctype html><html><head><title>Subject Class Detail | AMS</title><link rel="stylesheet" href="${pageContext.request.contextPath}/css/app.css"></head><body><main>
+<nav><a href="${pageContext.request.contextPath}/expert/classes">Subject Class List</a></nav><h1>Subject Class Detail</h1><p>Mode: ${mode}. The same page supports class creation, update and Teacher Assignment.</p>
+<form action="${pageContext.request.contextPath}/expert/classes" method="post"><label>Action <select name="action"><option value="create">Create</option><option value="update">Update</option><option value="assignTeacher">Assign Teacher</option></select></label><label>Class ID <input type="number" name="classId"></label><label>Subject Term ID <input type="number" name="subjectTermId"></label><label>Class code <input name="classCode"></label><label>Class name <input name="className"></label><label>Capacity <input type="number" min="10" max="40" name="capacity"></label><label>Teacher ID <input type="number" name="teacherId"></label><button>Save</button></form>
+</main></body></html>
