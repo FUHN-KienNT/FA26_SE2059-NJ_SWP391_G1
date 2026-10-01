@@ -6,7 +6,7 @@ import vn.edu.fpt.ams.dao.UserDAO;
 import vn.edu.fpt.ams.util.WebSupport;
 
 /** Role landing pages; business dashboards remain owned by their tracking tasks. */
-@WebServlet({"/expert/dashboard", "/teacher/dashboard", "/student/dashboard"})
+@WebServlet({"/expert/dashboard", "/student/dashboard"})
 public class RoleDashboardServlet extends HttpServlet {
   @Override
   protected void doGet(HttpServletRequest req, HttpServletResponse res)
