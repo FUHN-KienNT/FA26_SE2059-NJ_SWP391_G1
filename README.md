@@ -18,10 +18,14 @@ The new Subject Class module has Expert routes for class setup and Teacher assig
 `vn.edu.fpt.ams`: `controller`, `service`, `dao`, `model`, `dto`, `filter`, `integration`, `util`.
 
 ## Database Setup
-Create an empty PostgreSQL database named `ams`; run `database/schema.sql`. `database/seed.sql` intentionally has no credentials. The schema includes `subject_classes`, `subject_registrations`, and `class_enrollments`. A class may have no Teacher during setup. New placement and Assignment publication require an active Teacher. Role eligibility, matching Subject Terms across registration and placement, capacity, and cross-table ownership need transactional application checks in later work. This script is for a fresh database; an already initialized database needs a separately reviewed migration.
+On Windows, run `database\setup-local-db.cmd` after installing PostgreSQL. The script prompts for the PostgreSQL administrator password and a new local `ams_user` password, creates `ams_db`, applies `database/schema.sql`, loads `database/seed.sql`, and verifies exactly 18 AMS business tables. Passwords are not written to the repository. If `ams_db` already contains tables, the script stops; pass `-Reset` only when that local database may be dropped and recreated.
+
+See [DATABASE_SETUP.md](DATABASE_SETUP.md) for complete setup, pgAdmin, configuration, verification, and troubleshooting instructions.
+
+For manual setup, create an empty PostgreSQL database named `ams_db` owned by `ams_user`, then run `database/schema.sql` followed by `database/seed.sql`. The schema includes `subject_classes`, `subject_registrations`, and `class_enrollments`. A class may have no Teacher during setup. New placement and Assignment publication require an active Teacher. Role eligibility, matching Subject Terms across registration and placement, capacity, and cross-table ownership need transactional application checks in later work. The SQL scripts target a fresh database; an already initialized database needs a separately reviewed migration.
 
 ## Configuration
-Set `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` as environment variables. Alternatively copy `src/main/resources/application.properties.example` to a local ignored `application.properties` and fill in local values. Never commit secrets. Staff use local AMS credentials; Students use verified Google authentication when implemented.
+Set `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, and `DB_PASSWORD` as environment variables. Alternatively copy `src/main/resources/application.properties.example` to a local ignored `application.properties` and fill in local values. Never commit secrets. Staff use local AMS credentials; Students use verified Google authentication when implemented.
 
 ## Build Instructions
 Run `mvn clean test` and `mvn clean package` with JDK 17. The generated WAR is `target/ams.war` and is ignored by Git.
