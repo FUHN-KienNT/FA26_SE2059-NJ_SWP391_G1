@@ -28,6 +28,11 @@ public final class DBConnection {
         if (url == null || user == null || password == null) {
             throw new SQLException("Set DB_HOST, DB_PORT, DB_NAME, DB_USER and DB_PASSWORD (or DB_URL/DB_USERNAME) or a local application.properties");
         }
+        try {
+            Class.forName("org.postgresql.Driver");
+        } catch (ClassNotFoundException ex) {
+            throw new SQLException("PostgreSQL JDBC driver is not available", ex);
+        }
         return DriverManager.getConnection(url, user, password);
     }
     private static String value(String key, String fallback) {

@@ -1,8 +1,12 @@
 package vn.edu.fpt.ams.dao;
 
 import vn.edu.fpt.ams.model.*;
+import vn.edu.fpt.ams.util.DBConnection;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Optional;
 
 /** JDBC operations for UserAccount; implementations are reserved for the next iteration. */
 public class UserDAO {
@@ -10,8 +14,30 @@ public class UserDAO {
         return new UnsupportedOperationException("TODO: implement transactional JDBC access according to SDS");
     }
 
-public java.util.Optional<UserAccount> findById(long id) { throw pending(); }
-public java.util.Optional<UserAccount> findByEmail(String email) { throw pending(); }
+public Optional<UserAccount> findById(long id) {
+        String sql = "SELECT * FROM users WHERE user_id = ?";
+        try (Connection connection = DBConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setLong(1, id);
+            try (ResultSet rows = statement.executeQuery()) {
+                return rows.next() ? Optional.of(mapUser(rows)) : Optional.empty();
+            }
+        } catch (SQLException ex) {
+            throw new IllegalStateException("Cannot load user", ex);
+        }
+    }
+public Optional<UserAccount> findByEmail(String email) {
+        String sql = "SELECT * FROM users WHERE lower(btrim(email)) = lower(btrim(?))";
+        try (Connection connection = DBConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, email);
+            try (ResultSet rows = statement.executeQuery()) {
+                return rows.next() ? Optional.of(mapUser(rows)) : Optional.empty();
+            }
+        } catch (SQLException ex) {
+            throw new IllegalStateException("Cannot load user by email", ex);
+        }
+    }
 public java.util.List<UserAccount> search(String keyword, UserRole role, AccountStatus status, int page) { throw pending(); }
 public long insert(UserAccount user) { throw pending(); }
 public void update(UserAccount user) { throw pending(); }
