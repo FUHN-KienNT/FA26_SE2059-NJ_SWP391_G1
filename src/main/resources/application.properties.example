@@ -3,3 +3,13 @@ db.port=5432
 db.name=ams_db
 db.username=ams_user
 db.password=CHANGE_ME
+
+# Iter2 integrations: environment variables override these values.
+google.clientId=CHANGE_ME
+google.clientSecret=CHANGE_ME
+google.redirectUri=http://localhost:8080/ams/auth/google/callback
+smtp.host=CHANGE_ME
+smtp.port=587
+smtp.username=CHANGE_ME
+smtp.password=CHANGE_ME
+smtp.from=CHANGE_ME

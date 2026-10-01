@@ -1,0 +1,5 @@
+<%@ page pageEncoding="UTF-8" %>
+<% if(session.getAttribute("userId")!=null){ %>
+<nav><a href="${pageContext.request.contextPath}/home">AMS Trang chủ</a></nav>
+<form method="post" action="${pageContext.request.contextPath}/auth/signout"><input type="hidden" name="csrf" value="<%=vn.edu.fpt.ams.util.WebSupport.csrf(request)%>"><button>Đăng xuất</button></form>
+<% } else { %><nav><a href="${pageContext.request.contextPath}/auth/signin">Đăng nhập</a></nav><% } %>

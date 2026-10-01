@@ -198,11 +198,18 @@ DROP DATABASE $databaseIdentifier;
     Invoke-Psql -Executable $psql -Database $DatabaseName -User $DatabaseUser `
         -Password $applicationPassword -File $schemaFile
 
+    foreach ($migration in Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot "migrations") -Filter *.sql | Sort-Object Name) {
+        Write-Host "Applying $($migration.Name)..."
+        Invoke-Psql -Executable $psql -Database $DatabaseName -User $DatabaseUser `
+            -Password $applicationPassword -File $migration.FullName
+    }
+
     Write-Host "Applying seed.sql..."
     Invoke-Psql -Executable $psql -Database $DatabaseName -User $DatabaseUser `
         -Password $applicationPassword -File $seedFile
 
     $expectedTables = @(
+        "account_audit_events", "responsibility_periods", "responsibility_deadline_breaches",
         "academic_terms", "additional_class_assignment_offers", "additional_class_requests",
         "assignment_templates", "assignments", "class_enrollments", "class_experts",
         "overflow_batches", "questions", "student_invitations", "subject_classes",
@@ -213,14 +220,14 @@ DROP DATABASE $databaseIdentifier;
         -Password $applicationPassword -Sql "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY table_name;")
     $difference = Compare-Object -ReferenceObject $expectedTables -DifferenceObject $actualTables
     if ($difference) {
-        throw "Database verification failed. Expected exactly the 18 AMS business tables."
+        throw "Database verification failed. Expected 18 AMS business tables and 3 implementation audit tables."
     }
 
     $seededUsers = Invoke-Psql -Executable $psql -Database $DatabaseName -User $DatabaseUser `
         -Password $applicationPassword -Sql "SELECT count(*) FROM users;"
     Write-Host ""
     Write-Host "AMS database setup completed successfully." -ForegroundColor Green
-    Write-Host "Verified tables: 18"
+    Write-Host "Verified tables: 18 business + 3 audit"
     Write-Host "Seeded users: $($seededUsers | Select-Object -First 1)"
     Write-Host "Configure the application with:"
     Write-Host "  DB_HOST=$HostName"

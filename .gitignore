@@ -9,6 +9,7 @@ target/
 .env
 *.env
 application.properties
+.local/
 *.doc
 *.docx
 *.pdf
