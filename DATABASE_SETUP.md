@@ -36,8 +36,8 @@ Script sẽ lần lượt:
 4. Tạo hoặc cập nhật role `ams_user`.
 5. Tạo database `ams_db` với owner là `ams_user`.
 6. Chạy `database/schema.sql`.
-7. Chạy `database/seed.sql`.
-8. Xác nhận database có chính xác 18 bảng nghiệp vụ AMS.
+7. Chạy các file trong `database/migrations` theo thứ tự tên, rồi `database/seed.sql`.
+8. Xác nhận database có 18 bảng nghiệp vụ AMS và 3 bảng audit triển khai.
 
 Mật khẩu được nhập ở chế độ ẩn và không được ghi vào source code hoặc repository.
 
@@ -137,9 +137,11 @@ ALTER USER ams_user WITH PASSWORD '<mật khẩu local>';
 Sau đó kết nối vào `ams_db` và chạy theo đúng thứ tự:
 
 1. `database/schema.sql`
-2. `database/seed.sql`
+2. `database/migrations/001-namdh-iter2-audit.sql`
+3. `database/migrations/002-responsibility-evidence.sql`
+4. `database/seed.sql`
 
-`schema.sql` là schema triển khai chính thức và tạo đúng 18 bảng nghiệp vụ. Không cần chạy schema nào khác.
+`schema.sql` tạo 18 bảng nghiệp vụ. Hai migration thêm 3 bảng audit và trigger lưu lịch sử phân công cho Iter2 của NamDH. Với database đã có dữ liệu, chỉ chạy hai migration theo thứ tự; không chạy lại schema/seed hoặc dùng `-Reset`. Các migration không tái tạo được lịch sử phân công trước lúc cài đặt.
 
 ## 6. Kiểm tra database trong pgAdmin
 
@@ -167,7 +169,7 @@ WHERE table_schema = 'public'
 Kết quả phải là:
 
 ```text
-18
+21
 ```
 
 ## 7. Lỗi thường gặp

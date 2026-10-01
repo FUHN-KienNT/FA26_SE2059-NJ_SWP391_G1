@@ -9,8 +9,16 @@ import java.io.IOException;
 
 @WebServlet("/home")
 public class HomeServlet extends HttpServlet {
-    @Override protected void doGet(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
-        request.getRequestDispatcher("/WEB-INF/views/home.jsp").forward(request, response);
-    }
+  @Override
+  protected void doGet(HttpServletRequest request, HttpServletResponse response)
+      throws ServletException, IOException {
+    response.setHeader("Cache-Control", "no-store");
+    var session = request.getSession(false);
+    Object role = session == null ? null : session.getAttribute("role");
+    response.sendRedirect(
+        request.getContextPath()
+            + (role instanceof vn.edu.fpt.ams.model.UserRole r
+                ? vn.edu.fpt.ams.util.AuthSession.landing(r)
+                : "/auth/signin"));
+  }
 }
