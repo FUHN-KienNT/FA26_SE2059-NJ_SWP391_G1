@@ -5,6 +5,7 @@ import jakarta.servlet.annotation.WebFilter;
 import jakarta.servlet.http.*;
 import java.io.IOException;
 import vn.edu.fpt.ams.model.*;
+import vn.edu.fpt.ams.util.AssignmentPreviewAccess;
 
 @WebFilter(urlPatterns = {"/admin/*", "/expert/*", "/teacher/*", "/student/*"})
 public class AuthFilter implements Filter {
@@ -14,6 +15,10 @@ public class AuthFilter implements Filter {
     HttpServletRequest req = (HttpServletRequest) request;
     HttpServletResponse res = (HttpServletResponse) response;
     res.setHeader("Cache-Control", "no-store");
+    if (AssignmentPreviewAccess.allows(req)) {
+      chain.doFilter(request, response);
+      return;
+    }
     HttpSession session = req.getSession(false);
     Object id = session == null ? null : session.getAttribute("userId");
     Object role = session == null ? null : session.getAttribute("role");
