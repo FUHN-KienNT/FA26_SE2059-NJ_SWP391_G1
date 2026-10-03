@@ -1,0 +1,27 @@
+<%@ page pageEncoding="UTF-8" import="vn.edu.fpt.ams.model.UserAccount,vn.edu.fpt.ams.util.WebSupport" %>
+<%
+var shellAccount=(UserAccount)request.getAttribute("account");
+String activeExpertPage=(String)request.getAttribute("expertPage");
+String shellToken=WebSupport.csrf(request);
+%>
+<header class="expert-topbar">
+  <a class="expert-brand" href="${pageContext.request.contextPath}/expert/dashboard">AMS · Chuyên gia</a>
+  <div class="expert-account">
+    <span class="expert-avatar" aria-hidden="true"><%=shellAccount==null?"?":WebSupport.html(shellAccount.fullName().substring(0,1).toUpperCase())%></span>
+    <span class="expert-identity"><strong><%=shellAccount==null?"Chuyên gia":WebSupport.html(shellAccount.fullName())%></strong><small><%=shellAccount==null?"":WebSupport.html(shellAccount.email())%></small></span>
+    <form method="post" action="${pageContext.request.contextPath}/auth/signout">
+      <input type="hidden" name="csrf" value="<%=shellToken%>">
+      <button class="expert-signout">Đăng xuất</button>
+    </form>
+  </div>
+</header>
+<div class="expert-layout">
+  <aside class="expert-sidebar">
+    <nav aria-label="Điều hướng chuyên gia">
+      <a href="${pageContext.request.contextPath}/expert/dashboard" <%="dashboard".equals(activeExpertPage)?"aria-current=\"page\"":""%>><span aria-hidden="true">⌂</span>Bảng điều khiển</a>
+      <a href="${pageContext.request.contextPath}/expert/classes" <%="classes".equals(activeExpertPage)?"aria-current=\"page\"":""%>><span aria-hidden="true">▦</span>Môn học và lớp</a>
+      <a href="${pageContext.request.contextPath}/expert/templates" <%="templates".equals(activeExpertPage)?"aria-current=\"page\"":""%>><span aria-hidden="true">▣</span>Mẫu bài tập</a>
+      <a href="${pageContext.request.contextPath}/expert/dashboard#additional-class-requests" <%="requests".equals(activeExpertPage)?"aria-current=\"page\"":""%>><span aria-hidden="true">◷</span>Yêu cầu lớp bổ sung</a>
+    </nav>
+  </aside>
+  <main class="expert-main">

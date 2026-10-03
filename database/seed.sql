@@ -1,23 +1,40 @@
--- Minimal coherent development data. Staff hashes are explicit non-login placeholders.
--- Replace them through the future credential provisioning flow before authentication testing.
+-- Minimal coherent development data. Expert hashes are valid PBKDF2 development credentials.
+-- The Teacher hash remains an explicit non-login placeholder.
 INSERT INTO users (full_name, email, role, password_hash) VALUES
-  ('AMS Administrator', 'admin@example.test', 'ADMIN', 'DEMO_HASH_NOT_A_PASSWORD'),
-  ('Primary Expert', 'expert@example.test', 'EXPERT', 'DEMO_HASH_NOT_A_PASSWORD'),
+  ('AMS Administrator', 'admin@example.test', 'ADMIN', 'pbkdf2-sha256$600000$AHucK3ITC+KZNQZzsXDEjw==$n/sBJih6oSX4xCpY9AdzSJ5QUuVWOqVkyXNfQR0wSrA='),
+  ('Expert One', 'expert@example.test', 'EXPERT', 'pbkdf2-sha256$600000$tuvosEHmFDqFGhJRzGQIbA==$SahVow9lJOrYsyWmQg//sM0lWfdVocw+3/tsr8B0Yq0='),
+  ('Expert Two', 'expert2@example.test', 'EXPERT', 'pbkdf2-sha256$600000$uQk8aGKCai8qITX/W8T0nQ==$RbY3ziZHArOE/6jYdO6xGYzbVy6krom+FUVIVHtnchM='),
+  ('Expert Three', 'expert3@example.test', 'EXPERT', 'pbkdf2-sha256$600000$OyCsTd0dBNe6bmci2m0urQ==$8PgeW57KEcFtIZUnPgT6SDJDT7Y+IDLb6ej2f19SMAk='),
+  ('Expert Four', 'expert4@example.test', 'EXPERT', 'pbkdf2-sha256$600000$PsiwctxSeOnGV5JCTgf3Lw==$Fc5Hl7XUpgRTA1OPiKAst4Bx4LQK/nQEvV/ZQR7h2T8='),
+  ('Expert Five', 'expert5@example.test', 'EXPERT', 'pbkdf2-sha256$600000$uFrqGessGMTRDPewwRdYvA==$BourhT4DptGHraNBaVBFdp7jSGHGEapj3yXz2ctl4hg='),
   ('Subject Teacher', 'teacher@example.test', 'TEACHER', 'DEMO_HASH_NOT_A_PASSWORD');
 
 INSERT INTO users (full_name, email, role, google_subject) VALUES
   ('Sample Student', 'student@example.test', 'STUDENT', 'demo-google-subject-student');
 
 INSERT INTO academic_terms (term_code, term_name, starts_at, ends_at, is_current, is_active) VALUES
-  ('FALL2026', 'Fall 2026', TIMESTAMPTZ '2026-10-01 00:00:00+00', TIMESTAMPTZ '2027-01-31 23:59:59+00', TRUE, TRUE);
+  ('FALL2026', 'Fall 2026', TIMESTAMPTZ '2026-10-01 00:00:00+00', TIMESTAMPTZ '2027-01-31 23:59:59+00', TRUE, TRUE),
+  ('SPRING2027', 'Spring 2027', TIMESTAMPTZ '2027-02-01 00:00:00+00', TIMESTAMPTZ '2027-05-31 23:59:59+00', FALSE, TRUE);
 
-INSERT INTO subjects (subject_code, subject_name, description) VALUES
-  ('SWP391', 'Software Development Project', 'Development seed Subject');
+INSERT INTO subjects (subject_code, subject_name, description, status) VALUES
+  ('SWP391', 'Software Development Project', 'Development seed Subject', 'ACTIVE'),
+  ('PRJ301', 'Java Web Application Development', 'Additional active Subject for development testing', 'ACTIVE'),
+  ('DBI202', 'Introduction to Databases', 'Inactive Subject for development testing', 'INACTIVE');
+
+INSERT INTO subject_experts (subject_id, expert_id, responsibility_type)
+SELECT s.subject_id, u.user_id, assignment.responsibility_type
+FROM subjects s
+CROSS JOIN (VALUES
+  ('expert@example.test', 'PRIMARY'),
+  ('expert2@example.test', 'SUPPORTING')
+) AS assignment(email, responsibility_type)
+JOIN users u ON u.email = assignment.email
+WHERE s.subject_code = 'SWP391';
 
 INSERT INTO subject_experts (subject_id, expert_id, responsibility_type)
 SELECT s.subject_id, u.user_id, 'PRIMARY'
-FROM subjects s JOIN users u ON u.email = 'expert@example.test'
-WHERE s.subject_code = 'SWP391';
+FROM subjects s JOIN users u ON u.email = 'expert3@example.test'
+WHERE s.subject_code = 'PRJ301';
 
 INSERT INTO teacher_subjects (teacher_id, subject_id)
 SELECT u.user_id, s.subject_id
@@ -30,17 +47,24 @@ FROM subjects s CROSS JOIN academic_terms t
 WHERE s.subject_code = 'SWP391' AND t.term_code = 'FALL2026';
 
 INSERT INTO subject_classes (subject_term_id, teacher_id, class_code, class_name, capacity, registration_enabled)
-SELECT st.subject_term_id, u.user_id, 'SE2059', 'SE2059', 30, TRUE
+SELECT st.subject_term_id, u.user_id, fixture.class_code, fixture.class_name, fixture.capacity, TRUE
 FROM subject_terms st
 JOIN subjects s ON s.subject_id = st.subject_id
 JOIN academic_terms t ON t.term_id = st.term_id
 CROSS JOIN users u
+JOIN (VALUES ('SE2059', 'SE2059', 30), ('SE2060', 'SE2060', 25))
+  AS fixture(class_code, class_name, capacity) ON TRUE
 WHERE s.subject_code = 'SWP391' AND t.term_code = 'FALL2026' AND u.email = 'teacher@example.test';
 
 INSERT INTO class_experts (class_id, subject_id, expert_id)
 SELECT c.class_id, st.subject_id, u.user_id
-FROM subject_classes c JOIN subject_terms st ON st.subject_term_id = c.subject_term_id CROSS JOIN users u
-WHERE c.class_code = 'SE2059' AND u.email = 'expert@example.test';
+FROM subject_classes c JOIN subject_terms st ON st.subject_term_id = c.subject_term_id
+JOIN (VALUES
+  ('SE2059', 'expert@example.test'),
+  ('SE2059', 'expert2@example.test'),
+  ('SE2060', 'expert@example.test')
+) AS fixture(class_code, email) ON fixture.class_code = c.class_code
+JOIN users u ON u.email = fixture.email;
 
 INSERT INTO subject_registrations (student_id, subject_term_id)
 SELECT u.user_id, st.subject_term_id

@@ -7,22 +7,51 @@ import vn.edu.fpt.ams.dao.SubjectExpertDAO;
 import vn.edu.fpt.ams.dao.UserDAO;
 import vn.edu.fpt.ams.dto.SubjectClassDTO;
 import vn.edu.fpt.ams.dto.SubjectClassFormDTO;
+import vn.edu.fpt.ams.dto.AssignedClassDTO;
+import vn.edu.fpt.ams.dto.AssignedSubjectDTO;
+import vn.edu.fpt.ams.dto.TermOptionDTO;
 import vn.edu.fpt.ams.integration.EmailService;
 import vn.edu.fpt.ams.model.SubjectClass;
+import vn.edu.fpt.ams.model.UserRole;
+import vn.edu.fpt.ams.util.DBConnection;
+import vn.edu.fpt.ams.util.Jdbc;
 import vn.edu.fpt.ams.util.ValidationUtil;
 
 /** Expert-owned class operations from SDS section 5. */
 public class SubjectClassService {
+    private final Jdbc.Connections connections;
     private final SubjectClassDAO classDAO = new SubjectClassDAO();
     private final SubjectExpertDAO expertDAO = new SubjectExpertDAO();
     private final EnrollmentDAO enrollmentDAO = new EnrollmentDAO();
     private final UserDAO userDAO = new UserDAO();
     private final EmailService emailService = new EmailService();
 
+    public SubjectClassService() { this(DBConnection::getConnection); }
+    public SubjectClassService(Jdbc.Connections source) { connections=source; }
+
     public List<SubjectClassDTO> listClasses(long expertId, Long subjectId, Long termId) {
-        requirePositive(expertId, "Expert ID");
-        // TODO: scope by an active SubjectExpert responsibility before returning class data.
         throw pending();
+    }
+
+    public List<AssignedSubjectDTO> listAssignedSubjects(long expertId) {
+        requirePositive(expertId, "Expert ID");
+        return Jdbc.transaction(connections,c->{ requireExpert(c,expertId); return classDAO.findAssignedSubjects(c,expertId); });
+    }
+
+    public List<AssignedClassDTO> listAssignedClasses(
+            long expertId, Long subjectId, Long termId, String keyword) {
+        requirePositive(expertId,"Expert ID");
+        optionalPositive(subjectId,"Subject ID"); optionalPositive(termId,"Academic Term ID");
+        if(keyword!=null&&keyword.length()>50) throw new IllegalArgumentException("Search maximum is 50 characters");
+        return Jdbc.transaction(connections,c->{
+            requireExpert(c,expertId);
+            return classDAO.findManagedByExpert(c,expertId,subjectId,termId,keyword);
+        });
+    }
+
+    public List<TermOptionDTO> accessibleTerms(long expertId) {
+        requirePositive(expertId,"Expert ID");
+        return Jdbc.transaction(connections,c->{ requireExpert(c,expertId); return classDAO.findAccessibleTerms(c,expertId); });
     }
 
     public SubjectClassDTO getClassById(long expertId, long classId) {
@@ -87,6 +116,14 @@ public class SubjectClassService {
 
     private static void requirePositive(long id, String name) {
         if (id <= 0) throw new IllegalArgumentException(name + " must be positive");
+    }
+
+    private static void optionalPositive(Long id,String name){
+        if(id!=null&&id<=0) throw new IllegalArgumentException(name+" must be positive");
+    }
+
+    private static void requireExpert(java.sql.Connection c,long actor) throws java.sql.SQLException {
+        if(Access.active(c,actor)!=UserRole.EXPERT) throw new SecurityException("Expert access is required");
     }
 
     private static UnsupportedOperationException pending() {

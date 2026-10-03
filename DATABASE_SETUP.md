@@ -20,6 +20,15 @@ Database phát triển mặc định:
 
 Mật khẩu của `ams_user` là mật khẩu local do từng thành viên tự đặt. Không gửi mật khẩu lên Git.
 
+## DEVELOPMENT-ONLY: Development Admin
+
+Tài khoản sau chỉ dùng cho phát triển và kiểm thử trên môi trường local:
+
+- Email: `admin@example.test`
+- Password: `Admin@123`
+
+Không sử dụng lại thông tin đăng nhập này trong môi trường production.
+
 ## 2. Cách nhanh: chạy script tự động
 
 Mở PowerShell hoặc Command Prompt tại thư mục gốc của project rồi chạy:
