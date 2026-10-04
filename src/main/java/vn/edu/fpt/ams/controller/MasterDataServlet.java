@@ -74,6 +74,11 @@ public class MasterDataServlet extends HttpServlet {
             WebSupport.csrf(req);
             res.setStatus(HttpServletResponse.SC_BAD_REQUEST);
             req.getRequestDispatcher("/WEB-INF/views/master-data/detail.jsp").forward(req, res);
+        } else if ("status".equals(action) || "current".equals(action)) {
+            req.setAttribute("terms", service.listTerms(WebSupport.actor(req), null, null));
+            req.setAttribute("error", error.getMessage());
+            res.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            req.getRequestDispatcher("/WEB-INF/views/settings/list.jsp").forward(req, res);
         } else {
             WebSupport.failure(req, res, error);
         }

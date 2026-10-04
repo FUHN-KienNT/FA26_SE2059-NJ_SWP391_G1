@@ -394,7 +394,9 @@ class AdminScreensWorkflowsTest {
     assertTrue(subjects.list(1, "missing", null, 1).isEmpty());
     sql("UPDATE subjects SET status='INACTIVE' WHERE subject_id=2");
     assertEquals(1, subjects.list(1, null, SubjectStatus.ACTIVE, 1).size());
-    assertEquals(1, subjects.list(1, null, SubjectStatus.INACTIVE, 1).size());
+    assertEquals("PRJ301", subjects.list(1, null, SubjectStatus.INACTIVE, 1).get(0).subjectCode());
+    assertEquals("PRJ301", subjects.list(1, "java", SubjectStatus.INACTIVE, 1).get(0).subjectCode());
+    assertTrue(subjects.list(1, "swp", SubjectStatus.INACTIVE, 1).isEmpty());
     for (int i = 0; i < 21; i++)
       sql(
           "INSERT INTO subjects(subject_code,subject_name) VALUES(?,?)",
@@ -710,20 +712,27 @@ class AdminScreensWorkflowsTest {
 
     Instant start=Instant.parse("2027-01-01T00:00:00Z");
     Instant end=Instant.parse("2027-05-01T00:00:00Z");
-    long id=masterData.createTerm(1,new AcademicTerm(0," SP27 ","Spring 2027",start,end,false,true));
+    long id=masterData.createTerm(1,new AcademicTerm(0," SP27 ","Spring 2027",start,end,false,false));
     assertEquals("SP27",masterData.getTerm(1,id).termCode());
     assertThrows(IllegalArgumentException.class,()->masterData.createTerm(1,
         new AcademicTerm(0,"SP27","Duplicate",start,end,false,true)));
     assertThrows(IllegalArgumentException.class,()->masterData.createTerm(1,
         new AcademicTerm(0,"2027","Digits",start,end,false,true)));
 
-    masterData.markCurrent(1,id);
-    assertTrue(masterData.getTerm(1,id).current());
-    assertFalse(masterData.getTerm(1,1).current());
-    masterData.updateTerm(1,new AcademicTerm(id,"SP27","Spring Updated",start,end,false,true));
+    assertThrows(IllegalArgumentException.class,()->masterData.markCurrent(1,id));
+    assertTrue(masterData.getTerm(1,1).current());
+    masterData.updateTerm(1,new AcademicTerm(id,"SP27","Spring Updated",start,end,false,false));
     assertEquals("Spring Updated",masterData.getTerm(1,id).termName());
     assertThrows(IllegalArgumentException.class,()->masterData.updateTerm(1,
         new AcademicTerm(1,"FA26","Fall",start,end,true,true)));
+  }
+
+  @Test
+  void termStatusFilterIsIndependentOfSubjectStatus() {
+    sql("UPDATE subjects SET status='INACTIVE' WHERE subject_id=2");
+    assertTrue(masterData.listTerms(1, null, false).isEmpty());
+    assertEquals(1, masterData.listTerms(1, null, true).size());
+    assertEquals("PRJ301", subjects.list(1, null, SubjectStatus.INACTIVE, 1).get(0).subjectCode());
   }
 
   @Test
@@ -731,13 +740,72 @@ class AdminScreensWorkflowsTest {
     sql("UPDATE subject_terms SET registration_enabled=TRUE WHERE subject_term_id=1");
     assertThrows(IllegalArgumentException.class,()->masterData.setTermStatus(1,1,false));
     sql("UPDATE subject_terms SET registration_enabled=FALSE WHERE subject_term_id=1");
-    masterData.setTermStatus(1,1,false);
-    AcademicTerm term=masterData.getTerm(1,1);
-    assertFalse(term.active());
-    assertFalse(term.current());
-    assertEquals(1,scalar("SELECT COUNT(*) FROM academic_terms WHERE term_id=1"));
-    masterData.setTermStatus(1,1,true);
+    assertThrows(IllegalArgumentException.class,()->masterData.setTermStatus(1,1,false));
     assertTrue(masterData.getTerm(1,1).active());
+    assertTrue(masterData.getTerm(1,1).current());
+    assertEquals(1,scalar("SELECT COUNT(*) FROM academic_terms WHERE term_id=1"));
+  }
+
+  private AcademicTerm requestedTerm(long id, String code, boolean current, boolean active) {
+    return new AcademicTerm(id, code, "Test Term", Instant.parse("2028-01-01T00:00:00Z"),
+        Instant.parse("2028-06-01T00:00:00Z"), current, active);
+  }
+
+  @Test
+  void inactiveCreateAllowedAndConflictingCreateRollsBack() {
+    long id = masterData.createTerm(1, requestedTerm(0, "INACTIVE28", false, false));
+    assertFalse(masterData.getTerm(1,id).active());
+    var before = masterData.listTerms(1,null,null);
+    var failure = assertThrows(IllegalArgumentException.class,
+        () -> masterData.createTerm(1, requestedTerm(0,"ACTIVE28",false,true)));
+    assertEquals("Chỉ được phép có một học kỳ hoạt động tại một thời điểm.",failure.getMessage());
+    assertThrows(IllegalArgumentException.class,
+        () -> masterData.createTerm(1,requestedTerm(0,"CURRENT28",true,true)));
+    assertThrows(IllegalArgumentException.class,
+        () -> masterData.createTerm(1,requestedTerm(0,"INVALID28",true,false)));
+    assertEquals(before,masterData.listTerms(1,null,null));
+  }
+
+  @Test
+  void activeCreateAllowedWhenNoActiveTermAndCurrentRequiresActive() {
+    sql("UPDATE academic_terms SET is_current=FALSE,is_active=FALSE");
+    long id = masterData.createTerm(1,requestedTerm(0,"ACTIVE28",false,true));
+    assertTrue(masterData.getTerm(1,id).active());
+    masterData.markCurrent(1,id);
+    assertTrue(masterData.getTerm(1,id).current());
+    assertThrows(IllegalArgumentException.class,()->masterData.markCurrent(1,1));
+  }
+
+  @Test
+  void activationUpdateAndSecondCurrentConflictsLeaveRowsUnchanged() {
+    long id = masterData.createTerm(1,requestedTerm(0,"INACTIVE28",false,false));
+    var before = masterData.listTerms(1,null,null);
+    assertThrows(IllegalArgumentException.class,()->masterData.setTermStatus(1,id,true));
+    assertThrows(IllegalArgumentException.class,()->masterData.updateTerm(1,requestedTerm(id,"CHANGED28",false,true)));
+    assertThrows(IllegalArgumentException.class,()->masterData.updateTerm(1,requestedTerm(id,"INACTIVE28",true,false)));
+    assertThrows(IllegalArgumentException.class,()->masterData.updateTerm(1,requestedTerm(id,"INACTIVE28",true,true)));
+    assertEquals(before,masterData.listTerms(1,null,null));
+    // Historical invalid data can be repaired by deactivating a non-current active term.
+    sql("UPDATE academic_terms SET is_active=TRUE WHERE term_id=?",id);
+    var historical = masterData.listTerms(1,null,null);
+    assertThrows(IllegalArgumentException.class,()->masterData.markCurrent(1,id));
+    assertEquals(historical,masterData.listTerms(1,null,null));
+    masterData.setTermStatus(1,id,false);
+    assertFalse(masterData.getTerm(1,id).active());
+    assertTrue(masterData.getTerm(1,1).current());
+  }
+
+  @Test
+  void editingActiveCurrentTermKeepsFlagsAndRejectsInactiveCurrent() {
+    var old = masterData.getTerm(1,1);
+    masterData.updateTerm(1,new AcademicTerm(1,old.termCode(),"Fall Updated",old.startsAt(),old.endsAt(),true,true));
+    var changed = masterData.getTerm(1,1);
+    assertEquals("Fall Updated",changed.termName());
+    assertTrue(changed.active());
+    assertTrue(changed.current());
+    assertThrows(IllegalArgumentException.class,()->masterData.updateTerm(1,
+        new AcademicTerm(1,old.termCode(),"Invalid",old.startsAt(),old.endsAt(),true,false)));
+    assertEquals(changed,masterData.getTerm(1,1));
   }
 
   @Test
@@ -750,6 +818,8 @@ class AdminScreensWorkflowsTest {
     assertEquals(1,supporting.size());
     assertEquals("G1",supporting.get(0).classCode());
     assertEquals(0,subjectClasses.listAssignedClasses(3,null,null,"missing").size());
+    assertTrue(subjectClasses.listAssignedClasses(3,2L,null,null).isEmpty());
+    assertEquals("G1",subjectClasses.listAssignedClasses(3,1L,1L,null).get(0).classCode());
     assertEquals(1,subjectClasses.listAssignedSubjects(3).size());
     assertEquals(1,subjectClasses.accessibleTerms(3).size());
     assertThrows(SecurityException.class,()->subjectClasses.listAssignedSubjects(4));

@@ -65,6 +65,30 @@ public class MasterDataDAO {
             return r.next() ? Optional.of(mapTerm(r)) : Optional.empty();
         }
     }
+    /** Serialize service writes, including the case with no active/current row to lock. */
+    public void lockTermWrites(Connection c) throws SQLException {
+        if ("PostgreSQL".equals(c.getMetaData().getDatabaseProductName())) {
+            try (var p = c.prepareStatement("SELECT pg_advisory_xact_lock(391, 10)");
+                 var ignored = p.executeQuery()) { /* released on commit/rollback */ }
+        } else {
+            // H2 test fixture: every authorized write has an existing Admin account.
+            try (var p = c.prepareStatement("SELECT user_id FROM users WHERE role='ADMIN' ORDER BY user_id FOR UPDATE");
+                 var ignored = p.executeQuery()) { }
+        }
+    }
+    public boolean existsActiveTermExcluding(Connection c, long termId) throws SQLException {
+        return existsFlagExcluding(c, termId, "is_active");
+    }
+    public boolean existsCurrentTermExcluding(Connection c, long termId) throws SQLException {
+        return existsFlagExcluding(c, termId, "is_current");
+    }
+    private boolean existsFlagExcluding(Connection c, long termId, String column) throws SQLException {
+        try (var p = Jdbc.statement(c,
+                "SELECT EXISTS(SELECT 1 FROM academic_terms WHERE " + column + "=TRUE AND term_id<>?)", termId);
+             var r = p.executeQuery()) {
+            return r.next() && r.getBoolean(1);
+        }
+    }
     public long insertTerm(AcademicTerm term) {
         return Jdbc.transaction(DBConnection::getConnection, c -> insertTerm(c, term));
     }
@@ -79,9 +103,9 @@ public class MasterDataDAO {
     }
     public void updateTerm(Connection c, AcademicTerm term) throws SQLException {
         if (Jdbc.update(c,
-                "UPDATE academic_terms SET term_code=?,term_name=?,starts_at=?,ends_at=?,is_active=? WHERE term_id=?",
+                "UPDATE academic_terms SET term_code=?,term_name=?,starts_at=?,ends_at=?,is_active=?,is_current=? WHERE term_id=?",
                 term.termCode(), term.termName(), term.startsAt(), term.endsAt(),
-                term.active(), term.termId()) != 1)
+                term.active(), term.current(), term.termId()) != 1)
             throw new NoSuchElementException("Academic Term not found");
     }
     public void updateTermStatus(long termId, boolean active) {
@@ -97,7 +121,6 @@ public class MasterDataDAO {
         Jdbc.transaction(DBConnection::getConnection, c -> { markCurrentTerm(c, termId); return null; });
     }
     public void markCurrentTerm(Connection c, long termId) throws SQLException {
-        Jdbc.update(c, "UPDATE academic_terms SET is_current=FALSE WHERE is_current=TRUE");
         if (Jdbc.update(c,
                 "UPDATE academic_terms SET is_current=TRUE WHERE term_id=? AND is_active=TRUE", termId) != 1)
             throw new IllegalArgumentException("Current Academic Term must be active");

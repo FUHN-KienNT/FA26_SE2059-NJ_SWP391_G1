@@ -1,0 +1,28 @@
+<%@ page pageEncoding="UTF-8" import="vn.edu.fpt.ams.util.WebSupport" %>
+<%
+Object adminForwardPath = request.getAttribute("jakarta.servlet.forward.servlet_path");
+String adminShellPath = adminForwardPath instanceof String ? (String)adminForwardPath : request.getServletPath();
+boolean adminShellDashboard = "/admin/dashboard".equals(adminShellPath);
+boolean adminShellUsers = "/admin/users".equals(adminShellPath);
+boolean adminShellSubjects = "/admin/subjects".equals(adminShellPath);
+boolean adminShellSettings = "/admin/settings".equals(adminShellPath)
+        || "/admin/master-data".equals(adminShellPath);
+String adminShellToken = WebSupport.csrf(request);
+%>
+<header class="admin-top">
+  <a class="admin-brand" href="${pageContext.request.contextPath}/admin/dashboard"><span class="ams-logomark" aria-hidden="true">A</span><strong>AMS</strong><span class="admin-brand-context">Quản trị hệ thống</span></a>
+  <form method="post" action="${pageContext.request.contextPath}/auth/signout">
+    <span class="admin-identity"><span class="admin-avatar" aria-hidden="true">AD</span><span><strong>Admin</strong><small>Quản trị viên</small></span></span>
+    <input type="hidden" name="csrf" value="<%=adminShellToken%>">
+    <button type="submit">Đăng xuất</button>
+  </form>
+</header>
+<div class="admin-layout">
+  <aside class="admin-sidebar">
+    <nav aria-label="Điều hướng quản trị">
+      <a href="${pageContext.request.contextPath}/admin/dashboard" <%=adminShellDashboard?"aria-current=\"page\"":""%>><span>⌂</span>Bảng điều khiển</a>
+      <a href="${pageContext.request.contextPath}/admin/users" <%=adminShellUsers?"aria-current=\"page\"":""%>><span>♙</span>Tài khoản</a>
+      <a href="${pageContext.request.contextPath}/admin/subjects" <%=adminShellSubjects?"aria-current=\"page\"":""%>><span>▦</span>Môn học</a>
+      <a href="${pageContext.request.contextPath}/admin/settings" <%=adminShellSettings?"aria-current=\"page\"":""%>><span>⚙</span>Cài đặt</a>
+    </nav>
+  </aside>

@@ -45,6 +45,8 @@ public class MasterDataService {
         connections,
         c -> {
           Access.admin(c, actor);
+          dao.lockTermWrites(c);
+          validateFlags(c, term, 0);
           if (dao.findTermByCode(c, term.termCode(), false).isPresent())
             throw new IllegalArgumentException("Academic Term code already exists");
           long id = dao.insertTerm(c, new AcademicTerm(0, term.termCode(), term.termName(),
@@ -55,12 +57,16 @@ public class MasterDataService {
   }
 
   public void updateTerm(long actor, AcademicTerm requested) {
-    AcademicTerm term = validated(requested, requested == null ? 0 : requested.termId(), false);
+    AcademicTerm term = validated(requested, requested == null ? 0 : requested.termId(), requested != null && requested.current());
     Jdbc.transaction(
         connections,
         c -> {
           Access.admin(c, actor);
+          dao.lockTermWrites(c);
           AcademicTerm old = requireTerm(c, term.termId(), true);
+          validateFlags(c, term, term.termId());
+          if (old.current() && !term.active())
+            throw new IllegalArgumentException("Học kỳ hiện tại phải ở trạng thái hoạt động.");
           Optional<AcademicTerm> duplicate = dao.findTermByCode(c, term.termCode(), false);
           if (duplicate.isPresent() && duplicate.get().termId() != term.termId())
             throw new IllegalArgumentException("Academic Term code already exists");
@@ -74,7 +80,7 @@ public class MasterDataService {
               c,
               new AcademicTerm(
                   term.termId(), term.termCode(), term.termName(), term.startsAt(), term.endsAt(),
-                  old.current(), old.active()));
+                  term.current(), term.active()));
           return null;
         });
   }
@@ -85,8 +91,11 @@ public class MasterDataService {
         connections,
         c -> {
           Access.admin(c, actor);
+          dao.lockTermWrites(c);
           AcademicTerm term = requireTerm(c, termId, true);
-          if (!term.active()) throw new IllegalArgumentException("Current Academic Term must be active");
+          if (!term.active()) throw new IllegalArgumentException("Học kỳ hiện tại phải ở trạng thái hoạt động.");
+          validateFlags(c, new AcademicTerm(termId, term.termCode(), term.termName(),
+              term.startsAt(), term.endsAt(), true, true), termId);
           dao.markCurrentTerm(c, termId);
           return null;
         });
@@ -98,23 +107,24 @@ public class MasterDataService {
         connections,
         c -> {
           Access.admin(c, actor);
+          dao.lockTermWrites(c);
           AcademicTerm term = requireTerm(c, termId, true);
           if (term.active() == active)
             throw new IllegalArgumentException("Academic Term already has this status");
-          if (!active
-              && term.current()
-              && Jdbc.scalar(
-                      c,
-                      "SELECT COUNT(*) FROM subject_terms WHERE term_id=? AND registration_enabled=TRUE"
-                          + " AND CURRENT_TIMESTAMP>=registration_opens_at"
-                          + " AND CURRENT_TIMESTAMP<registration_closes_at",
-                      termId)
-                  > 0)
-            throw new IllegalArgumentException(
-                "Current Academic Term cannot be deactivated while registration is open");
+          if (!active && term.current())
+            throw new IllegalArgumentException("Học kỳ hiện tại phải ở trạng thái hoạt động.");
+          if (active && dao.existsActiveTermExcluding(c, termId))
+            throw new IllegalArgumentException("Chỉ được phép có một học kỳ hoạt động tại một thời điểm.");
           dao.updateTermStatus(c, termId, active);
           return null;
         });
+  }
+
+  private void validateFlags(Connection c, AcademicTerm term, long excluding) throws SQLException {
+    if (term.active() && dao.existsActiveTermExcluding(c, excluding))
+      throw new IllegalArgumentException("Chỉ được phép có một học kỳ hoạt động tại một thời điểm.");
+    if (term.current() && dao.existsCurrentTermExcluding(c, excluding))
+      throw new IllegalArgumentException("Chỉ được phép có một học kỳ hiện tại tại một thời điểm.");
   }
 
   private AcademicTerm requireTerm(Connection c, long id, boolean lock) throws SQLException {
@@ -131,7 +141,7 @@ public class MasterDataService {
       throw new IllegalArgumentException("Term code must contain a non-digit character");
     if (name.length() > 100) throw new IllegalArgumentException("Term name maximum is 100 characters");
     if (current && !value.active())
-      throw new IllegalArgumentException("Current Academic Term must be active");
+      throw new IllegalArgumentException("Học kỳ hiện tại phải ở trạng thái hoạt động.");
     ValidationUtil.laterThan(value.endsAt(), value.startsAt(), "Term end");
     return new AcademicTerm(id, code, name, value.startsAt(), value.endsAt(), current, value.active());
   }

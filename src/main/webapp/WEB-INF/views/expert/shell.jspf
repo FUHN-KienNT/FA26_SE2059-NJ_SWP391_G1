@@ -21,7 +21,6 @@ String shellToken=WebSupport.csrf(request);
       <a href="${pageContext.request.contextPath}/expert/dashboard" <%="dashboard".equals(activeExpertPage)?"aria-current=\"page\"":""%>><span aria-hidden="true">⌂</span>Bảng điều khiển</a>
       <a href="${pageContext.request.contextPath}/expert/classes" <%="classes".equals(activeExpertPage)?"aria-current=\"page\"":""%>><span aria-hidden="true">▦</span>Môn học và lớp</a>
       <a href="${pageContext.request.contextPath}/expert/templates" <%="templates".equals(activeExpertPage)?"aria-current=\"page\"":""%>><span aria-hidden="true">▣</span>Mẫu bài tập</a>
-      <a href="${pageContext.request.contextPath}/expert/dashboard#additional-class-requests" <%="requests".equals(activeExpertPage)?"aria-current=\"page\"":""%>><span aria-hidden="true">◷</span>Yêu cầu lớp bổ sung</a>
     </nav>
   </aside>
   <main class="expert-main">
