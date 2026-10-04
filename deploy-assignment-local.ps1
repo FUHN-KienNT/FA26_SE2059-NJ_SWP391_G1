@@ -18,8 +18,8 @@ if (-not (Test-Path -LiteralPath $webappsRoot -PathType Container)) { throw "Tom
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $archive = [IO.Compression.ZipFile]::OpenRead($warSource)
 try {
-    if (-not $archive.GetEntry('WEB-INF/classes/vn/edu/fpt/ams/util/AssignmentPreviewAccess.class')) {
-        throw 'This WAR does not contain the new local preview. Build the updated source first.'
+    if (-not $archive.GetEntry('WEB-INF/classes/vn/edu/fpt/ams/controller/AssignmentServlet.class')) {
+        throw 'This WAR does not contain Assignment List. Build the updated source first.'
     }
 } finally { $archive.Dispose() }
 
@@ -54,17 +54,12 @@ $lastResult = 'No HTTP response'
 for ($attempt = 0; $attempt -lt 15; $attempt++) {
     try {
         $response = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 5
-        if ($response.StatusCode -eq 200 -and $response.Content.Contains('Local test mode')) {
-            Write-Host 'SUCCESS: Assignment List opens without login.' -ForegroundColor Green
-            Write-Host 'Open http://localhost:8080/ams/teacher/assignments'
-            exit 0
-        }
         if ($response.StatusCode -eq 200 -and $response.Content.Contains('/auth/signin"')) {
-            Write-Host 'SUCCESS: AMS deployed; sign-in is required (local preview is disabled).' -ForegroundColor Green
+            Write-Host 'SUCCESS: AMS deployed; Assignment List requires sign-in.' -ForegroundColor Green
             Write-Host 'Open http://localhost:8080/ams/auth/signin'
             exit 0
         }
-        $lastResult = "HTTP $($response.StatusCode), preview banner missing"
+        $lastResult = "HTTP $($response.StatusCode), sign-in page missing"
     } catch { $lastResult = $_.Exception.Message }
     Start-Sleep -Seconds 2
 }

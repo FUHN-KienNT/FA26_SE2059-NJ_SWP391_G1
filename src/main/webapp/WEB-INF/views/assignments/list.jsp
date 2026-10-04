@@ -1,5 +1,6 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
 <%@ page import="vn.edu.fpt.ams.dto.*,vn.edu.fpt.ams.model.*" %>
+<%@ page import="vn.edu.fpt.ams.util.AssignmentDetailView" %>
 <%@ page import="static vn.edu.fpt.ams.util.AssignmentListView.*" %>
 <%
     AssignmentListPage data = (AssignmentListPage) request.getAttribute("assignmentPage");
@@ -16,9 +17,6 @@
     <link rel="stylesheet" href="<%= escape(base) %>/css/assignment-list.css">
 <%@ include file="/WEB-INF/views/shared/assets.jspf" %></head><body class="ams-ui teacher-app">
 <%@ include file="/WEB-INF/views/shared/shell.jspf" %><main class="ams-content" id="page-content">
-            <% if (request.getAttribute("assignmentPreviewTeacherId") != null) { %>
-            <p class="preview-notice" role="status">Local test mode — Teacher #<%= escape(String.valueOf(request.getAttribute("assignmentPreviewTeacherId"))) %>. Sign-in is temporarily skipped.</p>
-            <% } %>
             <nav class="breadcrumb" aria-label="Breadcrumb"><a href="<%= escape(base) %>/home">Home</a><span aria-hidden="true">/</span><span>Assignments</span></nav>
             <div class="page-heading"><div><h1>Assignments</h1><p>Manage assignments for your assigned classes.</p></div>
                 <% if (classId != null) { %><a class="button primary" href="<%= escape(listUrl) %>?mode=create&amp;classId=<%= classId %>">Create Assignment</a><% } %>
@@ -53,7 +51,7 @@
                 <caption class="sr-only">Assignments for the selected class. Deadlines use Vietnam time, UTC+07:00.</caption>
                 <thead><tr><th scope="col">Assignment title</th><th scope="col">Purpose</th><th scope="col">Response type</th><th scope="col">Due at <small>(UTC+07)</small></th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead><tbody>
                 <% for (Assignment assignment : data.assignments()) {
-                    String actionUrl = listUrl + "?classId=" + classId + "&assignmentId=" + assignment.assignmentId();
+                    String actionUrl = AssignmentDetailView.listUrl(base, classId, filters) + "&assignmentId=" + assignment.assignmentId();
                 %>
                 <tr><td class="assignment-title"><%= escape(assignment.title()) %></td><td><%= label(assignment.assignmentPurpose()) %></td><td><%= label(assignment.responseType()) %></td><td class="deadline"><%= deadline(assignment.dueAt()) %></td><td><span class="badge <%= assignment.status().name().toLowerCase(java.util.Locale.ROOT) %>"><%= label(assignment.status()) %></span></td>
                     <td><div class="actions"><a href="<%= escape(actionUrl) %>&amp;mode=view" aria-label="View <%= escape(assignment.title()) %>">View</a>
