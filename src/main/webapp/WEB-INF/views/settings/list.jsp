@@ -1,21 +1,17 @@
-<%@ page contentType="text/html;charset=UTF-8" %>
-<% boolean subjects="subjects".equals(request.getAttribute("settingsTab")); %>
-<!doctype html><html lang="vi"><head><meta charset="UTF-8"><title>Cài đặt | AMS</title><link rel="stylesheet" href="${pageContext.request.contextPath}/css/app.css"></head><body><main>
-<%@ include file="../auth/session-nav.jspf" %>
-<nav><a href="${pageContext.request.contextPath}/admin/dashboard">Bảng điều khiển quản trị</a></nav>
-<h1>Cài đặt</h1><p>Cấu hình học kỳ và môn học của AMS.</p>
-<nav aria-label="Cài đặt" class="settings-tabs">
-<a href="?tab=terms" <%=!subjects?"aria-current=\"page\"":""%>>Học kỳ</a>
-<a href="?tab=subjects" <%=subjects?"aria-current=\"page\"":""%>>Môn học</a>
-</nav>
-<p role="status">Các chức năng xem và quản lý Cài đặt sẽ được hoàn thiện trong buổi sau.</p>
-<% if(!subjects){ %>
-<section id="academic-terms"><h2>Học kỳ</h2><p>Quản lý mã học kỳ, tên, ngày bắt đầu–kết thúc, trạng thái và Học kỳ hiện tại.</p><p>Chỉ có tối đa một Học kỳ hiện tại và học kỳ được chọn phải đang hoạt động.</p></section>
-<% } else { %>
-<section id="subjects"><h2>Môn học</h2><p>Quản lý danh sách môn học. Khi chọn một môn, trang Chi tiết môn học sẽ gồm:</p>
-<h3>Thông tin môn học</h3><p>Mã, tên, mô tả và trạng thái. Mã môn không thay đổi sau khi tạo.</p>
-<h3>Phân công chuyên gia</h3><p>Phân công 1–2 chuyên gia chính và 0–2 chuyên gia hỗ trợ cho môn học.</p>
-<h3>Môn học theo học kỳ</h3><p>Các học kỳ đã mở môn, bật/tắt đăng ký và thời gian mở–đóng đăng ký. Mỗi môn chỉ mở một lần trong cùng học kỳ.</p>
-</section>
-<% } %>
-</main></body></html>
+<%@ page contentType="text/html;charset=UTF-8" import="java.util.*,vn.edu.fpt.ams.model.*,vn.edu.fpt.ams.util.WebSupport" %>
+<% var terms=(List<AcademicTerm>)request.getAttribute("terms"); String keyword=request.getParameter("keyword"); String status=request.getParameter("status"); String token=WebSupport.csrf(request); %>
+<!doctype html><html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Danh sách thiết lập | AMS</title><link rel="stylesheet" href="${pageContext.request.contextPath}/css/app.css"></head><body class="admin-users admin-app admin-settings">
+<%@ include file="/WEB-INF/views/admin/shell.jspf" %>
+<main class="users-main">
+<div class="setting-page-heading"><p class="page-eyebrow">QUẢN TRỊ HỌC THUẬT</p><h1>Danh sách thiết lập</h1><p class="muted">Quản lý học kỳ và truy cập danh sách môn học trong hệ thống.</p></div>
+<nav aria-label="Loại thiết lập" class="settings-tabs"><a href="${pageContext.request.contextPath}/admin/settings?tab=terms" aria-current="page">Học kỳ</a><a href="${pageContext.request.contextPath}/admin/settings?tab=subjects">Môn học</a></nav>
+<section class="setting-list-card"><header class="list-card-heading"><span class="section-symbol" aria-hidden="true">▦</span><div><h2>Quản lý học kỳ</h2><p>Thiết lập thời gian, trạng thái và học kỳ hiện tại.</p></div><a class="primary-button" href="${pageContext.request.contextPath}/admin/master-data?mode=create">+ Tạo học kỳ</a></header>
+<p class="muted filter-scope-note">Bộ lọc này chỉ áp dụng cho học kỳ. Chọn <a href="${pageContext.request.contextPath}/admin/settings?tab=subjects">Môn học</a> để lọc trạng thái môn học.</p>
+<div class="users-toolbar"><form method="get" action="${pageContext.request.contextPath}/admin/settings"><input type="hidden" name="tab" value="terms"><label>Tìm học kỳ<input name="keyword" maxlength="50" value="<%=WebSupport.html(keyword)%>" placeholder="Mã hoặc tên học kỳ…"></label><label>Trạng thái học kỳ<select name="status"><option value="">Tất cả trạng thái học kỳ</option><option value="ACTIVE" <%="ACTIVE".equals(status)?"selected":""%>>Hoạt động</option><option value="INACTIVE" <%="INACTIVE".equals(status)?"selected":""%>>Ngừng hoạt động</option></select></label><button>Tìm kiếm</button></form></div>
+<% if("1".equals(request.getParameter("saved"))){ %><p role="status">Đã cập nhật học kỳ.</p><% } %>
+<% if(request.getAttribute("error")!=null){ %><p role="alert"><%=WebSupport.html(request.getAttribute("error"))%></p><% } %>
+<div class="users-table-wrap"><table class="setting-records"><thead><tr><th>Mã</th><th>Tên học kỳ</th><th>Bắt đầu</th><th>Kết thúc</th><th>Hiện tại</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>
+<% if(terms==null||terms.isEmpty()){ %><tr><td colspan="7" class="empty-state">Không có học kỳ phù hợp.</td></tr><% } else for(var term:terms){ %>
+<tr><td><strong><%=WebSupport.html(term.termCode())%></strong></td><td><%=WebSupport.html(term.termName())%></td><td><%=term.startsAt().atZone(java.time.ZoneOffset.UTC).toLocalDate()%></td><td><%=term.endsAt().atZone(java.time.ZoneOffset.UTC).toLocalDate()%></td><td><span class="term-current-badge <%=term.current()?"current":""%>"><%=term.current()?"Hiện tại":"—"%></span></td><td><span class="status-badge <%=term.active()?"active":"inactive"%>"><%=term.active()?"Hoạt động":"Ngừng hoạt động"%></span></td><td><div class="row-actions"><a href="${pageContext.request.contextPath}/admin/master-data?mode=view&id=<%=term.termId()%>">Xem</a><a href="${pageContext.request.contextPath}/admin/master-data?mode=edit&id=<%=term.termId()%>">Sửa</a><% if(term.active()&&!term.current()){ %><form method="post" action="${pageContext.request.contextPath}/admin/master-data"><input type="hidden" name="csrf" value="<%=WebSupport.html(session.getAttribute("csrf"))%>"><input type="hidden" name="action" value="current"><input type="hidden" name="termId" value="<%=term.termId()%>"><button>Đặt hiện tại</button></form><% } %><form method="post" action="${pageContext.request.contextPath}/admin/master-data"><input type="hidden" name="csrf" value="<%=WebSupport.html(session.getAttribute("csrf"))%>"><input type="hidden" name="action" value="status"><input type="hidden" name="termId" value="<%=term.termId()%>"><input type="hidden" name="active" value="<%=!term.active()%>"><button class="<%=term.active()?"destructive-link":""%>"><%=term.active()?"Ngừng hoạt động":"Kích hoạt"%></button></form></div></td></tr>
+<% } %></tbody></table></div>
+</section></main></div></body></html>

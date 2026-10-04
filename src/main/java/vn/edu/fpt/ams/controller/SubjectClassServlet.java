@@ -6,8 +6,10 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import vn.edu.fpt.ams.dao.UserDAO;
 import vn.edu.fpt.ams.dto.SubjectClassFormDTO;
 import vn.edu.fpt.ams.service.SubjectClassService;
+import vn.edu.fpt.ams.util.WebSupport;
 
 /** Expert routes for Subject Class setup and Teacher assignment. */
 @WebServlet("/expert/classes")
@@ -23,9 +25,16 @@ public class SubjectClassServlet extends HttpServlet {
                 view = "/WEB-INF/views/subject-classes/detail.jsp";
                 req.setAttribute("mode", mode);
             }
-            long expertId = (Long) req.getSession().getAttribute("userId");
-            if (view.endsWith("list.jsp")) req.setAttribute("classes", service.listClasses(expertId,
-                    optionalId(req, "subjectId"), optionalId(req, "termId")));
+            long expertId = WebSupport.actor(req);
+            req.setAttribute("account", new UserDAO().findById(expertId).orElseThrow());
+            req.setAttribute("expertPage", "classes");
+            if (view.endsWith("list.jsp")) {
+                req.setAttribute("subjects", service.listAssignedSubjects(expertId));
+                req.setAttribute("terms", service.accessibleTerms(expertId));
+                req.setAttribute("classes", service.listAssignedClasses(expertId,
+                        optionalId(req, "subjectId"), optionalId(req, "termId"),
+                        req.getParameter("keyword")));
+            }
         } catch (UnsupportedOperationException ex) {
             req.setAttribute("featurePending", "Class data loading is pending in this initial iteration.");
         } catch (IllegalArgumentException ex) {
@@ -37,7 +46,7 @@ public class SubjectClassServlet extends HttpServlet {
 
     @Override protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {
         try {
-            long expertId = (Long) req.getSession().getAttribute("userId");
+            long expertId = WebSupport.actor(req);
             String action = req.getParameter("action");
             if ("create".equals(action)) service.createClass(expertId, form(req));
             else if ("update".equals(action)) service.updateClass(expertId, form(req));
