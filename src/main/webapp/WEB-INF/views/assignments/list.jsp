@@ -14,15 +14,8 @@
     <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Assignments | AMS</title>
     <link rel="stylesheet" href="<%= escape(base) %>/css/assignment-list.css">
-</head><body>
-<div class="assignment-shell">
-    <aside class="sidebar" aria-label="Main navigation">
-        <a class="brand" href="<%= escape(base) %>/home"><span class="brand-mark" aria-hidden="true">A</span> AMS</a>
-        <nav><a href="<%= escape(base) %>/home">Dashboard</a><a href="<%= escape(base) %>/teacher/enrollments">My Classes</a><a class="active" href="<%= escape(listUrl) %>" aria-current="page">Assignments</a></nav>
-    </aside>
-    <div class="workspace">
-        <header class="topbar"><span>Assignment Management System</span><span class="account"><span class="avatar" aria-hidden="true">T</span> Teacher</span></header>
-        <main>
+<%@ include file="/WEB-INF/views/shared/assets.jspf" %></head><body class="ams-ui teacher-app">
+<%@ include file="/WEB-INF/views/shared/shell.jspf" %><main class="ams-content" id="page-content">
             <% if (request.getAttribute("assignmentPreviewTeacherId") != null) { %>
             <p class="preview-notice" role="status">Local test mode — Teacher #<%= escape(String.valueOf(request.getAttribute("assignmentPreviewTeacherId"))) %>. Sign-in is temporarily skipped.</p>
             <% } %>
@@ -78,7 +71,5 @@
             </table></div>
             <footer class="results"><p role="status">Showing <strong><%= data.assignments().size() %></strong> assignment<%= data.assignments().size() == 1 ? "" : "s" %></p><p>Only draft assignments can be edited.</p></footer>
             <% } %>
-        </main>
-    </div>
-</div>
+        </main></div>
 </body></html>

@@ -12,12 +12,12 @@
 %>
 <!doctype html>
 <html>
-<head>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Student Enrollment Management | AMS</title>
   <link rel="stylesheet" href="<%= context %>/css/app.css">
-</head>
-<body>
-<main>
+<%@ include file="/WEB-INF/views/shared/assets.jspf" %></head>
+<body class="ams-ui teacher-app">
+<%@ include file="/WEB-INF/views/shared/shell.jspf" %><main class="ams-content" id="page-content">
   <nav>
     <a href="<%= context %>/teacher/dashboard">Teacher Dashboard</a>
     · <a href="<%= context %>/teacher/enrollments?classId=<%= selected.classId() %>">Class roster</a>
@@ -61,6 +61,6 @@
     <label>CSV file <input type="file" name="file" accept=".csv,text/csv" required></label>
     <button>Import students</button>
   </form>
-</main>
+</main></div>
 </body>
 </html>

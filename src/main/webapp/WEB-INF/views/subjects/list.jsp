@@ -1,8 +1,8 @@
 <%@ page contentType="text/html;charset=UTF-8" import="java.util.*,vn.edu.fpt.ams.dto.*,vn.edu.fpt.ams.model.*,vn.edu.fpt.ams.util.WebSupport,vn.edu.fpt.ams.util.Vietnamese" %>
 <% var subjects=(List<SubjectSummaryDTO>)request.getAttribute("subjects");int number=(Integer)request.getAttribute("page");long total=(Long)request.getAttribute("total"),pages=Math.max(1,(total+19)/20);String base=request.getContextPath()+"/admin/subjects",token=WebSupport.csrf(request); %>
-<!doctype html><html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Danh sách môn học | AMS</title><link rel="stylesheet" href="${pageContext.request.contextPath}/css/app.css"></head><body class="admin-users admin-app admin-subjects">
+<!doctype html><html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Danh sách môn học | AMS</title><link rel="stylesheet" href="${pageContext.request.contextPath}/css/app.css"><%@ include file="/WEB-INF/views/shared/assets.jspf" %></head><body class="admin-users admin-app admin-subjects ams-ui">
 <%@ include file="/WEB-INF/views/admin/shell.jspf" %>
-<main class="users-main">
+<main class="users-main ams-content" id="page-content">
 <div class="setting-page-heading"><p class="page-eyebrow">QUẢN TRỊ HỌC THUẬT</p><h1>Danh sách thiết lập</h1><p class="muted">Quản lý học kỳ và truy cập danh sách môn học trong hệ thống.</p></div>
 <nav aria-label="Loại thiết lập" class="settings-tabs"><a href="${pageContext.request.contextPath}/admin/settings?tab=terms"><span aria-hidden="true">▦</span> Học kỳ</a><a href="${pageContext.request.contextPath}/admin/subjects" aria-current="page"><span aria-hidden="true">▤</span> Môn học</a></nav>
 <section class="setting-list-card"><header class="list-card-heading"><span class="section-symbol" aria-hidden="true">▤</span><div><h2>Quản lý môn học</h2><p>Tra cứu, cập nhật và quản lý môn học trong hệ thống.</p></div></header>

@@ -15,12 +15,12 @@
 %>
 <!doctype html>
 <html>
-<head>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Assigned Class List | AMS</title>
   <link rel="stylesheet" href="<%= context %>/css/app.css">
-</head>
-<body>
-<main>
+<%@ include file="/WEB-INF/views/shared/assets.jspf" %></head>
+<body class="ams-ui teacher-app">
+<%@ include file="/WEB-INF/views/shared/shell.jspf" %><main class="ams-content" id="page-content">
   <nav>
     <a href="<%= context %>/home">AMS</a>
     · <a href="<%= context %>/teacher/dashboard">Teacher Dashboard</a>
@@ -69,6 +69,6 @@
     </table>
     <% if (invitations.isEmpty()) { %><p>No invitation is stored for this class.</p><% } %>
   <% } %>
-</main>
+</main></div>
 </body>
 </html>
