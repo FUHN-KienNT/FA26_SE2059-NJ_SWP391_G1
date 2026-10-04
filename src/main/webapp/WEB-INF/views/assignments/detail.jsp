@@ -25,14 +25,14 @@
             <% if (error != null) { %>
             <section class="notice error" role="alert"><h1>Unable to load assignment</h1><p><%= escape(error) %></p><a href="">Try again</a> · <a href="<%= escape(backUrl) %>">Back to list</a></section>
             <% } else if (data == null) { %>
-            <section class="empty-state"><h1>Action not available yet</h1><p>Creating, editing, publishing and cancelling assignments are not available yet.</p><a class="button back-button" href="<%= escape(backUrl) %>">Back to list</a></section>
+            <section class="empty-state"><h1>Action not available yet</h1><p>Creating, editing, publishing and cancelling assignments are not available yet.</p><a class="ams-button back-button" href="<%= escape(backUrl) %>">Back to list</a></section>
             <% } else {
                 Assignment assignment = data.assignment();
                 var checklist = AssignmentDetailView.checklist(assignment.taskChecklistJson());
             %>
             <div class="page-heading">
                 <div><p class="eyebrow">Assignment details</p><h1><%= escape(assignment.title()) %></h1><p><%= escape(data.classCode()) %> — <%= escape(data.className()) %> · <%= escape(data.subjectCode()) %> · <%= escape(data.termCode()) %></p></div>
-                <div class="detail-actions"><span class="badge <%= assignment.status().name().toLowerCase(java.util.Locale.ROOT) %>"><%= label(assignment.status()) %></span><a class="button" href="<%= escape(backUrl) %>">Back to list</a></div>
+                <div class="detail-actions"><span class="badge <%= assignment.status().name().toLowerCase(java.util.Locale.ROOT) %>"><%= label(assignment.status()) %></span><a class="ams-button" href="<%= escape(backUrl) %>">Back to list</a></div>
             </div>
             <% if (assignment.status() == AssignmentStatus.CANCELLED) { %><p class="state-message">This assignment has been cancelled. Its content is retained for reference.</p><% } %>
             <div class="detail-layout">
