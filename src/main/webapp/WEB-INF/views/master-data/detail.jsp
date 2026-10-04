@@ -1,8 +1,8 @@
 <%@ page contentType="text/html;charset=UTF-8" import="vn.edu.fpt.ams.model.*,vn.edu.fpt.ams.util.WebSupport,java.time.*" %>
 <% String mode=(String)request.getAttribute("mode"); AcademicTerm term=(AcademicTerm)request.getAttribute("term"); AcademicTerm submitted=(AcademicTerm)request.getAttribute("submittedTerm"); AcademicTerm shown=submitted!=null?submitted:term; boolean view="view".equals(mode); ZoneId zone=ZoneOffset.UTC; String token=WebSupport.csrf(request); %>
-<!doctype html><html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Chi tiết học kỳ | AMS</title><link rel="stylesheet" href="${pageContext.request.contextPath}/css/app.css"></head><body class="admin-users admin-app admin-settings">
+<!doctype html><html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Chi tiết học kỳ | AMS</title><link rel="stylesheet" href="${pageContext.request.contextPath}/css/app.css"><%@ include file="/WEB-INF/views/shared/assets.jspf" %></head><body class="admin-users admin-app admin-settings ams-ui">
 <%@ include file="/WEB-INF/views/admin/shell.jspf" %>
-<main class="users-main subject-form">
+<main class="users-main subject-form ams-content" id="page-content">
 <p><a class="back-link" href="${pageContext.request.contextPath}/admin/settings">← Danh sách thiết lập</a></p>
 <nav aria-label="Loại thiết lập" class="settings-tabs"><a href="${pageContext.request.contextPath}/admin/settings?tab=terms" aria-current="page">Học kỳ</a><a href="${pageContext.request.contextPath}/admin/settings?tab=subjects">Môn học</a></nav>
 <div class="subject-heading"><div><h1><%="create".equals(mode)?"Tạo học kỳ":view?"Chi tiết học kỳ":"Cập nhật học kỳ"%></h1><p class="muted">Tối đa một học kỳ hoạt động và một học kỳ hiện tại. Học kỳ hiện tại phải hoạt động.</p></div><% if(view){ %><a class="primary-button" href="${pageContext.request.contextPath}/admin/master-data?mode=edit&id=<%=term.termId()%>">Sửa</a><% } %></div>

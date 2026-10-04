@@ -1,6 +1,6 @@
 <%@ page contentType="text/html;charset=UTF-8" import="vn.edu.fpt.ams.model.*,vn.edu.fpt.ams.dto.*,vn.edu.fpt.ams.util.WebSupport" %>
 <% var account=(UserAccount)request.getAttribute("account"); var summary=(ExpertDashboardDTO)request.getAttribute("summary"); %>
-<!doctype html><html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bảng điều khiển chuyên gia | AMS</title><link rel="stylesheet" href="${pageContext.request.contextPath}/css/app.css?v=expert-dashboard-3"></head><body class="expert-app baonvg-expert expert-dashboard">
+<!doctype html><html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bảng điều khiển chuyên gia | AMS</title><link rel="stylesheet" href="${pageContext.request.contextPath}/css/app.css?v=expert-dashboard-3"><%@ include file="/WEB-INF/views/shared/assets.jspf" %></head><body class="expert-app baonvg-expert expert-dashboard ams-ui">
 <%@ include file="shell.jspf" %>
 <header class="expert-page-heading"><span class="expert-eyebrow">BẢNG ĐIỀU KHIỂN</span><h1>Bảng điều khiển chuyên gia</h1><p>Xin chào <%=WebSupport.html(account.fullName())%>. Dưới đây là tổng quan các môn học, lớp và mẫu bài tập của bạn.</p></header>
 <section class="expert-metrics" aria-label="Tổng quan">

@@ -1,8 +1,8 @@
 <%@ page contentType="text/html;charset=UTF-8" import="vn.edu.fpt.ams.dto.*,vn.edu.fpt.ams.model.*,vn.edu.fpt.ams.util.WebSupport,vn.edu.fpt.ams.util.Vietnamese" %>
 <% var details=(SubjectDetailsDTO)request.getAttribute("details");var s=details.subject();var target=s.status()==SubjectStatus.ACTIVE?SubjectStatus.INACTIVE:SubjectStatus.ACTIVE;String base=request.getContextPath()+"/admin/subjects",token=WebSupport.csrf(request); %>
-<!doctype html><html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Trạng thái môn học | AMS</title><link rel="stylesheet" href="${pageContext.request.contextPath}/css/app.css"></head><body class="admin-users admin-app admin-subjects">
+<!doctype html><html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Trạng thái môn học | AMS</title><link rel="stylesheet" href="${pageContext.request.contextPath}/css/app.css"><%@ include file="/WEB-INF/views/shared/assets.jspf" %></head><body class="admin-users admin-app admin-subjects ams-ui">
 <%@ include file="/WEB-INF/views/admin/shell.jspf" %>
-<main class="users-main subject-form">
+<main class="users-main subject-form ams-content" id="page-content">
 <p><a class="back-link" href="<%=base%>?mode=view&amp;id=<%=s.subjectId()%>">← Chi tiết môn học</a></p><h1>Kích hoạt / Ngừng hoạt động</h1><p><strong><%=WebSupport.html(s.subjectCode()+" · "+s.subjectName())%></strong></p>
 <% if(request.getAttribute("error")!=null){ %><p role="alert"><%=WebSupport.html(request.getAttribute("error"))%></p><% } %>
 <dl class="details-grid"><div><dt>Trạng thái hiện tại</dt><dd><%=Vietnamese.label(s.status())%></dd></div><div><dt>Trạng thái mới</dt><dd><%=Vietnamese.label(target)%></dd></div><div><dt>Chuyên gia chính</dt><dd><%=details.primaryExperts().size()%></dd></div><div><dt>Chuyên gia hỗ trợ</dt><dd><%=details.supportingExperts().size()%></dd></div></dl>
