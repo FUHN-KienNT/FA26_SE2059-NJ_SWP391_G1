@@ -11,7 +11,7 @@ button,input,select,textarea{font:inherit}
 .dashboard-grid,.subject-card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px;margin:20px 0 30px}.metric-card,.subject-card{display:flex;flex-direction:column;gap:6px;border:1px solid #d8e0eb;border-radius:8px;padding:18px;background:#f8faff;text-decoration:none;color:#202b3a}.metric-card strong{font-size:32px;color:#175cd3}.metric-card small,.subject-card small{color:#617085}.subject-card span{font-size:12px;color:#175cd3;font-weight:700}.class-filters{display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin:16px 0}.class-filters label{margin:0}.class-filters input{width:250px}.class-filters select{width:180px}@media(max-width:700px){.class-filters{align-items:stretch;flex-direction:column}.class-filters input,.class-filters select{width:100%}}
 
 /* Shared Expert workspace */
-.expert-app{background:#f4f7fb;color:#17243a;min-width:320px}.expert-topbar{height:64px;box-sizing:border-box;background:linear-gradient(115deg,#102c45,#173d5b);color:white;display:flex;align-items:center;justify-content:space-between;padding:0 24px;box-shadow:0 2px 8px #122b4426}.expert-brand{color:white;text-decoration:none;font-size:18px;font-weight:750;letter-spacing:-.2px}.expert-account{display:flex;align-items:center;gap:10px}.expert-avatar{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:#e9eef3;color:#24425d;font-weight:750}.expert-identity{display:flex;flex-direction:column;line-height:1.25;min-width:128px}.expert-identity strong{font-size:13px}.expert-identity small{font-size:11px;color:#c4d2df}.expert-account form{margin:0}.expert-account form input{display:none}.expert-signout{border:1px solid #577086;border-radius:5px;background:#284861;color:white;padding:7px 12px;font-size:12px}.expert-layout{display:grid;grid-template-columns:220px minmax(0,1fr);min-height:calc(100vh - 64px)}.expert-sidebar{background:#f7f9fc;border-right:1px solid #dce5ef;padding:16px 10px}.expert-sidebar nav{margin:0;display:grid;gap:4px}.expert-sidebar a{display:flex;align-items:center;gap:12px;padding:11px 13px;border-radius:6px;color:#30445b;text-decoration:none;font-size:14px}.expert-sidebar a span{width:18px;color:#47647e;text-align:center;font-weight:750}.expert-sidebar a[aria-current=page]{background:#e3ecff;color:#1459c6;font-weight:700}.expert-sidebar a[aria-current=page] span{color:#1459c6}.expert-app main.expert-main{max-width:none;min-width:0;margin:0;padding:24px 28px 40px;border-radius:0;background:white}.expert-page-heading h1{font-size:26px;line-height:1.25;margin:0 0 5px;color:#14223a;letter-spacing:-.45px}.expert-page-heading p{margin:0;color:#63748a;font-size:13px}.expert-metrics{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:14px;margin:22px 0 30px}.expert-metric{position:relative;min-height:168px;box-sizing:border-box;display:flex;flex-direction:column;align-items:flex-start;gap:7px;padding:17px;border:1px solid #dae4ef;border-radius:9px;background:linear-gradient(145deg,#fff,#f8fbff);color:#17243a;text-decoration:none;box-shadow:0 2px 8px #2647660d}.expert-metric .metric-icon{width:36px;height:36px;display:grid;place-items:center;border-radius:8px;font-size:20px;background:#e7efff;color:#1760db}.expert-metric.green .metric-icon{background:#e3f8eb;color:#15934a}.expert-metric.violet .metric-icon{background:#eee8ff;color:#7244e0}.expert-metric.amber .metric-icon{background:#fff1dd;color:#d47b00}.expert-metric strong{font-size:27px;line-height:1;margin-top:3px}.expert-metric>span:not(.metric-icon){font-size:14px}.expert-metric small{margin-top:auto;color:#1760cf;font-size:12px}.expert-metric.amber small{color:#9b6500}.expert-quick h2{font-size:20px;margin:0 0 12px}.expert-quick-links{display:grid;grid-template-columns:repeat(3,minmax(170px,1fr));gap:12px}.expert-quick-links a{min-height:58px;display:flex;align-items:center;gap:12px;padding:10px 15px;box-sizing:border-box;border:1px solid #d5e1f5;border-radius:7px;background:#eef4ff;color:#1459c6;text-decoration:none;font-size:13px;font-weight:700}.expert-quick-links a:nth-child(2){background:#f2efff;color:#6743c7;border-color:#e1daf8}.expert-quick-links a:nth-child(3){background:#fff5e5;color:#a96300;border-color:#f4dfbc}.expert-quick-links a span{font-size:20px}.expert-note{margin-top:18px;border:1px solid #cfe0f7;border-radius:8px;background:#f3f8ff;padding:14px 16px;font-size:13px}.expert-note strong{display:block;margin-bottom:3px}.expert-note strong span{color:#1760db}.expert-note p{margin:0 0 0 30px;color:#63748a}.expert-filters{display:grid;grid-template-columns:minmax(230px,1fr) minmax(190px,.7fr) minmax(170px,.55fr) auto auto;align-items:end;gap:10px;margin:19px 0 15px}.expert-filters label{margin:0}.expert-filters label>span:not(.sr-only),.expert-template-filter label{display:block;font-size:12px;color:#495d74}.expert-filters input,.expert-filters select,.expert-template-filter select{width:100%;height:40px;border:1px solid #bfccdc;border-radius:6px;background:white;color:#26384d;padding:7px 10px}.expert-filters button{height:40px;border:1px solid #175cd3;border-radius:6px;background:#175cd3;color:white;padding:0 16px}.expert-filters output{align-self:center;justify-self:end;font-size:12px;color:#52677e;white-space:nowrap}.expert-subject-groups{display:grid;gap:10px}.expert-subject-group{border:1px solid #d9e3ee;border-radius:7px;background:#fff;overflow:hidden}.expert-subject-group>summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 16px;background:#f7faff}.expert-subject-group>summary::-webkit-details-marker{display:none}.expert-subject-group>summary>span{display:flex;align-items:center;gap:10px}.expert-subject-group>summary>span:last-child{color:#60738a;font-size:12px;white-space:nowrap}.expert-subject-group>summary b{font-size:18px;color:#273c54}.responsibility-badge{display:inline-block;border-radius:12px;padding:2px 9px;font-size:10px;text-transform:none;white-space:nowrap}.responsibility-badge.primary{color:#174fbd;background:#dfe9ff}.responsibility-badge.supporting{color:#71420c;background:#fff0d6}.expert-table-wrap{overflow-x:auto}.expert-table-wrap table{min-width:720px;font-size:13px}.expert-table-wrap th{background:#edf2f8;color:#2d4056;font-size:12px;white-space:nowrap}.expert-table-wrap td{padding:10px;vertical-align:middle}.expert-table-wrap td small{color:#64758b}.expert-empty-panel{margin:0;padding:30px;text-align:center;border:1px dashed #cbd7e5;border-radius:8px;color:#64758b}.expert-template-filter{margin:18px 0 14px}.expert-template-filter label{max-width:340px}.expert-template-filter select{margin-top:5px}.expert-table{min-width:760px}.expert-result-count{font-size:12px;color:#64758b;margin-top:13px}
+.expert-app{background:#f4f7fb;color:#17243a;min-width:320px}.expert-topbar{height:64px;box-sizing:border-box;background:linear-gradient(115deg,#102c45,#173d5b);color:white;display:flex;align-items:center;justify-content:space-between;padding:0 24px;box-shadow:0 2px 8px #122b4426}.expert-brand{color:white;text-decoration:none;font-size:18px;font-weight:750;letter-spacing:-.2px}.expert-account{display:flex;align-items:center;gap:10px}.expert-avatar{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:#e9eef3;color:#24425d;font-weight:750}.expert-identity{display:flex;flex-direction:column;line-height:1.25;min-width:128px}.expert-identity strong{font-size:13px}.expert-identity small{font-size:11px;color:#c4d2df}.expert-account form{margin:0}.expert-account form input{display:none}.expert-signout{border:1px solid #577086;border-radius:5px;background:#284861;color:white;padding:7px 12px;font-size:12px}.expert-layout{display:grid;grid-template-columns:220px minmax(0,1fr);min-height:calc(100vh - 64px)}.expert-sidebar{background:#f7f9fc;border-right:1px solid #dce5ef;padding:16px 10px}.expert-sidebar nav{margin:0;display:grid;gap:4px}.expert-sidebar a{display:flex;align-items:center;gap:12px;padding:11px 13px;border-radius:6px;color:#30445b;text-decoration:none;font-size:14px}.expert-sidebar a span{width:18px;color:#47647e;text-align:center;font-weight:750}.expert-sidebar a[aria-current=page]{background:#e3ecff;color:#1459c6;font-weight:700}.expert-sidebar a[aria-current=page] span{color:#1459c6}.expert-app main.expert-main{max-width:none;min-width:0;margin:0;padding:24px 28px 40px;border-radius:0;background:white}.expert-page-heading h1{font-size:26px;line-height:1.25;margin:0 0 5px;color:#14223a;letter-spacing:-.45px}.expert-page-heading p{margin:0;color:#63748a;font-size:13px}.expert-metrics{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:14px;margin:22px 0 30px}.expert-metric{position:relative;min-height:168px;box-sizing:border-box;display:flex;flex-direction:column;align-items:flex-start;gap:7px;padding:17px;border:1px solid #dae4ef;border-radius:9px;background:linear-gradient(145deg,#fff,#f8fbff);color:#17243a;text-decoration:none;box-shadow:0 2px 8px #2647660d}.expert-metric .metric-icon{width:36px;height:36px;display:grid;place-items:center;border-radius:8px;font-size:20px;background:#e7efff;color:#1760db}.expert-metric.green .metric-icon{background:#e3f8eb;color:#15934a}.expert-metric.violet .metric-icon{background:#eee8ff;color:#7244e0}.expert-metric.amber .metric-icon{background:#fff1dd;color:#d47b00}.expert-metric strong{font-size:27px;line-height:1;margin-top:3px}.expert-metric>span:not(.metric-icon){font-size:14px}.expert-metric small{margin-top:auto;color:#1760cf;font-size:12px}.expert-metric.amber small{color:#9b6500}.expert-quick h2{font-size:20px;margin:0 0 12px}.expert-quick-links{display:grid;grid-template-columns:repeat(3,minmax(170px,1fr));gap:12px}.expert-quick-links a{min-height:58px;display:flex;align-items:center;gap:12px;padding:10px 15px;box-sizing:border-box;border:1px solid #d5e1f5;border-radius:7px;background:#eef4ff;color:#1459c6;text-decoration:none;font-size:13px;font-weight:700}.expert-quick-links a:nth-child(2){background:#f2efff;color:#6743c7;border-color:#e1daf8}.expert-quick-links a:nth-child(3){background:#fff5e5;color:#a96300;border-color:#f4dfbc}.expert-quick-links a span{font-size:20px}.expert-note{margin-top:18px;border:1px solid #cfe0f7;border-radius:8px;background:#f3f8ff;padding:14px 16px;font-size:13px}.expert-note strong{display:block;margin-bottom:3px}.expert-note strong span{color:#1760db}.expert-note p{margin:0 0 0 30px;color:#63748a}.expert-filters{display:grid;grid-template-columns:minmax(230px,1fr) minmax(190px,.7fr) minmax(170px,.55fr) auto auto;align-items:end;gap:10px;margin:19px 0 15px}.expert-filters label{margin:0}.expert-filters label>span:not(.sr-only),.expert-template-filter label{display:block;font-size:12px;color:#495d74}.expert-filters input,.expert-filters select,.expert-template-filter select{width:100%;height:40px;border:1px solid #bfccdc;border-radius:6px;background:white;color:#26384d;padding:7px 10px}.expert-filters button{height:40px;border:1px solid #175cd3;border-radius:6px;background:#175cd3;color:white;padding:0 16px}.expert-filters output{align-self:center;justify-self:end;font-size:12px;color:#52677e;white-space:nowrap}.expert-subject-groups{display:grid;gap:10px}.expert-subject-group{border:1px solid #d9e3ee;border-radius:7px;background:#fff;overflow:hidden}.expert-subject-group>summary{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 16px;background:#f7faff}.expert-subject-group>summary::-webkit-details-marker{display:none}.expert-subject-group>summary>span{display:flex;align-items:center;gap:10px}.expert-subject-group>summary>span:last-child{color:#60738a;font-size:12px;white-space:nowrap}.expert-subject-group>summary b{font-size:18px;color:#273c54}.responsibility-badge{display:inline-block;border-radius:12px;padding:2px 9px;font-size:10px;text-transform:none;white-space:nowrap}.responsibility-badge.primary{color:#174fbd;background:#dfe9ff}.responsibility-badge.supporting{color:#71420c;background:#fff0d6}.expert-table-wrap{overflow-x:auto}.expert-table-wrap table{min-width:720px;font-size:13px}.expert-table-wrap th{background:#edf2f8;color:#2d4056;font-size:12px;white-space:nowrap}.expert-table-wrap td{padding:10px;vertical-align:middle}.expert-table-wrap td small{color:#64758b}.expert-empty-panel{margin:0;padding:30px;text-align:center;border:1px dashed #cbd7e5;border-radius:8px;color:#64758b}.expert-template-filter{margin:18px 0 14px}.expert-template-filter label{max-width:340px}.expert-template-filter select{margin-top:5px}.expert-table{min-width:760px}.expert-result-count{font-size:12px;color:#64758b;margin-top:13px}
 .expert-table .empty-state,.expert-subject-group .empty-state{text-align:left}
 @media(max-width:1000px){.expert-metrics{grid-template-columns:repeat(2,1fr)}.expert-filters{grid-template-columns:1fr 1fr 1fr auto}.expert-filters output{grid-column:1/-1;justify-self:start}}
 @media(max-width:760px){.expert-topbar{padding:0 14px}.expert-identity{display:none}.expert-layout{display:block}.expert-sidebar{border-right:0;border-bottom:1px solid #dce5ef;padding:8px;overflow-x:auto}.expert-sidebar nav{display:flex;min-width:max-content}.expert-sidebar a{padding:9px 12px}.expert-app main.expert-main{padding:20px 15px}.expert-metrics{grid-template-columns:1fr 1fr}.expert-quick-links{grid-template-columns:1fr}.expert-filters{grid-template-columns:1fr}.expert-filters output{grid-column:auto}.expert-subject-group>summary{align-items:flex-start}.expert-subject-group>summary>span:first-child{align-items:flex-start;flex-direction:column;gap:5px}}
@@ -207,3 +207,121 @@ button,input,select,textarea{font:inherit}
 @media(max-width:1280px){.baonvg-expert.expert-dashboard .expert-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:850px){.baonvg-expert.expert-dashboard .expert-quick-links{grid-template-columns:1fr}}
 @media(max-width:520px){.baonvg-expert.expert-dashboard .expert-metrics{grid-template-columns:1fr}.baonvg-expert.expert-dashboard .expert-metric{min-height:210px}.baonvg-expert.expert-dashboard .expert-quick-links a{padding:18px;gap:12px}.baonvg-expert.expert-dashboard .expert-quick-links .quick-icon{width:44px;height:44px}}
+
+/* Bao Admin Settings hierarchy; shared teammate shell remains unchanged. */
+.ams-admin-sidebar .bao-settings-nav{min-width:0}
+.ams-admin-sidebar .bao-settings-label{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 14px;border-radius:7px;color:#53647e}
+.ams-admin-sidebar .bao-settings-label.is-active{background:#eaf1ff;color:#2563eb;font-weight:650}
+.ams-admin-sidebar .bao-settings-label:hover{background:#f1f5fb}
+.ams-admin-sidebar .bao-settings-children{display:grid;gap:4px;margin:6px 0 4px 16px;padding-left:9px;border-left:1px solid #dce4ef}
+.ams-admin-sidebar .bao-settings-children a{font-size:13px;padding:9px 12px;border-left:3px solid transparent}
+.ams-admin-sidebar .bao-settings-children a[aria-current=page]{border-left-color:#2563eb}
+.admin-app .bao-context{display:flex;gap:9px;align-items:center;margin:0 0 16px;color:#7b8ca6;font-size:12px}
+.admin-app .bao-context>span:last-child{color:#53647e;font-weight:600}
+@media(max-width:850px){.ams-admin-sidebar nav{align-items:flex-start}.ams-admin-sidebar .bao-settings-nav{flex:1;min-width:180px}.ams-admin-sidebar .bao-settings-children{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Baonvg Admin: compact academic management cards, isolated from role modules. */
+.admin-app.ams-ui{background:#f1f6fc;color:#172b4d}
+
+
+
+
+
+.admin-app.ams-ui main.ams-content{max-width:none;padding:28px 32px}
+.admin-app.ams-ui .bao-context{margin:0 0 12px;font-size:13px}
+.admin-app.ams-ui .page-eyebrow{display:none}
+.admin-app.ams-ui h1{font-size:30px;letter-spacing:-.6px;line-height:1.3;color:#10244c}
+.admin-app.ams-ui h2{font-size:18px;line-height:1.4;margin:0 0 12px}
+.admin-app.ams-ui .subject-heading{margin:0 0 24px;display:flex;justify-content:space-between;gap:20px;align-items:flex-start}
+.admin-app.ams-ui .subject-heading p{margin:6px 0 0}
+.admin-app.ams-ui .setting-list-card{border-radius:14px;padding:20px;box-shadow:0 4px 20px #20416a04}
+.admin-app.ams-ui .filter-scope-note{font-size:12px}
+.admin-app.ams-ui .users-toolbar{border:0;background:none;padding:0;margin:0 0 18px;gap:16px}
+.admin-app.ams-ui .users-toolbar form{align-items:end}
+.admin-app.ams-ui input:not([type=hidden]):not([type=checkbox]):not([type=radio]),.admin-app.ams-ui select,.admin-app.ams-ui textarea{border:1px solid #d9e4f1;border-radius:8px;min-height:42px;width:100%;max-width:100%;box-sizing:border-box}
+.admin-app.ams-ui .users-toolbar input{width:360px!important;max-width:100%}
+.admin-app.ams-ui .users-toolbar select{min-width:175px}
+.admin-app.ams-ui .primary-button,.admin-app.ams-ui .secondary-button,.admin-app.ams-ui .destructive-button{border-radius:8px;min-height:42px;padding:10px 18px}
+.admin-app.ams-ui table.setting-records{border-collapse:collapse;border-spacing:0;min-width:0;width:100%;font-size:13px}
+.admin-app.ams-ui .setting-records th{background:#edf3fc;padding:13px 12px;border:1px solid #dce6f3;white-space:normal}
+.admin-app.ams-ui .setting-records td{border:1px solid #e4ebf5;border-radius:0!important;padding:15px 12px;background:white}
+.admin-app.ams-ui .setting-records tbody tr:nth-child(even) td{background:#fafcff}
+.admin-app.ams-ui .setting-records tbody tr:hover td{background:#f4f8ff}
+.admin-app.ams-ui .row-actions{min-width:150px;gap:6px 10px;flex-wrap:wrap}
+.admin-app.ams-ui .setting-records .row-actions a{display:inline-flex;padding:5px 9px;border:1px solid #e1e9f5;border-radius:6px;background:white}
+.admin-app.ams-ui .status-badge.inactive{background:#fff0f0;color:#c23f4c;border-color:#ffe1e4}
+.admin-app.ams-ui .status-badge.active{background:#e5f8ed;color:#148052;border-color:#d2f0df}
+.admin-app.ams-ui .bao-record-count{font-size:12px;color:#7283a0;margin:16px 0 0}
+.admin-app.ams-ui .form-actions{justify-content:flex-end;margin-top:22px;padding-top:18px}
+.admin-app.ams-ui .form-actions>.secondary-button{order:-1}
+.admin-app.ams-ui .subject-form>section,.admin-app.ams-ui .subject-form>form,.admin-app.ams-ui .subject-form>.details-grid{border-radius:14px;box-shadow:0 3px 12px #20416a03}
+.admin-app.ams-ui .bao-summary{display:flex;align-items:center;gap:18px;background:#fff;border:1px solid #dee8f4;border-radius:14px;padding:22px 24px;margin:0 0 20px;min-width:0}
+.admin-app.ams-ui .bao-summary-title{min-width:0;overflow-wrap:anywhere}
+.admin-app.ams-ui .bao-summary-title>strong{font-size:22px;color:#10244c}
+.admin-app.ams-ui .bao-summary-title p{font-size:14px;color:#71809c;margin:2px 0 8px}
+.admin-app.ams-ui .bao-summary .section-symbol{width:54px;height:54px;border-radius:16px;background:#2563eb;color:white}
+.admin-app.ams-ui .bao-summary-dates{margin-left:auto;display:flex;background:#f3f7fd;border:1px solid #e6eef9;border-radius:10px;font-size:12px;color:#71809c}
+.admin-app.ams-ui .bao-summary-dates span{padding:12px 20px}
+.admin-app.ams-ui .bao-summary-dates span+span{border-left:1px solid #e0e8f4}
+.admin-app.ams-ui .bao-summary-dates strong{display:block;color:#1c3559;margin-top:4px;font-size:14px}
+.admin-app.ams-ui .subject-form>form.bao-term-form{padding:0;border:0;background:none;box-shadow:none;margin-top:0}
+.admin-app.ams-ui .bao-term-layout{display:grid;grid-template-columns:minmax(0,2fr) minmax(280px,1fr);gap:20px}
+.admin-app.ams-ui .bao-card{background:#fff;border:1px solid #dee8f4;border-radius:14px;padding:24px;margin:0;min-width:0}
+.admin-app.ams-ui .bao-term-layout .form-grid{margin-top:20px;gap:18px 24px}
+.admin-app.ams-ui .bao-state-list{margin:18px 0;font-size:13px}
+.admin-app.ams-ui .bao-state-list>div{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid #eef2f8}
+.admin-app.ams-ui .bao-state-list dd{margin:0}
+.admin-app.ams-ui .bao-callout{font-size:13px;line-height:1.65;background:#eff5ff;border:1px solid #dde9ff;color:#496892;border-radius:10px;padding:16px}
+.admin-app.ams-ui .bao-warning{background:#fff8ed;border-color:#f5e3c5;color:#8d6830}
+.admin-app.ams-ui .assignment-summary{background:#f8fbff;border-radius:12px}
+.admin-app.ams-ui .expert-option{border-radius:12px;background:#fff}
+.admin-app.ams-ui .expert-option[hidden]{display:none}
+.admin-app.ams-ui .responsibility-options label{padding:8px 10px;border:1px solid #e5ecf6;border-radius:8px;background:#fff}
+.admin-app.ams-ui input[type=radio],.admin-app.ams-ui input[type=checkbox]{width:16px;height:16px;min-height:0;padding:0;display:inline-block;flex-shrink:0}
+@media(max-width:1280px){.admin-app.ams-ui main.ams-content{padding:26px 24px}.admin-app.ams-ui .users-toolbar input{width:260px!important}.admin-app.ams-ui .bao-summary-dates span{padding:10px 14px}.admin-app.ams-ui .bao-card{padding:20px}}
+@media(max-width:950px){.admin-app.ams-ui .bao-term-layout{grid-template-columns:1fr}.admin-app.ams-ui .bao-summary{flex-wrap:wrap}.admin-app.ams-ui .bao-summary-dates{margin-left:0}.admin-app.ams-ui .subject-heading{flex-wrap:wrap}}
+@media(max-width:850px){.admin-app.ams-ui main.ams-content{padding:22px 16px}.admin-app.ams-ui .users-toolbar input{width:100%!important}.admin-app.ams-ui .setting-list-card{padding:16px}.admin-app.ams-ui .setting-records{min-width:800px}.admin-app.ams-ui h1{font-size:26px}}
+
+/* Bao View / Edit / Create: readonly details and focused forms. */
+.ams-admin-sidebar .bao-settings-label::before,.ams-admin-sidebar .bao-settings-label::after{content:none}
+.ams-admin-sidebar .bao-settings-children{display:grid}
+.admin-app.ams-ui main.bao-mode-page{max-width:1440px;width:100%;box-sizing:border-box}
+.admin-app.ams-ui .bao-detail-rows{margin:12px 0 0;font-size:14px}
+.admin-app.ams-ui .bao-detail-rows>div{display:grid;grid-template-columns:minmax(120px,1fr) minmax(0,2fr);gap:20px;padding:12px 0;border-bottom:1px solid #edf2f8}
+.admin-app.ams-ui .bao-detail-rows>div:last-child{border:0}
+.admin-app.ams-ui .bao-detail-rows dt{color:#6d7f9a}
+.admin-app.ams-ui .bao-detail-rows dd{margin:0;color:#203859;overflow-wrap:anywhere;white-space:pre-wrap}
+.admin-app.ams-ui .bao-edit-context{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:-8px 0 22px}
+.admin-app.ams-ui .bao-edit-context strong{color:#10244c;font-size:17px}
+.admin-app.ams-ui .subject-form>form.bao-focused-form{background:none;border:0;padding:0;box-shadow:none;margin:0}
+.admin-app.ams-ui .bao-focused-form .form-grid{margin:20px 0 0;gap:22px 24px}
+.admin-app.ams-ui .bao-focused-form .form-grid label{min-width:0}
+.admin-app.ams-ui .bao-focused-form>.bao-card+.bao-card{margin-top:20px}
+.admin-app.ams-ui .bao-focused-form .bao-card>label{display:block;margin-top:20px}
+.admin-app.ams-ui .bao-initial-flags{display:flex;gap:24px;flex-wrap:wrap;margin-top:24px}
+.admin-app.ams-ui .bao-required{color:#db4057}
+.admin-app.ams-ui .bao-mode-page>.bao-card{margin-top:20px}
+.admin-app.ams-ui .bao-focused-form .form-actions,.admin-app.ams-ui .bao-mode-page>.form-actions{border:0;margin-top:0;padding-top:18px}
+@media(max-width:700px){.admin-app.ams-ui .bao-detail-rows>div{grid-template-columns:1fr;gap:6px}.admin-app.ams-ui .bao-focused-form .form-grid{grid-template-columns:1fr}}
+
+/* Shared Admin shell: independent of page-specific body classes. */
+.ams-ui .ams-admin-header{height:72px;box-sizing:border-box;padding:0 28px;background:#fff;border-bottom:1px solid #e1e9f3;gap:16px}
+.ams-ui .ams-admin-header .ams-logo svg{width:26px;height:26px}
+.ams-ui .ams-admin-layout{grid-template-columns:220px minmax(0,1fr)}
+.ams-ui .ams-admin-sidebar{box-sizing:border-box;padding:24px 16px;background:#fff;border-right:1px solid #e1e9f3;font-size:14px;line-height:1.5}
+.ams-ui .ams-admin-sidebar>nav{display:grid;gap:6px;margin:0}
+.ams-ui .ams-admin-sidebar>nav>a,.ams-ui .ams-admin-sidebar .bao-settings-label{display:flex;align-items:center;gap:12px;min-height:44px;box-sizing:border-box;padding:11px 14px;border-radius:7px;color:#53647e;font-size:14px;line-height:22px}
+.ams-ui .ams-admin-sidebar .bao-nav-label{display:flex;align-items:center;gap:12px}
+.ams-ui .ams-admin-sidebar .bao-nav-icon{display:block;width:18px;height:18px;flex-shrink:0}
+.ams-ui .ams-admin-sidebar>nav>a[aria-current=page],.ams-ui .ams-admin-sidebar .bao-settings-label.is-active{background:#eaf1ff;color:#2563eb;font-weight:650}
+.ams-ui .ams-admin-sidebar .bao-settings-children{display:grid;gap:4px;margin:6px 0 4px 16px;padding-left:9px;border-left:1px solid #dce4ef}
+.ams-ui .ams-admin-sidebar .bao-settings-children a{display:flex;align-items:center;min-height:40px;box-sizing:border-box;padding:9px 12px;font-size:13px;line-height:20px;border-left:3px solid transparent;border-radius:7px}
+.ams-ui .ams-admin-sidebar .bao-settings-children a[aria-current=page]{background:#eaf1ff;color:#2563eb;font-weight:650;border-left-color:#2563eb}
+.ams-ui .ams-admin-layout>main.ams-content{padding:28px 32px;box-sizing:border-box}
+.admin-app.ams-ui .subject-form>form.bao-academic-form{max-width:1000px}
+@media(max-width:1280px){.ams-ui .ams-admin-layout>main.ams-content{padding:26px 24px}}
+@media(max-width:850px){.ams-ui .ams-admin-header{padding:0 16px;gap:10px}.ams-ui .ams-admin-layout{grid-template-columns:1fr}.ams-ui .ams-admin-sidebar{padding:10px;border-right:0;border-bottom:1px solid #e1e9f3}.ams-ui .ams-admin-sidebar>nav{display:flex;flex-wrap:wrap}.ams-ui .ams-admin-layout>main.ams-content{padding:22px 16px}}
+.ams-ui.ams-nav-hidden .ams-admin-layout{grid-template-columns:1fr}
+
+/* Reserve the Admin scrollbar gutter to prevent header width jumps between short and long pages. */
+html:has(.ams-admin-header){scrollbar-gutter:stable}
