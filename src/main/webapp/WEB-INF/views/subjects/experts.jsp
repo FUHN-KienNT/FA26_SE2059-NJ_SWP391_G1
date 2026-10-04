@@ -11,6 +11,7 @@ String base=request.getContextPath()+"/admin/subjects",token=WebSupport.csrf(req
 <!doctype html><html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Phân công chuyên gia | AMS</title><link rel="stylesheet" href="${pageContext.request.contextPath}/css/app.css"><%@ include file="/WEB-INF/views/shared/assets.jspf" %></head><body class="admin-users admin-app admin-subjects ams-ui">
 <%@ include file="/WEB-INF/views/admin/shell.jspf" %>
 <main class="users-main subject-form ams-content" id="page-content">
+<nav class="bao-context" aria-label="Ngữ cảnh"><span>Cài đặt</span><span aria-hidden="true">›</span><span>Môn học</span></nav>
 <p><a class="back-link" href="<%=base%>?mode=view&amp;id=<%=s.subjectId()%>">← Chi tiết môn học</a></p><div class="subject-heading"><div><h1>Phân công chuyên gia</h1><p class="muted"><strong><%=WebSupport.html(s.subjectCode()+" · "+s.subjectName())%></strong></p></div></div>
 <% if(request.getAttribute("error")!=null){ %><p role="alert"><%=WebSupport.html(request.getAttribute("error"))%></p><% }if(session.getAttribute("notice")!=null){ %><p role="status"><%=WebSupport.html(session.getAttribute("notice"))%></p><% session.removeAttribute("notice"); } %>
 
