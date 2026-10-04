@@ -5,6 +5,8 @@ import java.lang.reflect.Proxy;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
+import java.math.BigDecimal;
 import jakarta.servlet.RequestDispatcher;
 import jakarta.servlet.ServletContext;
 import jakarta.servlet.http.*;
@@ -53,6 +55,16 @@ class AssignmentServletTest {
                 return new AssignmentListPage(List.of(new AssignmentClassOption(10,"SE2059","Project")),
                         classId==null?10L:classId,filter,List.of());
             }
+            @Override public AssignmentDetailPage detailPage(long teacherId, long assignmentId) {
+                if (failure != null) throw failure;
+                assertEquals(1L, teacherId);
+                assertEquals(101L, assignmentId);
+                var assignment = new Assignment(101, 10, 1, "UML assignment", AssignmentPurpose.REGULAR,
+                        ResponseType.ESSAY, "Full instructions", "UML", "[]", BigDecimal.TEN,
+                        AssignmentStatus.DRAFT, null, null, null, null, null, null);
+                return new AssignmentDetailPage(assignment, "SE2059", "Project", "SWP391", "Software project",
+                        "FA26", "Report template", List.of());
+            }
         };
         return new AssignmentServlet(service) {
             @Override public ServletContext getServletContext() {
@@ -93,15 +105,75 @@ class AssignmentServletTest {
     @Test void listDoesNotEnableMutations() throws Exception {
         var e=new Exchange(); servlet(null).doPost(e.request,e.response); assertEquals(501,e.status);
     }
-    @Test void anonymousLocalPreviewUsesDatabaseTeacherWithoutLoginSession() throws Exception {
+    @Test void viewLoadsSelectedAssignmentAndKeepsReturnFiltersWithoutTrustingBrowserClass() throws Exception {
+        var e = new Exchange();
+        e.params.putAll(Map.of("mode", "view", "assignmentId", "101", "classId", "999",
+                "search", " UML ", "responseType", "ESSAY", "status", "DRAFT"));
+        servlet(null).doGet(e.request, e.response);
+        assertEquals(200, e.status);
+        assertEquals("no-store", e.cacheControl);
+        assertEquals("/WEB-INF/views/assignments/detail.jsp", e.forward);
+        var detail = (AssignmentDetailPage) e.attributes.get("assignmentDetail");
+        assertEquals(10L, detail.assignment().classId());
+        assertEquals("Full instructions", detail.assignment().instructions());
+        var filters = (AssignmentListFilter) e.attributes.get("assignmentFilters");
+        assertEquals("UML", filters.search());
+        assertEquals(ResponseType.ESSAY, filters.responseType());
+    }
+    @Test void viewRejectsMissingMalformedAndNonpositiveIds() throws Exception {
+        for (String id : new String[]{null, "", "oops", "0", "-1", "99999999999999999999999"}) {
+            var e = new Exchange(); e.params.put("mode", "view");
+            if (id != null) e.params.put("assignmentId", id);
+            servlet(null).doGet(e.request, e.response);
+            assertEquals(400, e.status);
+            assertNull(e.forward);
+            assertFalse(e.attributes.containsKey("assignmentDetail"));
+        }
+    }
+    @Test void missingOrInaccessibleAssignmentDoesNotExposeContent() throws Exception {
+        var e = new Exchange(); e.params.putAll(Map.of("mode", "view", "assignmentId", "101"));
+        servlet(new NoSuchElementException("private assignment")).doGet(e.request, e.response);
+        assertEquals(404, e.status); assertNull(e.forward);
+        assertFalse(e.attributes.containsKey("assignmentDetail"));
+    }
+    @Test void viewDatabaseFailureHasRecoverableErrorWithoutSqlDetails() throws Exception {
+        var e = new Exchange(); e.params.putAll(Map.of("mode", "view", "assignmentId", "101"));
+        servlet(new IllegalStateException("private SQL error")).doGet(e.request, e.response);
+        assertEquals(503, e.status);
+        assertEquals("/WEB-INF/views/assignments/detail.jsp", e.forward);
+        assertFalse(e.attributes.get("assignmentDetailError").toString().contains("private"));
+        assertFalse(e.attributes.containsKey("assignmentDetail"));
+    }
+    @Test void viewRequiresActiveTeacherSession() throws Exception {
+        for (String scenario : List.of("anonymous", "student", "inactive")) {
+            var e = new Exchange(); e.params.putAll(Map.of("mode", "view", "assignmentId", "101"));
+            if (scenario.equals("anonymous")) e.noSession = true;
+            if (scenario.equals("student")) e.session.put("role", UserRole.STUDENT);
+            if (scenario.equals("inactive")) e.session.put("accountStatus", AccountStatus.INACTIVE);
+            servlet(new IllegalStateException("Service must not be called")).doGet(e.request, e.response);
+            assertEquals(scenario.equals("student") ? 403 : 401, e.status);
+            assertNull(e.forward); assertTrue(e.attributes.isEmpty());
+        }
+    }
+    @Test void anonymousLocalAssignmentGetRequiresLoginWithoutCallingServiceEvenWhenPreviewIsEnabled() throws Exception {
         String previous = System.getProperty("ams.assignment.preview");
         try {
             System.setProperty("ams.assignment.preview", "true");
             var e = new Exchange(); e.noSession = true; e.localPreview = true;
-            servlet(null).doGet(e.request, e.response);
-            assertEquals(200, e.status);
-            assertEquals(7L, e.attributes.get("assignmentPreviewTeacherId"));
-            assertEquals("/WEB-INF/views/assignments/list.jsp", e.forward);
+            boolean[] serviceCalled = {false};
+            var service = new AssignmentService() {
+                @Override public long previewTeacherId() { serviceCalled[0] = true; return 7L; }
+                @Override public AssignmentListPage listPage(long teacherId, Long classId, AssignmentListFilter filter) {
+                    serviceCalled[0] = true;
+                    return new AssignmentListPage(List.of(), null, filter, List.of());
+                }
+            };
+            new AssignmentServlet(service).doGet(e.request, e.response);
+            assertAll(
+                    () -> assertEquals(401, e.status),
+                    () -> assertFalse(serviceCalled[0], "Anonymous requests must not access Assignment data"),
+                    () -> assertNull(e.forward),
+                    () -> assertTrue(e.attributes.isEmpty()));
         } finally {
             if (previous == null) System.clearProperty("ams.assignment.preview");
             else System.setProperty("ams.assignment.preview", previous);

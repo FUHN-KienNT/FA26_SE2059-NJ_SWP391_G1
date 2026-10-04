@@ -50,10 +50,18 @@ class AssignmentPreviewAccessTest {
         void filter() throws Exception { new AuthFilter().doFilter(request, response, (a, b) -> continued = true); }
     }
 
-    @Test void allowsAnonymousLocalAssignmentGetWithoutCreatingSession() throws Exception {
+    @Test void anonymousLocalAssignmentGetRequiresLoginEvenWhenPreviewIsEnabled() throws Exception {
         for (String address : new String[]{"127.0.0.1", "::1", "0:0:0:0:0:0:0:1"}) {
             var e = new Exchange(); e.address = address; e.filter();
-            assertTrue(e.continued); assertTrue(e.identity.isEmpty());
+            assertFalse(e.continued); assertEquals(302, e.status);
+            assertEquals("/ams/auth/signin", e.redirect); assertTrue(e.identity.isEmpty());
+        }
+    }
+    @Test void legacyPreviewHelperRejectsAnonymousLocalAssignmentGetEvenWhenEnabled() {
+        for (String address : new String[]{"127.0.0.1", "::1", "0:0:0:0:0:0:0:1"}) {
+            var e = new Exchange(); e.address = address;
+            assertFalse(AssignmentPreviewAccess.allows(e.request));
+            assertTrue(e.identity.isEmpty());
         }
     }
     @Test void doesNotBypassOtherModulesRemoteClientsOrPost() throws Exception {
@@ -75,7 +83,7 @@ class AssignmentPreviewAccessTest {
         inactive.filter(); assertFalse(inactive.continued); assertEquals(302, inactive.status);
         assertEquals("/ams/auth/signin", inactive.redirect);
     }
-    @Test void previewCanBeDisabledWithOneSetting() throws Exception {
+    @Test void anonymousAssignmentGetStillRequiresLoginWhenPreviewIsDisabled() throws Exception {
         String previous = System.getProperty("ams.assignment.preview");
         try {
             System.setProperty("ams.assignment.preview", "false");

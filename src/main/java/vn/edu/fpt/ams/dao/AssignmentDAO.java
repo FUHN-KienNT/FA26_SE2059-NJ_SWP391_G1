@@ -8,8 +8,10 @@ import java.util.ArrayList;
 import java.util.List;
 import vn.edu.fpt.ams.dto.AssignmentClassOption;
 import vn.edu.fpt.ams.dto.AssignmentListFilter;
+import vn.edu.fpt.ams.dto.AssignmentDetailPage;
+import java.util.Optional;
 
-/** JDBC operations for Assignment; implementations are reserved for the next iteration. */
+/** Teacher-scoped reads for assignments; write workflows remain pending. */
 public class AssignmentDAO {
     public long findPreviewTeacherId(Connection connection) throws SQLException {
         try (var statement = connection.prepareStatement("""
@@ -75,6 +77,54 @@ public class AssignmentDAO {
                 List<Assignment> assignments = new ArrayList<>();
                 while (rows.next()) assignments.add(mapAssignment(rows));
                 return assignments;
+            }
+        }
+    }
+
+    public Optional<AssignmentDetailPage> findDetailForTeacher(Connection connection, long teacherId,
+                                                               long assignmentId) throws SQLException {
+        // Authorization is part of the query; classId supplied by a browser is never trusted.
+        try (var statement = connection.prepareStatement("""
+                SELECT a.*, c.class_code, c.class_name, s.subject_code, s.subject_name,
+                       t.term_code, tpl.title AS template_title
+                FROM assignments a
+                JOIN subject_classes c ON c.class_id = a.class_id
+                JOIN users u ON u.user_id = c.teacher_id
+                JOIN subject_terms st ON st.subject_term_id = c.subject_term_id
+                JOIN subjects s ON s.subject_id = st.subject_id
+                JOIN academic_terms t ON t.term_id = st.term_id
+                JOIN assignment_templates tpl ON tpl.template_id = a.template_id
+                WHERE a.assignment_id = ? AND c.teacher_id = ?
+                  AND u.role = 'TEACHER' AND u.account_status = 'ACTIVE'
+                """)) {
+            statement.setLong(1, assignmentId);
+            statement.setLong(2, teacherId);
+            try (var rows = statement.executeQuery()) {
+                if (!rows.next()) return Optional.empty();
+                return Optional.of(new AssignmentDetailPage(mapAssignment(rows), rows.getString("class_code"),
+                        rows.getString("class_name"), rows.getString("subject_code"), rows.getString("subject_name"),
+                        rows.getString("term_code"), rows.getString("template_title"), List.of()));
+            }
+        }
+    }
+
+    public List<Question> findQuestionsForTeacher(Connection connection, long teacherId, long assignmentId)
+            throws SQLException {
+        try (var statement = connection.prepareStatement("""
+                SELECT q.* FROM questions q
+                JOIN assignments a ON a.assignment_id = q.assignment_id
+                JOIN subject_classes c ON c.class_id = a.class_id
+                JOIN users u ON u.user_id = c.teacher_id
+                WHERE a.assignment_id = ? AND c.teacher_id = ? AND a.response_type = 'OBJECTIVE'
+                  AND u.role = 'TEACHER' AND u.account_status = 'ACTIVE'
+                ORDER BY q.question_order, q.question_id
+                """)) {
+            statement.setLong(1, assignmentId);
+            statement.setLong(2, teacherId);
+            try (var rows = statement.executeQuery()) {
+                List<Question> questions = new ArrayList<>();
+                while (rows.next()) questions.add(mapQuestion(rows));
+                return questions;
             }
         }
     }

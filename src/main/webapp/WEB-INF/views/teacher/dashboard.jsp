@@ -22,13 +22,14 @@
   <nav>
     <a href="<%= context %>/home">AMS</a>
     · <a href="<%= context %>/teacher/enrollments">Assigned classes</a>
+    · <a href="<%= context %>/teacher/assignments">Assignments</a>
   </nav>
   <h1>Teacher Dashboard</h1>
   <p><%= teacher.fullName() %> · <%= teacher.email() %></p>
   <p><%= classes.size() %> assigned class(es) · <%= rosterCount %> active student(s) · <%= assignmentCount %> assignment(s) · <%= submissionCount %> submission(s)</p>
   <table>
     <tr>
-      <th>Class</th><th>Subject</th><th>Term</th><th>Roster</th><th>Invitations</th><th>Seats left</th><th>Assignments</th>
+      <th>Class</th><th>Subject</th><th>Term</th><th>Roster</th><th>Invitations</th><th>Seats left</th><th>Assignments</th><th>Actions</th>
     </tr>
     <% for (TeacherClassSummary item : classes) { %>
       <tr>
@@ -39,6 +40,7 @@
         <td><%= item.pendingInvitations() %></td>
         <td><%= item.availableSeats() %></td>
         <td><%= item.assignmentCount() %></td>
+        <td><a href="<%= context %>/teacher/assignments?classId=<%= item.classId() %>">View assignments</a></td>
       </tr>
     <% } %>
   </table>
