@@ -12,6 +12,10 @@ import org.junit.jupiter.api.Test;
 import vn.edu.fpt.ams.dto.AssignmentListFilter;
 
 class AssignmentDetailViewTest {
+    @Test void checklistShowsNewDraftTaskDescriptions() {
+        var checklist=AssignmentDetailView.checklist("[{\"title\":\"Task title\",\"description\":\"Full instructions\"}]");
+        assertEquals(List.of("Task title\nFull instructions"),checklist.items());
+    }
     @Test void checklistReadsStringsAndSupportedTaskObjectFields() {
         var checklist = AssignmentDetailView.checklist("""
                 ["Plain task", {"title":"Title task"}, {"task":"Task field"},
@@ -20,6 +24,30 @@ class AssignmentDetailViewTest {
                 """);
         assertEquals(List.of("Plain task", "Title task", "Task field", "Text field",
                 "Description task", "Fallback task"), checklist.items());
+        assertFalse(checklist.invalid());
+    }
+
+    @Test void checklistUsesSavedOrderWithoutSeparatingDescriptions() {
+        var checklist = AssignmentDetailView.checklist("""
+                [{"task_order":3,"title":"Third","description":"Third instructions"},
+                 {"task_order":1,"title":"First","description":"First instructions"},
+                 {"task_order":2,"title":"Second"}]
+                """);
+        assertEquals(List.of("First\nFirst instructions", "Second", "Third\nThird instructions"),
+                checklist.items());
+        assertFalse(checklist.invalid());
+    }
+
+    @Test void checklistKeepsLegacyAndMalformedOrdersWithStablePositionFallbacks() {
+        var checklist = AssignmentDetailView.checklist("""
+                ["Legacy first", {"task_order":1,"title":"Tied explicit first"},
+                 {"title":"Missing order"}, {"task_order":"bad","title":"Malformed order"},
+                 {"task_order":0,"title":"Zero order"},
+                 {"task_order":99999999999999999999,"title":"Overflow order"},
+                 {"task_order":2,"title":"Explicit second"}]
+                """);
+        assertEquals(List.of("Legacy first", "Tied explicit first", "Explicit second", "Missing order",
+                "Malformed order", "Zero order", "Overflow order"), checklist.items());
         assertFalse(checklist.invalid());
     }
 
@@ -52,6 +80,34 @@ class AssignmentDetailViewTest {
                 """);
         assertEquals(List.of(new AssignmentDetailView.Option("A", "First answer", true),
                 new AssignmentDetailView.Option("2", "Second answer", false)), options.items());
+        assertFalse(options.invalid());
+    }
+
+    @Test void optionsUseSavedOrderWithoutChangingIdentityOrCorrectness() {
+        var options = AssignmentDetailView.options("""
+                [{"option_id":"C","option_order":3,"option_text":"Third","is_correct":false},
+                 {"option_id":"A","option_order":1,"option_text":"First","is_correct":true},
+                 {"option_id":"B","option_order":2,"option_text":"Second","is_correct":false}]
+                """);
+        assertEquals(List.of(new AssignmentDetailView.Option("A", "First", true),
+                new AssignmentDetailView.Option("B", "Second", false),
+                new AssignmentDetailView.Option("C", "Third", false)), options.items());
+        assertFalse(options.invalid());
+    }
+
+    @Test void optionsKeepMissingAndMalformedOrdersWithStablePositionFallbacks() {
+        var options = AssignmentDetailView.options("""
+                [{"option_id":"A","option_text":"Missing","is_correct":true},
+                 {"option_id":"B","option_order":1,"option_text":"Tied","is_correct":false},
+                 {"option_id":"C","option_order":{},"option_text":"Malformed","is_correct":false},
+                 {"option_id":"D","option_order":-1,"option_text":"Negative","is_correct":false},
+                 {"option_id":"E","option_order":2,"option_text":"Second","is_correct":false}]
+                """);
+        assertEquals(List.of(new AssignmentDetailView.Option("A", "Missing", true),
+                new AssignmentDetailView.Option("B", "Tied", false),
+                new AssignmentDetailView.Option("E", "Second", false),
+                new AssignmentDetailView.Option("C", "Malformed", false),
+                new AssignmentDetailView.Option("D", "Negative", false)), options.items());
         assertFalse(options.invalid());
     }
 

@@ -1,0 +1,37 @@
+.assignment-lifecycle .page-heading { max-width: 1000px; }
+.lifecycle-panel { max-width: 1000px; }
+.lifecycle-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
+.lifecycle-heading > div { min-width: 0; }
+.lifecycle-heading h2 { margin-bottom: 8px; overflow-wrap: anywhere; }
+.lifecycle-heading > a { flex-shrink: 0; }
+.lifecycle-heading p { overflow-wrap: anywhere; }
+.lifecycle-transition { display: flex; align-items: center; gap: 24px; padding: 22px 0; margin-top: 6px; }
+.lifecycle-status { display: grid; justify-items: start; gap: 7px; }
+.lifecycle-status > span { color: #627183; font-size: 12px; }
+.lifecycle-arrow { font-size: 25px; color: #627183; padding-top: 22px; }
+.lifecycle-metadata { display: grid; grid-template-columns: 1fr 1fr; gap: 22px 30px; padding: 22px 0; border-top: 1px solid #e6ebf0; border-bottom: 1px solid #e6ebf0; }
+.lifecycle-metadata dt { margin-top: 0; }
+.lifecycle-effect { background: #f0f6fc; border: 1px solid #c9dced; border-radius: 7px; padding: 18px 20px; margin: 24px 0; }
+.lifecycle-effect h3 { margin: 0 0 12px; color: #244c6e; }
+.lifecycle-effect ul, .lifecycle-notice ul { margin: 0; padding-left: 22px; }
+.lifecycle-effect li + li, .lifecycle-notice li + li { margin-top: 8px; }
+.lifecycle-cancel-effect { background: #fff7eb; border-color: #e7cda2; }
+.lifecycle-cancel-effect h3 { color: #785817; }
+.lifecycle-count { margin-top: 16px; font-size: 13px; }
+.lifecycle-notice { max-width: 1000px; margin: 0 0 24px; }
+.lifecycle-panel .lifecycle-notice { margin-top: 24px; }
+.lifecycle-notice h3 { margin: 0 0 12px; color: inherit; }
+.lifecycle-panel .state-message { margin-top: 24px; }
+.lifecycle-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-top: 24px; }
+.ams-ui button.lifecycle-cancel-button { background: #a12720; border-color: #a12720; color: #fff; }
+.ams-ui .lifecycle-actions button:disabled { opacity: .65; cursor: wait; }
+.teacher-app .detail-actions { flex-wrap: wrap; justify-content: flex-end; flex-shrink: 1; }
+@media (max-width: 640px) {
+    .teacher-app .detail-actions { justify-content: flex-start; }
+    .lifecycle-heading { flex-direction: column; gap: 14px; }
+    .lifecycle-metadata { grid-template-columns: 1fr; }
+    .lifecycle-transition { gap: 18px; }
+    .lifecycle-effect { padding: 16px; }
+    .lifecycle-actions { align-items: stretch; }
+    .lifecycle-actions .ams-button, .lifecycle-actions button { width: 100%; }
+}
