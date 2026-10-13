@@ -29,7 +29,7 @@ public class SubjectService {
   public List<SubjectSummaryDTO> list(
       long actor, String keyword, SubjectStatus status, int page) {
     validateSearch(keyword);
-    if (page < 1) throw new IllegalArgumentException("Invalid page");
+    if (page < 1) throw new IllegalArgumentException("Số trang không hợp lệ.");
     return Jdbc.transaction(
         connections,
         c -> {
@@ -84,7 +84,7 @@ public class SubjectService {
                     configured.registrationEnabled(),
                     configured.registrationOpensAt(),
                     configured.registrationClosesAt(),
-                    registrationStatus(configured, now)));
+                    registrationStatus(subject, term, configured, now)));
           }
           return new SubjectDetailsDTO(
               toDTO(subject), primary, supporting, history, List.copyOf(termViews));
@@ -129,18 +129,18 @@ public class SubjectService {
   /** UC14: Subject and initial responsibilities commit together. */
   public long create(
       long actor, SubjectDTO request, Map<Long, ResponsibilityType> assignments) {
-    if (request == null) throw new IllegalArgumentException("Subject is required");
+    if (request == null) throw new IllegalArgumentException("Vui lòng nhập thông tin môn học.");
     String code = subjectCode(request.subjectCode());
     String name = subjectName(request.subjectName());
     String description = description(request.description());
-    if (request.status() == null) throw new IllegalArgumentException("Initial status is required");
+    if (request.status() == null) throw new IllegalArgumentException("Vui lòng chọn trạng thái ban đầu.");
     validateExpertCounts(assignments);
     return Jdbc.transaction(
         connections,
         c -> {
           Access.admin(c, actor);
           if (subjects.findByCode(c, code).isPresent())
-            throw new IllegalArgumentException("Subject code already exists");
+            throw new IllegalArgumentException("Mã môn học đã tồn tại.");
           validateEligibleExperts(c, assignments.keySet());
           long id =
               subjects.insert(
@@ -163,7 +163,7 @@ public class SubjectService {
           Access.admin(c, actor);
           Subject old = requireSubject(c, subjectId, true);
           if (!old.subjectCode().equals(code))
-            throw new IllegalArgumentException("Subject code cannot be changed");
+            throw new IllegalArgumentException("Không thể thay đổi mã môn học.");
           subjects.update(
               c,
               new Subject(
@@ -193,14 +193,14 @@ public class SubjectService {
 
   /** UC16 preserves the Subject and history; deactivation also closes new registration. */
   public void changeStatus(long actor, long subjectId, SubjectStatus target) {
-    if (target == null) throw new IllegalArgumentException("Status is required");
+    if (target == null) throw new IllegalArgumentException("Vui lòng chọn trạng thái môn học.");
     Jdbc.transaction(
         connections,
         c -> {
           Access.admin(c, actor);
           Subject current = requireSubject(c, subjectId, true);
           if (current.status() == target)
-            throw new IllegalArgumentException("Subject already has this status");
+            throw new IllegalArgumentException("Môn học đã ở trạng thái này.");
           if (target == SubjectStatus.ACTIVE) {
             Map<Long, ResponsibilityType> assignments =
                 subjectExperts.findBySubjectId(c, subjectId, true).stream()
@@ -223,29 +223,27 @@ public class SubjectService {
 
   /** UC17 updates the stable Subject-Term row when the pair already exists. */
   public long openForTerm(long actor, SubjectTerm requested) {
-    if (requested == null) throw new IllegalArgumentException("Subject Term is required");
-    requirePositive(requested.subjectId(), "Subject ID");
-    requirePositive(requested.termId(), "Academic Term ID");
+    if (requested == null) throw new IllegalArgumentException("Vui lòng nhập cấu hình học kỳ cho môn học.");
+    requirePositive(requested.subjectId(), "Mã môn học");
+    requirePositive(requested.termId(), "Mã học kỳ");
     if (requested.registrationOpensAt() == null
         || requested.registrationClosesAt() == null)
-      throw new IllegalArgumentException("Registration period is required");
-    ValidationUtil.laterThan(
-        requested.registrationClosesAt(),
-        requested.registrationOpensAt(),
-        "Registration close");
+      throw new IllegalArgumentException("Vui lòng nhập thời gian mở và đóng đăng ký.");
+    if (!requested.registrationClosesAt().isAfter(requested.registrationOpensAt()))
+      throw new IllegalArgumentException("Thời gian đóng đăng ký phải sau thời gian mở đăng ký.");
     return Jdbc.transaction(
         connections,
         c -> {
           Access.admin(c, actor);
           Subject subject = requireSubject(c, requested.subjectId(), true);
           if (subject.status() != SubjectStatus.ACTIVE)
-            throw new IllegalArgumentException("Only an active Subject can be opened");
+            throw new IllegalArgumentException("Chỉ có thể mở môn học đang hoạt động theo học kỳ.");
           AcademicTerm term =
               masterData
                   .findTermById(c, requested.termId(), true)
-                  .orElseThrow(() -> new NoSuchElementException("Academic Term not found"));
+                  .orElseThrow(() -> new NoSuchElementException("Không tìm thấy học kỳ."));
           if (!term.active())
-            throw new IllegalArgumentException("Select an active Academic Term");
+            throw new IllegalArgumentException("Vui lòng chọn học kỳ đang hoạt động.");
           Optional<SubjectTerm> existing =
               subjectTerms.findBySubjectAndTerm(c, subject.subjectId(), term.termId(), true);
           if (existing.isPresent()) {
@@ -290,7 +288,7 @@ public class SubjectService {
                 old.expertId())
             > 0)
           throw new IllegalArgumentException(
-              "Remove active Class Expert responsibilities first");
+              "Vui lòng gỡ phân công chuyên gia ở lớp đang hoạt động trước.");
         subjectExperts.deactivate(c, subjectId, old.expertId());
       } else if (next != null
           && (!old.active() || old.responsibilityType() != next)) {
@@ -343,7 +341,7 @@ public class SubjectService {
   private static void validateEligibleExperts(Connection c, Set<Long> ids)
       throws SQLException {
     if (ids.stream().anyMatch(x -> x == null || x <= 0))
-      throw new IllegalArgumentException("Expert ID must be positive");
+      throw new IllegalArgumentException("Mã chuyên gia không hợp lệ.");
     if (ids.isEmpty()) return;
     String placeholders = String.join(",", Collections.nCopies(ids.size(), "?"));
     long eligible =
@@ -354,16 +352,16 @@ public class SubjectService {
                 + ") AND role='EXPERT' AND account_status='ACTIVE'",
             ids.toArray());
     if (eligible != ids.size())
-      throw new IllegalArgumentException("Only active Expert accounts may be assigned");
+      throw new IllegalArgumentException("Chỉ có thể phân công tài khoản chuyên gia đang hoạt động.");
   }
 
   public static void validateExpertCounts(
       Map<Long, ResponsibilityType> assignments) {
     if (assignments == null)
-      throw new IllegalArgumentException("Expert assignments are required");
+      throw new IllegalArgumentException("Vui lòng chọn phân công chuyên gia.");
     if (assignments.entrySet().stream()
         .anyMatch(entry -> entry.getKey() == null || entry.getValue() == null))
-      throw new IllegalArgumentException("Expert and responsibility are required");
+      throw new IllegalArgumentException("Vui lòng chọn chuyên gia và vai trò phụ trách.");
     long primary =
         assignments.values().stream()
             .filter(ResponsibilityType.PRIMARY::equals)
@@ -374,44 +372,50 @@ public class SubjectService {
             .count();
     if (primary < 1 || primary > 2)
       throw new IllegalArgumentException(
-          "An active Subject requires 1 to 2 PRIMARY Experts");
+          "Môn học cần có từ 1 đến 2 chuyên gia chính.");
     if (supporting > 2)
       throw new IllegalArgumentException(
-          "An active Subject allows at most 2 SUPPORTING Experts");
+          "Môn học chỉ được có tối đa 2 chuyên gia hỗ trợ.");
   }
 
   private Subject requireSubject(Connection c, long subjectId, boolean lock)
       throws SQLException {
-    requirePositive(subjectId, "Subject ID");
+    requirePositive(subjectId, "Mã môn học");
     return subjects
         .findById(c, subjectId, lock)
-        .orElseThrow(() -> new NoSuchElementException("Subject not found"));
+        .orElseThrow(() -> new NoSuchElementException("Không tìm thấy môn học."));
   }
 
-  private static String registrationStatus(SubjectTerm term, Instant now) {
-    if (now.isBefore(term.registrationOpensAt())) return "UPCOMING";
-    if (!now.isBefore(term.registrationClosesAt())) return "CLOSED";
+  private static String registrationStatus(
+      Subject subject, AcademicTerm academicTerm, SubjectTerm configured, Instant now) {
+    if (subject.status() != SubjectStatus.ACTIVE) return "SUBJECT_INACTIVE";
+    if (!academicTerm.active()) return "TERM_INACTIVE";
+    if (!configured.registrationEnabled()) return "DISABLED";
+    if (now.isBefore(configured.registrationOpensAt())) return "UPCOMING";
+    if (!now.isBefore(configured.registrationClosesAt())) return "CLOSED";
     return "OPEN";
   }
 
   private static void validateSearch(String keyword) {
     if (keyword != null && keyword.length() > 80)
-      throw new IllegalArgumentException("Search maximum is 80 characters");
+      throw new IllegalArgumentException("Từ khóa tìm kiếm không được quá 80 ký tự.");
   }
 
   private static String subjectCode(String value) {
-    ValidationUtil.required(value, "Subject code");
+    if (value == null || value.isBlank())
+      throw new IllegalArgumentException("Vui lòng nhập mã môn học.");
     String normalized = value.strip().toUpperCase(Locale.ROOT);
     if (normalized.length() > 30)
-      throw new IllegalArgumentException("Subject code maximum is 30 characters");
+      throw new IllegalArgumentException("Mã môn học không được quá 30 ký tự.");
     return normalized;
   }
 
   private static String subjectName(String value) {
-    ValidationUtil.required(value, "Subject name");
+    if (value == null || value.isBlank())
+      throw new IllegalArgumentException("Vui lòng nhập tên môn học.");
     String normalized = value.strip();
     if (normalized.length() > 150)
-      throw new IllegalArgumentException("Subject name maximum is 150 characters");
+      throw new IllegalArgumentException("Tên môn học không được quá 150 ký tự.");
     return normalized;
   }
 
@@ -420,7 +424,7 @@ public class SubjectService {
   }
 
   private static void requirePositive(long value, String name) {
-    if (value <= 0) throw new IllegalArgumentException(name + " must be positive");
+    if (value <= 0) throw new IllegalArgumentException(name + " không hợp lệ.");
   }
 
   private static SubjectDTO toDTO(Subject subject) {
