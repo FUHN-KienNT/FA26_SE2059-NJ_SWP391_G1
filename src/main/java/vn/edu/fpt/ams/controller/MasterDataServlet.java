@@ -20,14 +20,25 @@ public class MasterDataServlet extends HttpServlet {
                 res.sendRedirect(req.getContextPath() + "/admin/settings");
                 return;
             }
-            if (!Set.of("view", "create", "edit").contains(mode))
+            if (!Set.of("view", "create", "edit", "switch").contains(mode))
                 throw new IllegalArgumentException("Unknown Academic Term screen");
             long actor = WebSupport.actor(req);
             req.setAttribute("mode", mode);
             if (!"create".equals(mode))
                 req.setAttribute("term", service.getTerm(actor, WebSupport.id(req.getParameter("id"))));
+            if ("switch".equals(mode)) {
+                AcademicTerm target = (AcademicTerm) req.getAttribute("term");
+                if (target.active())
+                    throw new IllegalArgumentException("Chọn một học kỳ chưa hoạt động để chuyển.");
+                var activeTerms = service.listTerms(actor, null, true);
+                if (activeTerms.size() != 1)
+                    throw new IllegalArgumentException("Cần có đúng một học kỳ hoạt động để chuyển.");
+                req.setAttribute("activeTerm", activeTerms.get(0));
+            }
             WebSupport.csrf(req);
-            req.getRequestDispatcher("/WEB-INF/views/master-data/detail.jsp").forward(req, res);
+            req.getRequestDispatcher("switch".equals(mode)
+                    ? "/WEB-INF/views/master-data/switch.jsp"
+                    : "/WEB-INF/views/master-data/detail.jsp").forward(req, res);
         } catch (RuntimeException ex) {
             WebSupport.failure(req, res, ex);
         }
@@ -54,6 +65,11 @@ public class MasterDataServlet extends HttpServlet {
                     id = WebSupport.id(req.getParameter("termId"));
                     service.setTermStatus(actor, id, Boolean.parseBoolean(req.getParameter("active")));
                 }
+                case "switch" -> {
+                    id = WebSupport.id(req.getParameter("termId"));
+                    service.switchCurrentTerm(actor, id,
+                            expectedActiveId(req.getParameter("previousTermId")));
+                }
                 default -> throw new IllegalArgumentException("Unknown Academic Term action");
             }
             res.sendRedirect(req.getContextPath() + "/admin/master-data?mode=view&id=" + id + "&saved=1");
@@ -74,14 +90,24 @@ public class MasterDataServlet extends HttpServlet {
             WebSupport.csrf(req);
             res.setStatus(HttpServletResponse.SC_BAD_REQUEST);
             req.getRequestDispatcher("/WEB-INF/views/master-data/detail.jsp").forward(req, res);
-        } else if ("status".equals(action) || "current".equals(action)) {
-            req.setAttribute("terms", service.listTerms(WebSupport.actor(req), null, null));
+        } else if ("status".equals(action) || "current".equals(action) || "switch".equals(action)) {
+            long actor = WebSupport.actor(req);
+            req.setAttribute("terms", service.listTerms(actor, null, null));
+            req.setAttribute("hasActiveTerm", !service.listTerms(actor, null, true).isEmpty());
             req.setAttribute("error", error.getMessage());
             res.setStatus(HttpServletResponse.SC_BAD_REQUEST);
             req.getRequestDispatcher("/WEB-INF/views/settings/list.jsp").forward(req, res);
         } else {
             WebSupport.failure(req, res, error);
         }
+    }
+
+    private static long expectedActiveId(String raw) {
+        try {
+            long id = Long.parseLong(raw);
+            if (id > 0) return id;
+        } catch (RuntimeException ignored) { }
+        throw new IllegalArgumentException("Học kỳ hoạt động không hợp lệ. Vui lòng xem lại trước khi chuyển.");
     }
 
     private static AcademicTerm form(HttpServletRequest req, long id) {

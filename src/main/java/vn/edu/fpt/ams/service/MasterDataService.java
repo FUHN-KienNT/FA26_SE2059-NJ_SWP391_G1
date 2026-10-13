@@ -120,6 +120,30 @@ public class MasterDataService {
         });
   }
 
+  /** Explicitly replace the active term after the Admin reviews both terms. */
+  public void switchCurrentTerm(long actor, long targetId, long expectedActiveId) {
+    requirePositive(targetId);
+    if (expectedActiveId <= 0 || targetId == expectedActiveId)
+      throw new IllegalArgumentException("Chọn một học kỳ khác để chuyển.");
+    Jdbc.transaction(
+        connections,
+        c -> {
+          Access.admin(c, actor);
+          dao.lockTermWrites(c);
+          AcademicTerm target = requireTerm(c, targetId, true);
+          List<AcademicTerm> activeTerms = dao.findTerms(c, null, true);
+          if (activeTerms.size() != 1 || activeTerms.get(0).termId() != expectedActiveId)
+            throw new IllegalArgumentException(
+                "Học kỳ hoạt động đã thay đổi. Vui lòng xem lại trước khi chuyển.");
+          if (target.active())
+            throw new IllegalArgumentException("Học kỳ được chọn đã hoạt động.");
+          dao.updateTermStatus(c, expectedActiveId, false);
+          dao.updateTermStatus(c, targetId, true);
+          dao.markCurrentTerm(c, targetId);
+          return null;
+        });
+  }
+
   private void validateFlags(Connection c, AcademicTerm term, long excluding) throws SQLException {
     if (term.active() && dao.existsActiveTermExcluding(c, excluding))
       throw new IllegalArgumentException("Chỉ được phép có một học kỳ hoạt động tại một thời điểm.");

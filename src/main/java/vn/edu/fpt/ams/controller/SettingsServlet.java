@@ -25,6 +25,7 @@ public class SettingsServlet extends HttpServlet {
             else if ("INACTIVE".equals(status)) active = Boolean.FALSE;
             req.setAttribute("settingsTab", "terms");
             req.setAttribute("terms", service.listTerms(actor, req.getParameter("keyword"), active));
+            req.setAttribute("hasActiveTerm", !service.listTerms(actor, null, true).isEmpty());
             WebSupport.csrf(req);
             req.getRequestDispatcher("/WEB-INF/views/settings/list.jsp").forward(req,res);
         } catch (RuntimeException e) {
