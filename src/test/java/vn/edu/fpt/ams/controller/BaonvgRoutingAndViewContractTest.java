@@ -47,7 +47,7 @@ class BaonvgRoutingAndViewContractTest {
   @Test
   void allBaonvgAdminViewsUseTheSharedShell() throws Exception {
     for (String relative : List.of(
-        "settings/list.jsp", "master-data/detail.jsp", "subjects/list.jsp",
+        "settings/list.jsp", "master-data/detail.jsp", "master-data/switch.jsp", "subjects/list.jsp",
         "subjects/detail.jsp", "subjects/form.jsp", "subjects/experts.jsp",
         "subjects/status.jsp", "subjects/term.jsp")) {
       String view = Files.readString(VIEWS.resolve(relative));
@@ -69,7 +69,7 @@ class BaonvgRoutingAndViewContractTest {
     assertFalse(shell.contains("ams-sidebar-note"));
     assertTrue(shell.contains("<span>Quản trị viên</span>"));
     for (String relative : List.of("settings/list.jsp", "master-data/detail.jsp",
-        "subjects/list.jsp", "subjects/detail.jsp", "subjects/form.jsp", "subjects/experts.jsp",
+        "master-data/switch.jsp", "subjects/list.jsp", "subjects/detail.jsp", "subjects/form.jsp", "subjects/experts.jsp",
         "subjects/status.jsp", "subjects/term.jsp")) {
       String view = Files.readString(VIEWS.resolve(relative));
       assertFalse(view.contains("aria-label=\"Loại thiết lập\""), relative);
@@ -93,6 +93,20 @@ class BaonvgRoutingAndViewContractTest {
     assertTrue(view.contains("name=\"active\" value=\"true\""));
     assertTrue(view.contains("name=\"current\" value=\"true\""));
     assertTrue(view.contains("/admin/master-data"));
+  }
+
+  @Test
+  void academicTermSwitchRequiresAnExplicitReviewedPost() throws Exception {
+    String list = Files.readString(VIEWS.resolve("settings/list.jsp"));
+    String confirmation = Files.readString(VIEWS.resolve("master-data/switch.jsp"));
+    assertTrue(list.contains("mode=switch"));
+    assertTrue(list.contains("Chuyển học kỳ để ngừng"));
+    assertTrue(confirmation.contains("Học kỳ sẽ ngừng hoạt động"));
+    assertTrue(confirmation.contains("Học kỳ sẽ hoạt động và thành hiện tại"));
+    assertTrue(confirmation.contains("name=\"action\" value=\"switch\""));
+    assertTrue(confirmation.contains("name=\"previousTermId\""));
+    assertTrue(confirmation.contains("name=\"csrf\""));
+    assertTrue(confirmation.contains("Xác nhận chuyển học kỳ"));
   }
 
   @Test

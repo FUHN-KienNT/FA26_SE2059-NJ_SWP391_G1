@@ -809,6 +809,40 @@ class AdminScreensWorkflowsTest {
   }
 
   @Test
+  void switchingCurrentTermReplacesBothFlagsWithoutDeletingOldData() {
+    long target = masterData.createTerm(1, requestedTerm(0, "NEXT28", false, false));
+    long oldOfferings = scalar("SELECT COUNT(*) FROM subject_terms WHERE term_id=1");
+
+    masterData.switchCurrentTerm(1, target, 1);
+
+    assertFalse(masterData.getTerm(1, 1).active());
+    assertFalse(masterData.getTerm(1, 1).current());
+    assertTrue(masterData.getTerm(1, target).active());
+    assertTrue(masterData.getTerm(1, target).current());
+    assertEquals(1, scalar("SELECT COUNT(*) FROM academic_terms WHERE is_active=TRUE"));
+    assertEquals(1, scalar("SELECT COUNT(*) FROM academic_terms WHERE is_current=TRUE"));
+    assertEquals(oldOfferings, scalar("SELECT COUNT(*) FROM subject_terms WHERE term_id=1"));
+  }
+
+  @Test
+  void switchingWithStaleConfirmationOrWrongRoleLeavesTermsUnchanged() {
+    long first = masterData.createTerm(1, requestedTerm(0, "FIRST28", false, false));
+    long second = masterData.createTerm(1, requestedTerm(0, "SECOND28", false, false));
+    assertThrows(SecurityException.class, () -> masterData.switchCurrentTerm(2, first, 1));
+    masterData.switchCurrentTerm(1, first, 1);
+    var before = masterData.listTerms(1, null, null);
+
+    var error = assertThrows(IllegalArgumentException.class,
+        () -> masterData.switchCurrentTerm(1, second, 1));
+    assertEquals("Học kỳ hoạt động đã thay đổi. Vui lòng xem lại trước khi chuyển.",
+        error.getMessage());
+    assertEquals(before, masterData.listTerms(1, null, null));
+    assertThrows(IllegalArgumentException.class,
+        () -> masterData.switchCurrentTerm(1, first, first));
+    assertEquals(before, masterData.listTerms(1, null, null));
+  }
+
+  @Test
   void expertClassScopeUsesSubjectResponsibilityAndClassAssignment() {
     sql("INSERT INTO subject_classes(subject_term_id,class_code,class_name,capacity)"
         + " VALUES(1,'G2','Group Two',20)");
