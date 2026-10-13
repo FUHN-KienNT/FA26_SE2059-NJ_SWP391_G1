@@ -34,4 +34,16 @@ public final class Vietnamese {
   Map.entry("A positive record ID is required","Mã bản ghi phải là số nguyên dương"),Map.entry("Invalid page","Số trang không hợp lệ"),Map.entry("Search maximum is 50 characters","Từ khóa tìm kiếm tối đa 50 ký tự"),Map.entry("Maximum score is required","Cần nhập điểm tối đa")
  );
  public static String label(Object value){return value==null?"":LABELS.getOrDefault(value.toString(),value.toString());}
+ public static String registrationStatus(String status){
+  if(status==null)return "";
+  return switch(status){
+   case "SUBJECT_INACTIVE" -> "Môn học ngừng hoạt động";
+   case "TERM_INACTIVE" -> "Học kỳ ngừng hoạt động";
+   case "DISABLED" -> "Đã tắt đăng ký";
+   case "UPCOMING" -> "Chưa mở";
+   case "OPEN" -> "Đang mở";
+   case "CLOSED" -> "Đã đóng";
+   default -> label(status);
+  };
+ }
 }

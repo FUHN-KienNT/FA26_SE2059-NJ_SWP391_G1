@@ -9,6 +9,7 @@ import java.util.*;
 import vn.edu.fpt.ams.dto.SubjectDTO;
 import vn.edu.fpt.ams.model.*;
 import vn.edu.fpt.ams.service.SubjectService;
+import vn.edu.fpt.ams.util.Vietnamese;
 import vn.edu.fpt.ams.util.WebSupport;
 
 @WebServlet("/admin/subjects")
@@ -52,10 +53,9 @@ public class SubjectServlet extends HttpServlet {
                     req.getParameter("subjectCode"),
                     req.getParameter("subjectName"),
                     req.getParameter("description"),
-                    WebSupport.option(
-                        SubjectStatus.class, req.getParameter("initialStatus"))),
+                    subjectStatus(req.getParameter("initialStatus"))),
                 assignments(req));
-        notice = "Subject created";
+        notice = "Đã tạo môn học.";
       } else {
         id = WebSupport.id(req.getParameter("id"));
         if ("update".equals(action)) {
@@ -65,16 +65,16 @@ public class SubjectServlet extends HttpServlet {
               req.getParameter("subjectCode"),
               req.getParameter("subjectName"),
               req.getParameter("description"));
-          notice = "Subject updated";
+          notice = "Đã cập nhật môn học.";
         } else if ("experts".equals(action)) {
           service.assignExperts(actor, id, responsibilityAssignments(req));
-          notice = "Expert responsibilities updated";
+          notice = "Đã cập nhật phân công chuyên gia.";
         } else if ("status".equals(action)) {
           service.changeStatus(
               actor,
               id,
-              WebSupport.option(SubjectStatus.class, req.getParameter("status")));
-          notice = "Subject status updated";
+              subjectStatus(req.getParameter("status")));
+          notice = "Đã cập nhật trạng thái môn học.";
         } else if ("term".equals(action)) {
           service.openForTerm(
               actor,
@@ -85,9 +85,9 @@ public class SubjectServlet extends HttpServlet {
                   req.getParameter("registrationEnabled") != null,
                   instant(req.getParameter("registrationOpensAt")),
                   instant(req.getParameter("registrationClosesAt"))));
-          notice = "Subject Term configured";
+          notice = "Đã lưu cấu hình học kỳ cho môn học.";
         } else {
-          throw new IllegalArgumentException("Unknown action");
+          throw new IllegalArgumentException("Thao tác môn học không hợp lệ.");
         }
       }
       req.getSession().setAttribute("notice", notice);
@@ -107,8 +107,7 @@ public class SubjectServlet extends HttpServlet {
 
   private void prepareList(HttpServletRequest req, long actor) {
     int page = WebSupport.page(req.getParameter("page"));
-    SubjectStatus status =
-        WebSupport.option(SubjectStatus.class, req.getParameter("status"));
+    SubjectStatus status = subjectStatus(req.getParameter("status"));
     req.setAttribute("page", page);
     req.setAttribute(
         "subjects",
@@ -133,7 +132,7 @@ public class SubjectServlet extends HttpServlet {
       if ("term".equals(mode))
         req.setAttribute("eligibleTerms", service.eligibleTerms(actor));
     } else {
-      throw new IllegalArgumentException("Unknown Subject screen");
+      throw new IllegalArgumentException("Màn hình môn học không hợp lệ.");
     }
     WebSupport.csrf(req);
   }
@@ -151,10 +150,10 @@ public class SubjectServlet extends HttpServlet {
             case "experts" -> "experts";
             case "status" -> "status";
             case "term" -> "term";
-            default -> throw new IllegalArgumentException("Unknown action");
+            default -> throw new IllegalArgumentException("Thao tác môn học không hợp lệ.");
           };
       prepareScreen(req, actor, mode);
-      req.setAttribute("error", error.getMessage());
+      req.setAttribute("error", Vietnamese.label(error.getMessage()));
       req.setAttribute("submitted", true);
       res.setStatus(HttpServletResponse.SC_BAD_REQUEST);
       req.getRequestDispatcher(view(mode)).forward(req, res);
@@ -172,12 +171,12 @@ public class SubjectServlet extends HttpServlet {
     if ((primaryValues != null && primary.size() != primaryValues.length)
         || (supportingValues != null
             && supporting.size() != supportingValues.length))
-      throw new IllegalArgumentException("Duplicate Expert assignment");
+      throw new IllegalArgumentException("Chuyên gia bị chọn trùng trong cùng một vai trò.");
     var overlap = new HashSet<>(primary);
     overlap.retainAll(supporting);
     if (!overlap.isEmpty())
       throw new IllegalArgumentException(
-          "An Expert cannot be both PRIMARY and SUPPORTING");
+          "Một chuyên gia không thể đồng thời là chuyên gia chính và chuyên gia hỗ trợ.");
     var result = new LinkedHashMap<Long, ResponsibilityType>();
     primary.forEach(id -> result.put(id, ResponsibilityType.PRIMARY));
     supporting.forEach(id -> result.put(id, ResponsibilityType.SUPPORTING));
@@ -196,19 +195,19 @@ public class SubjectServlet extends HttpServlet {
       try {
         expertId = Long.parseLong(rawId);
       } catch (NumberFormatException e) {
-        throw new IllegalArgumentException("Invalid Expert responsibility");
+        throw new IllegalArgumentException("Vai trò phụ trách của chuyên gia không hợp lệ.");
       }
       if (expertId <= 0 || result.containsKey(expertId))
-        throw new IllegalArgumentException("Invalid Expert responsibility");
+        throw new IllegalArgumentException("Vai trò phụ trách của chuyên gia không hợp lệ.");
       String[] values = req.getParameterValues(name);
       if (values == null || values.length != 1)
-        throw new IllegalArgumentException("Select one responsibility per Expert");
+        throw new IllegalArgumentException("Mỗi chuyên gia chỉ được chọn một vai trò phụ trách.");
       String value = values[0];
       if ("NOT_ASSIGNED".equals(value)) continue;
       try {
         result.put(expertId, ResponsibilityType.valueOf(value));
       } catch (RuntimeException e) {
-        throw new IllegalArgumentException("Invalid Expert responsibility");
+        throw new IllegalArgumentException("Vai trò phụ trách của chuyên gia không hợp lệ.");
       }
     }
     return result;
@@ -222,7 +221,7 @@ public class SubjectServlet extends HttpServlet {
           .toInstant();
     } catch (RuntimeException e) {
       throw new IllegalArgumentException(
-          "Valid registration timestamps are required");
+          "Vui lòng nhập thời gian mở và đóng đăng ký hợp lệ.");
     }
   }
 
@@ -233,7 +232,7 @@ public class SubjectServlet extends HttpServlet {
       case "experts" -> "/WEB-INF/views/subjects/experts.jsp";
       case "status" -> "/WEB-INF/views/subjects/status.jsp";
       case "term" -> "/WEB-INF/views/subjects/term.jsp";
-      default -> throw new IllegalArgumentException("Unknown Subject screen");
+      default -> throw new IllegalArgumentException("Màn hình môn học không hợp lệ.");
     };
   }
 
@@ -245,5 +244,13 @@ public class SubjectServlet extends HttpServlet {
       case "term" -> "term";
       default -> "view";
     };
+  }
+
+  private static SubjectStatus subjectStatus(String value) {
+    try {
+      return WebSupport.option(SubjectStatus.class, value);
+    } catch (IllegalArgumentException e) {
+      throw new IllegalArgumentException("Trạng thái môn học không hợp lệ.");
+    }
   }
 }

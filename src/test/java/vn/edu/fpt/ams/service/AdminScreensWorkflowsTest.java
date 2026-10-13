@@ -448,13 +448,14 @@ class AdminScreensWorkflowsTest {
                 1,
                 new SubjectDTO(0, "NEW1", " ", null, SubjectStatus.ACTIVE),
                 Map.of(2L, ResponsibilityType.PRIMARY)));
-    assertThrows(
+    var missingPrimary = assertThrows(
         IllegalArgumentException.class,
         () ->
             subjects.create(
                 1,
                 new SubjectDTO(0, "NEW2", "No primary", null, SubjectStatus.ACTIVE),
                 Map.of(3L, ResponsibilityType.SUPPORTING)));
+    assertEquals("Môn học cần có từ 1 đến 2 chuyên gia chính.", missingPrimary.getMessage());
     assertThrows(
         IllegalArgumentException.class,
         () ->
@@ -702,6 +703,19 @@ class AdminScreensWorkflowsTest {
         () ->
             subjects.openForTerm(
                 2, new SubjectTerm(0, 1, 1, true, opens, closes)));
+  }
+
+  @Test
+  void subjectTermDisplayStatusRequiresActiveSubjectTermAndEnabledRegistration() {
+    assertEquals("DISABLED", subjects.details(1, 1).subjectTerms().get(0).registrationStatus());
+    sql("UPDATE subject_terms SET registration_enabled=TRUE WHERE subject_term_id=1");
+    assertEquals("OPEN", subjects.details(1, 1).subjectTerms().get(0).registrationStatus());
+
+    sql("UPDATE academic_terms SET is_current=FALSE,is_active=FALSE WHERE term_id=1");
+    assertEquals("TERM_INACTIVE", subjects.details(1, 1).subjectTerms().get(0).registrationStatus());
+    sql("UPDATE subjects SET status='INACTIVE' WHERE subject_id=1");
+    assertEquals("SUBJECT_INACTIVE", subjects.details(1, 1).subjectTerms().get(0).registrationStatus());
+    assertEquals(1, scalar("SELECT COUNT(*) FROM subject_terms WHERE subject_term_id=1"));
   }
 
   @Test
