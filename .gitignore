@@ -15,3 +15,10 @@ application.properties
 *.pdf
 *.drawio
 *.zip
+
+# Quang's local demo data, notes and deployment helper
+/ASSIGNMENT_LIST_QUANG.md
+/deploy-assignment-local.ps1
+/database/TEST_DATA_QUANG.md
+/database/seed_*_quang.sql
+/docs/quang-*.md
