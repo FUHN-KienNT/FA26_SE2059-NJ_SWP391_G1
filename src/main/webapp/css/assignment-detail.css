@@ -1,6 +1,7 @@
 .eyebrow { margin-bottom: 8px; font-size: 13px; color: #526176; }
 .page-heading h1 { overflow-wrap: anywhere; }
-.detail-actions { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
+.page-heading { flex-wrap: wrap; }
+.detail-actions { display: flex; align-items: center; gap: 14px; flex-shrink: 0; flex-wrap: wrap; max-width: 100%; }
 .detail-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 22px; align-items: start; }
 .detail-content, .detail-summary { display: grid; gap: 22px; min-width: 0; }
 .detail-card { background: #fff; border: 1px solid #dce2e8; border-radius: 9px; padding: 25px; min-width: 0; }

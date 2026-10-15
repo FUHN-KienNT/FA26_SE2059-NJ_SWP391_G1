@@ -17,7 +17,7 @@
     <link rel="stylesheet" href="<%= escape(base) %>/css/assignment-list.css">
 <%@ include file="/WEB-INF/views/shared/assets.jspf" %></head><body class="ams-ui teacher-app">
 <%@ include file="/WEB-INF/views/shared/shell.jspf" %><main class="ams-content" id="page-content">
-            <nav class="breadcrumb" aria-label="Breadcrumb"><a href="<%= escape(base) %>/home">Home</a><span aria-hidden="true">/</span><span>Assignments</span></nav>
+            <nav class="breadcrumb" aria-label="Breadcrumb"><a href="<%= escape(base) %>/teacher/dashboard">Dashboard</a><span aria-hidden="true">/</span><span>Assignments</span></nav>
             <div class="page-heading"><div><h1>Assignments</h1><p>Manage assignments for your assigned classes.</p></div>
                 <% if (classId != null) { %><a class="button primary" href="<%= escape(listUrl) %>?mode=create&amp;classId=<%= classId %>">Create Assignment</a><% } %>
             </div>

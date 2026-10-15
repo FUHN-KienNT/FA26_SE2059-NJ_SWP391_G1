@@ -6,6 +6,7 @@ import com.google.gson.JsonParser;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import vn.edu.fpt.ams.dto.AssignmentListFilter;
 
@@ -24,13 +25,16 @@ public final class AssignmentDetailView {
         try {
             JsonElement root = JsonParser.parseString(json);
             if (!root.isJsonArray()) return new Checklist(List.of(), true);
-            for (var item : root.getAsJsonArray()) {
+            for (var item : orderedItems(root, "task_order")) {
                 String text = string(item);
                 if (item.isJsonObject()) {
                     for (String key : List.of("title", "text", "task", "description")) {
                         text = string(item.getAsJsonObject().get(key));
                         if (text != null && !text.isBlank()) break;
                     }
+                    String description = string(item.getAsJsonObject().get("description"));
+                    if (text != null && description != null && !description.isBlank() && !description.equals(text))
+                        text += "\n" + description;
                 }
                 if (text == null || text.isBlank()) invalid = true;
                 else items.add(text);
@@ -48,7 +52,7 @@ public final class AssignmentDetailView {
         try {
             JsonElement root = JsonParser.parseString(json);
             if (!root.isJsonArray()) return new Options(List.of(), true);
-            for (var item : root.getAsJsonArray()) {
+            for (var item : orderedItems(root, "option_order")) {
                 if (!item.isJsonObject()) { invalid = true; continue; }
                 JsonObject object = item.getAsJsonObject();
                 JsonElement id = object.get("option_id");
@@ -67,6 +71,33 @@ public final class AssignmentDetailView {
             invalid = true;
         }
         return new Options(List.copyOf(items), invalid);
+    }
+
+    private record OrderedItem(JsonElement item, int order) {}
+
+    private static List<JsonElement> orderedItems(JsonElement root, String orderField) {
+        List<OrderedItem> ordered = new ArrayList<>();
+        int position = 0;
+        for (JsonElement item : root.getAsJsonArray()) {
+            position++;
+            JsonElement order = item.isJsonObject() ? item.getAsJsonObject().get(orderField) : null;
+            ordered.add(new OrderedItem(item, order(order, position)));
+        }
+        // Stable sorting preserves array order for ties, including legacy fallback positions.
+        ordered.sort(Comparator.comparingInt(OrderedItem::order));
+        return ordered.stream().map(OrderedItem::item).toList();
+    }
+
+    private static int order(JsonElement value, int fallback) {
+        if (value != null && value.isJsonPrimitive()
+                && (value.getAsJsonPrimitive().isNumber() || value.getAsJsonPrimitive().isString())) {
+            String text = value.getAsString();
+            if (text.matches("[1-9][0-9]*")) {
+                try { return Integer.parseInt(text); }
+                catch (NumberFormatException ignored) { }
+            }
+        }
+        return fallback;
     }
 
     private static String string(JsonElement element) {

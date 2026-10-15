@@ -448,13 +448,14 @@ class AdminScreensWorkflowsTest {
                 1,
                 new SubjectDTO(0, "NEW1", " ", null, SubjectStatus.ACTIVE),
                 Map.of(2L, ResponsibilityType.PRIMARY)));
-    assertThrows(
+    var missingPrimary = assertThrows(
         IllegalArgumentException.class,
         () ->
             subjects.create(
                 1,
                 new SubjectDTO(0, "NEW2", "No primary", null, SubjectStatus.ACTIVE),
                 Map.of(3L, ResponsibilityType.SUPPORTING)));
+    assertEquals("Môn học cần có từ 1 đến 2 chuyên gia chính.", missingPrimary.getMessage());
     assertThrows(
         IllegalArgumentException.class,
         () ->
@@ -705,6 +706,19 @@ class AdminScreensWorkflowsTest {
   }
 
   @Test
+  void subjectTermDisplayStatusRequiresActiveSubjectTermAndEnabledRegistration() {
+    assertEquals("DISABLED", subjects.details(1, 1).subjectTerms().get(0).registrationStatus());
+    sql("UPDATE subject_terms SET registration_enabled=TRUE WHERE subject_term_id=1");
+    assertEquals("OPEN", subjects.details(1, 1).subjectTerms().get(0).registrationStatus());
+
+    sql("UPDATE academic_terms SET is_current=FALSE,is_active=FALSE WHERE term_id=1");
+    assertEquals("TERM_INACTIVE", subjects.details(1, 1).subjectTerms().get(0).registrationStatus());
+    sql("UPDATE subjects SET status='INACTIVE' WHERE subject_id=1");
+    assertEquals("SUBJECT_INACTIVE", subjects.details(1, 1).subjectTerms().get(0).registrationStatus());
+    assertEquals(1, scalar("SELECT COUNT(*) FROM subject_terms WHERE subject_term_id=1"));
+  }
+
+  @Test
   void masterDataListCreateUpdateAndCurrentTermRules() {
     assertEquals(1, masterData.listTerms(1, "fa", true).size());
     assertThrows(SecurityException.class, () -> masterData.listTerms(2, null, null));
@@ -806,6 +820,40 @@ class AdminScreensWorkflowsTest {
     assertThrows(IllegalArgumentException.class,()->masterData.updateTerm(1,
         new AcademicTerm(1,old.termCode(),"Invalid",old.startsAt(),old.endsAt(),true,false)));
     assertEquals(changed,masterData.getTerm(1,1));
+  }
+
+  @Test
+  void switchingCurrentTermReplacesBothFlagsWithoutDeletingOldData() {
+    long target = masterData.createTerm(1, requestedTerm(0, "NEXT28", false, false));
+    long oldOfferings = scalar("SELECT COUNT(*) FROM subject_terms WHERE term_id=1");
+
+    masterData.switchCurrentTerm(1, target, 1);
+
+    assertFalse(masterData.getTerm(1, 1).active());
+    assertFalse(masterData.getTerm(1, 1).current());
+    assertTrue(masterData.getTerm(1, target).active());
+    assertTrue(masterData.getTerm(1, target).current());
+    assertEquals(1, scalar("SELECT COUNT(*) FROM academic_terms WHERE is_active=TRUE"));
+    assertEquals(1, scalar("SELECT COUNT(*) FROM academic_terms WHERE is_current=TRUE"));
+    assertEquals(oldOfferings, scalar("SELECT COUNT(*) FROM subject_terms WHERE term_id=1"));
+  }
+
+  @Test
+  void switchingWithStaleConfirmationOrWrongRoleLeavesTermsUnchanged() {
+    long first = masterData.createTerm(1, requestedTerm(0, "FIRST28", false, false));
+    long second = masterData.createTerm(1, requestedTerm(0, "SECOND28", false, false));
+    assertThrows(SecurityException.class, () -> masterData.switchCurrentTerm(2, first, 1));
+    masterData.switchCurrentTerm(1, first, 1);
+    var before = masterData.listTerms(1, null, null);
+
+    var error = assertThrows(IllegalArgumentException.class,
+        () -> masterData.switchCurrentTerm(1, second, 1));
+    assertEquals("Học kỳ hoạt động đã thay đổi. Vui lòng xem lại trước khi chuyển.",
+        error.getMessage());
+    assertEquals(before, masterData.listTerms(1, null, null));
+    assertThrows(IllegalArgumentException.class,
+        () -> masterData.switchCurrentTerm(1, first, first));
+    assertEquals(before, masterData.listTerms(1, null, null));
   }
 
   @Test
