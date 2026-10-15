@@ -13,6 +13,7 @@ public class TeacherDashboardService {
     private final TeacherDashboardDAO dashboardDAO = new TeacherDashboardDAO();
     private final UserDAO userDAO = new UserDAO();
 
+    /** Chỉ trả về tài khoản khi id thuộc giảng viên đang hoạt động. */
     public UserAccount requireActiveTeacher(long teacherId) {
         if (teacherId <= 0) throw new IllegalArgumentException("Teacher ID must be positive");
         UserAccount teacher = userDAO.findById(teacherId)
@@ -23,11 +24,13 @@ public class TeacherDashboardService {
         return teacher;
     }
 
+    /** Trả các lớp được giao cho giảng viên này, kèm sĩ số, lời mời còn hạn và số bài tập. */
     public List<TeacherClassSummary> assignedClasses(long teacherId) {
         requireActiveTeacher(teacherId);
         return dashboardDAO.listAssignedClasses(teacherId);
     }
 
+    /** Đếm mọi bài nộp thuộc các lớp của giảng viên này. */
     public long submissionCount(long teacherId) {
         requireActiveTeacher(teacherId);
         return dashboardDAO.countSubmissions(teacherId);

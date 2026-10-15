@@ -8,7 +8,7 @@ String uiRoleLabel = vn.edu.fpt.ams.util.Vietnamese.label(uiRole);
 String[][] uiLinks;
 if("admin".equals(uiArea)) uiLinks = new String[][]{{"/admin/dashboard","Bảng điều khiển"},{"/admin/users","Tài khoản"},{"/admin/subjects","Môn học"},{"/admin/settings","Cài đặt"}};
 else if("expert".equals(uiArea)) uiLinks = new String[][]{{"/expert/dashboard","Bảng điều khiển"},{"/expert/classes","Môn học và lớp"},{"/expert/templates","Mẫu bài tập"}};
-else if("teacher".equals(uiArea)) uiLinks = new String[][]{{"/teacher/dashboard","Bảng điều khiển"},{"/teacher/enrollments","Lớp phụ trách"},{"/teacher/assignments","Bài tập"}};
+else if("teacher".equals(uiArea)) uiLinks = new String[][]{{"/teacher/dashboard","Bảng điều khiển"},{"/teacher/enrollments","Lớp phụ trách"},{"/teacher/offers","Lời mời lớp bổ sung"},{"/teacher/assignments","Bài tập"}};
 else uiLinks = new String[][]{{"/student/dashboard","Bảng điều khiển"}};
 %>
 <a class="ams-skip" href="#page-content">Đến nội dung chính</a>

@@ -28,6 +28,7 @@ public class TeacherDashboardDAO {
             ORDER BY t.term_code, c.class_code
             """;
 
+    /** Đọc các lớp có teacher_id trùng giảng viên, kèm sĩ số active, lời mời còn hạn và số bài tập. */
     public List<TeacherClassSummary> listAssignedClasses(long teacherId) {
         try (Connection connection = DBConnection.getConnection();
              PreparedStatement statement = connection.prepareStatement(CLASS_SQL)) {
@@ -49,6 +50,7 @@ public class TeacherDashboardDAO {
         }
     }
 
+    /** Đếm bài nộp trên mọi bài tập của các lớp thuộc giảng viên này. */
     public long countSubmissions(long teacherId) {
         String sql = """
                 SELECT count(*) FROM submissions sub

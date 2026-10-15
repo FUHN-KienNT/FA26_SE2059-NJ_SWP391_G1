@@ -22,6 +22,7 @@ public class EnrollmentDAO {
     public List<ClassEnrollment> findByClassId(long classId) { throw pending(); }
     public Optional<ClassEnrollment> findActiveByRegistrationId(long registrationId) { throw pending(); }
 
+    /** Kiểm tra lớp có đang được giao cho giảng viên này hay không. */
     public boolean teacherOwnsClass(long teacherId, long classId) {
         String sql = "SELECT 1 FROM subject_classes WHERE class_id = ? AND teacher_id = ?";
         try (Connection connection = DBConnection.getConnection();
@@ -36,6 +37,7 @@ public class EnrollmentDAO {
         }
     }
 
+    /** Đọc sinh viên đã ghi danh vào lớp, kèm tên, email và trạng thái. */
     public List<EnrollmentDTO> listRoster(long classId) {
         String sql = """
                 SELECT e.enrollment_id, e.registration_id, e.class_id, e.status,
@@ -65,6 +67,7 @@ public class EnrollmentDAO {
         }
     }
 
+    /** Đếm ghi danh đang ACTIVE của một lớp. */
     public long countActiveStudents(long classId) {
         return count(classId, """
                 SELECT count(*) FROM class_enrollments
@@ -72,7 +75,7 @@ public class EnrollmentDAO {
                 """);
     }
 
-    /** Pending invitations reserve seats until accepted, expired or cancelled. */
+    /** Đếm lời mời PENDING còn hạn, vì mỗi lời mời đó đang giữ một chỗ. */
     public long countActiveReservedInvitationSeats(long classId) {
         return count(classId, """
                 SELECT count(*) FROM student_invitations
@@ -80,6 +83,7 @@ public class EnrollmentDAO {
                 """);
     }
 
+    /** Mở một transaction, khóa lớp, kiểm tra chỗ trống rồi tạo ghi danh cho sinh viên đã có tài khoản. */
     public long placeExistingStudent(long teacherId, long classId, long studentId, EnrollmentMethod method) {
         try (Connection connection = DBConnection.getConnection()) {
             connection.setAutoCommit(false);
@@ -97,6 +101,7 @@ public class EnrollmentDAO {
         }
     }
 
+    /** Mở một transaction rồi đổi trạng thái một ghi danh thuộc lớp của giảng viên này. */
     public void updateOwnedStatus(long teacherId, long enrollmentId, EnrollmentStatus status) {
         try (Connection connection = DBConnection.getConnection()) {
             connection.setAutoCommit(false);
@@ -118,6 +123,7 @@ public class EnrollmentDAO {
 
     public Optional<StudentInvitation> findInvitationByToken(String token) { throw pending(); }
 
+    /** Đọc mọi lời mời của một lớp, lời mời mới gửi đứng trước. */
     public List<StudentInvitation> findInvitationsByClass(long classId) {
         String sql = """
                 SELECT * FROM student_invitations
@@ -137,6 +143,7 @@ public class EnrollmentDAO {
         }
     }
 
+    /** Chạy một câu đếm theo class_id và trả về số đếm được. */
     private long count(long classId, String sql) {
         try (Connection connection = DBConnection.getConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
@@ -150,6 +157,7 @@ public class EnrollmentDAO {
         }
     }
 
+    /** Khóa lớp, từ chối nếu sinh viên đã có ghi danh đang học, rồi mới kiểm tra sĩ số và chèn ghi danh. */
     private long insertPlacement(Connection connection, long teacherId, long classId, long studentId,
                                  EnrollmentMethod method) throws SQLException {
         long subjectTermId;
@@ -179,13 +187,6 @@ public class EnrollmentDAO {
                 }
             }
         }
-        long occupied = countOn(connection, """
-                SELECT count(*) FROM class_enrollments WHERE class_id = ? AND status = 'ACTIVE'
-                """, classId) + countOn(connection, """
-                SELECT count(*) FROM student_invitations
-                WHERE class_id = ? AND status = 'PENDING' AND expires_at > CURRENT_TIMESTAMP
-                """, classId);
-        if (occupied >= capacity) throw new IllegalArgumentException("The class has no available seat");
 
         Long registrationId = null;
         String registrationStatus = null;
@@ -202,6 +203,26 @@ public class EnrollmentDAO {
                 }
             }
         }
+        if (registrationId != null) {
+            try (PreparedStatement statement = connection.prepareStatement("""
+                    SELECT enrollment_id FROM class_enrollments
+                    WHERE registration_id = ? AND status = 'ACTIVE'
+                    """)) {
+                statement.setLong(1, registrationId);
+                try (ResultSet rows = statement.executeQuery()) {
+                    if (rows.next()) {
+                        throw new IllegalArgumentException("This student already has an active enrollment for the subject term");
+                    }
+                }
+            }
+        }
+        long occupied = countOn(connection, """
+                SELECT count(*) FROM class_enrollments WHERE class_id = ? AND status = 'ACTIVE'
+                """, classId) + countOn(connection, """
+                SELECT count(*) FROM student_invitations
+                WHERE class_id = ? AND status = 'PENDING' AND expires_at > CURRENT_TIMESTAMP
+                """, classId);
+        if (occupied >= capacity) throw new IllegalArgumentException("The class has no available seat");
         if (registrationId == null) {
             try (PreparedStatement statement = connection.prepareStatement("""
                     INSERT INTO subject_registrations (student_id, subject_term_id, status)
@@ -251,6 +272,7 @@ public class EnrollmentDAO {
         }
     }
 
+    /** Khóa ghi danh của giảng viên này, kiểm tra chỗ trống khi bật lại, rồi ghi trạng thái mới. */
     private void applyStatus(Connection connection, long teacherId, long enrollmentId,
                              EnrollmentStatus status) throws SQLException {
         long classId;
@@ -327,6 +349,7 @@ public class EnrollmentDAO {
         }
     }
 
+    /** Đếm trên connection đang mở, dùng khi transaction đã khóa lớp. */
     private long countOn(Connection connection, String sql, long classId) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setLong(1, classId);
@@ -337,6 +360,7 @@ public class EnrollmentDAO {
         }
     }
 
+    /** Đếm trên connection đang mở và bỏ qua một ghi danh, để không tính chính dòng sắp bật lại. */
     private long countOn(Connection connection, String sql, long classId, long excludedEnrollmentId) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setLong(1, classId);
