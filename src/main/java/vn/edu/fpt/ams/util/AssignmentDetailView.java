@@ -35,6 +35,9 @@ public final class AssignmentDetailView {
                     String description = string(item.getAsJsonObject().get("description"));
                     if (text != null && description != null && !description.isBlank() && !description.equals(text))
                         text += "\n" + description;
+                    JsonElement points = item.getAsJsonObject().get("maximum_points");
+                    if (points != null && points.isJsonPrimitive() && points.getAsJsonPrimitive().isNumber())
+                        text += "\n" + points.getAsBigDecimal().stripTrailingZeros().toPlainString() + " điểm";
                 }
                 if (text == null || text.isBlank()) invalid = true;
                 else items.add(text);

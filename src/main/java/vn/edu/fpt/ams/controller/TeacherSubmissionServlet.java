@@ -28,9 +28,10 @@ public class TeacherSubmissionServlet extends HttpServlet {
         try {
             String mode = req.getParameter("mode");
             if (mode != null && !mode.isBlank() && !"list".equals(mode) && !"view".equals(mode))
-                throw new IllegalArgumentException("Unknown submission action.");
+                throw new IllegalArgumentException("Thao tác với bài nộp không hợp lệ.");
             long assignmentId = WebSupport.id(req.getParameter("assignmentId"));
-            var filter = TeacherSubmissionFilter.from(req.getParameter("search"), req.getParameter("status"));
+            var filter = TeacherSubmissionFilter.from(req.getParameter("search"), req.getParameter("status"),
+                    req.getParameter("page"));
             req.setAttribute("selectedAssignmentId", assignmentId);
             req.setAttribute("submissionFilters", filter);
             if ("view".equals(mode)) {
@@ -41,19 +42,19 @@ public class TeacherSubmissionServlet extends HttpServlet {
                 req.setAttribute("submissionPage", service.listPage(teacherId, assignmentId, filter));
             }
         } catch (IllegalArgumentException ex) {
-            res.sendError(400, "Invalid assignment, submission or filters.");
+            res.sendError(400, "Bài tập, bài nộp hoặc bộ lọc không hợp lệ.");
             return;
         } catch (NoSuchElementException ex) {
             // Missing and inaccessible records have the same response.
-            res.sendError(404, "Submission or assignment not found or unavailable.");
+            res.sendError(404, "Không tìm thấy bài nộp hoặc bài tập, hoặc bạn không có quyền xem.");
             return;
         } catch (SecurityException ex) {
-            res.sendError(403, "An active Teacher account is required.");
+            res.sendError(403, "Cần đăng nhập bằng tài khoản giảng viên đang hoạt động.");
             return;
         } catch (IllegalStateException ex) {
             getServletContext().log("Teacher submissions could not be loaded", ex);
             res.setStatus(503);
-            req.setAttribute("submissionError", "Submissions could not be loaded. Please try again.");
+            req.setAttribute("submissionError", "Không thể tải danh sách bài nộp. Vui lòng thử lại.");
         }
         req.getRequestDispatcher(view).forward(req, res);
     }
@@ -62,14 +63,14 @@ public class TeacherSubmissionServlet extends HttpServlet {
         res.setHeader("Cache-Control", "no-store");
         if (teacher(req, res) == null) return;
         res.setHeader("Allow", "GET, HEAD");
-        res.sendError(405, "This page only displays saved submissions.");
+        res.sendError(405, "Trang này chỉ hiển thị các bài nộp đã lưu.");
     }
 
     private Long teacher(HttpServletRequest req, HttpServletResponse res) throws IOException {
         HttpSession session = req.getSession(false);
         if (session == null || !(session.getAttribute("userId") instanceof Long id) || id <= 0
                 || session.getAttribute("accountStatus") != AccountStatus.ACTIVE) {
-            res.sendError(401, "Sign-in is required.");
+            res.sendError(401, "Vui lòng đăng nhập.");
             return null;
         }
         if (session.getAttribute("role") != UserRole.TEACHER) {

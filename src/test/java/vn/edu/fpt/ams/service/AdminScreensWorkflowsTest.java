@@ -136,7 +136,7 @@ class AdminScreensWorkflowsTest {
             .replace("'[]'::jsonb", "'[]'")
             .replace("JSONB", "JSON")
             .replace("INTERVAL '48 hours'", "INTERVAL '48' HOUR")
-            .replaceAll("CHECK \\(jsonb_typeof\\([^)]*\\) = 'array'\\)", "");
+            .replaceAll("CHECK \\(jsonb_typeof\\([^)]*\\) = '(array|object)'\\)", "");
     try (var c = db.open();
         var s = c.createStatement()) {
       for (String command : script.split(";")) {

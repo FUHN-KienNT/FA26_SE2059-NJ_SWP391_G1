@@ -28,8 +28,39 @@ public class AssignmentDAO {
         }
     }
 
+    public boolean hasSubmittedWork(Connection connection,long assignmentId) throws SQLException {
+        try(var statement=connection.prepareStatement("SELECT EXISTS (SELECT 1 FROM submissions WHERE assignment_id=? AND submitted_at IS NOT NULL)")) {
+            statement.setLong(1,assignmentId);
+            try(var rows=statement.executeQuery()) { rows.next(); return rows.getBoolean(1); }
+        }
+    }
+
+    /** Freeze the question content seen by each existing attempt before reopening editing. */
+    public void captureSubmissionContent(Connection connection,long assignmentId) throws SQLException {
+        try(var statement=connection.prepareStatement("""
+                INSERT INTO submission_content_snapshots(submission_id,assignment_data,questions_data)
+                SELECT s.submission_id,to_jsonb(a),COALESCE((
+                    SELECT jsonb_agg(to_jsonb(q) ORDER BY q.question_order,q.question_id)
+                    FROM questions q WHERE q.assignment_id=a.assignment_id
+                ),'[]'::jsonb)
+                FROM assignments a JOIN submissions s ON s.assignment_id=a.assignment_id
+                WHERE a.assignment_id=?
+                ON CONFLICT (submission_id) DO NOTHING
+                """)) {
+            statement.setLong(1,assignmentId); statement.executeUpdate();
+        }
+    }
+
+    public void markDraft(Connection connection,long assignmentId) throws SQLException {
+        // published_at records prior publication; attempts and their results remain untouched.
+        try(var statement=connection.prepareStatement("UPDATE assignments SET status='DRAFT',cancelled_at=NULL WHERE assignment_id=? AND status='CANCELLED'")) {
+            statement.setLong(1,assignmentId);
+            if(statement.executeUpdate()!=1) throw new SQLException("The locked cancelled assignment could not be restored.");
+        }
+    }
+
     public void markPublished(Connection connection,long assignmentId,java.time.Instant now) throws SQLException {
-        try(var statement=connection.prepareStatement("UPDATE assignments SET status='PUBLISHED',published_at=? WHERE assignment_id=? AND status='DRAFT'")) {
+        try(var statement=connection.prepareStatement("UPDATE assignments SET status='PUBLISHED',published_at=COALESCE(published_at,?) WHERE assignment_id=? AND status='DRAFT'")) {
             statement.setObject(1,now.atOffset(java.time.ZoneOffset.UTC)); statement.setLong(2,assignmentId);
             if(statement.executeUpdate()!=1) throw new SQLException("The locked Draft could not be published.");
         }

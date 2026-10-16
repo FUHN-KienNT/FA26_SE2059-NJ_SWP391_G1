@@ -17,6 +17,8 @@
 .submission-page .empty-results strong{display:block;font-weight:600;margin-bottom:9px}
 .submission-page .empty-results p{line-height:1.5}
 .submission-page .submission-status.in_progress{background:#e3edf8;color:#214f77}
+.submission-page .submission-status.not-started{background:#fff1e7;color:#8c420d}
+.submission-page .submission-unavailable{font-size:13px;color:#627183}
 .submission-page .submission-status.submitted{background:#e7e9fd;color:#454c8a}
 .submission-page .submission-status.graded{background:#fff0cf;color:#855d13}
 .submission-page .submission-status.released{background:#dcf2e5;color:#256344}

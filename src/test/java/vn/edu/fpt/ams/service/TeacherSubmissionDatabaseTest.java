@@ -40,6 +40,7 @@ class TeacherSubmissionDatabaseTest {
             statement.execute("CREATE TEMP TABLE assignment_templates (template_id BIGINT PRIMARY KEY, title TEXT)");
             statement.execute("CREATE TEMP TABLE subject_registrations (registration_id BIGINT PRIMARY KEY, student_id BIGINT, subject_term_id BIGINT, status TEXT)");
             statement.execute("CREATE TEMP TABLE class_enrollments (enrollment_id BIGINT PRIMARY KEY, registration_id BIGINT, class_id BIGINT, status TEXT)");
+            statement.execute("CREATE TEMP TABLE submission_content_snapshots (submission_id BIGINT PRIMARY KEY, assignment_data JSONB NOT NULL, questions_data JSONB NOT NULL)");
             for (String table : List.of("assignments", "questions", "submissions")) {
                 String id = table.equals("assignments") ? "assignment_id"
                         : table.equals("questions") ? "question_id" : "submission_id";
@@ -50,6 +51,8 @@ class TeacherSubmissionDatabaseTest {
                         + " SET DEFAULT nextval('teacher_submission_" + table + "_ids')");
             }
             statement.execute("SET search_path TO pg_temp");
+            statement.execute("ALTER TABLE assignments DROP CONSTRAINT IF EXISTS ck_assignments_draft_timestamps");
+            statement.execute("ALTER TABLE assignments ADD CONSTRAINT ck_assignments_draft_timestamps CHECK (status <> 'DRAFT' OR cancelled_at IS NULL)");
             statement.execute("""
                     INSERT INTO users VALUES
                       (1,'TEACHER','ACTIVE','Teacher A','a@example.test'),
@@ -63,7 +66,11 @@ class TeacherSubmissionDatabaseTest {
                       (103,'STUDENT','INACTIVE','Nguyễn Quang','quang@example.test'),
                       (104,'STUDENT','ACTIVE','Literal '' OR 1=1 --','literal@example.test'),
                       (105,'STUDENT','ACTIVE','Foreign Student','foreign@example.test'),
-                      (106,'STUDENT','ACTIVE','Wrong Term','term@example.test')
+                      (106,'STUDENT','ACTIVE','Wrong Term','term@example.test'),
+                      (107,'STUDENT','ACTIVE','Pending 50%_','pending@example.test'),
+                      (108,'STUDENT','INACTIVE','Pending inactive account','pending-inactive@example.test'),
+                      (109,'STUDENT','ACTIVE','Inactive enrollment without work','inactive-enrollment@example.test'),
+                      (110,'STUDENT','ACTIVE','Inactive registration without work','inactive-registration@example.test')
                     """);
             statement.execute("INSERT INTO subjects VALUES (100,'SWP391','Project'),(200,'PRJ301','Java')");
             statement.execute("INSERT INTO academic_terms VALUES (300,'FALL2026')");
@@ -79,19 +86,23 @@ class TeacherSubmissionDatabaseTest {
             statement.execute("""
                     INSERT INTO subject_registrations VALUES (1001,101,1000,'ACTIVE'),
                       (1002,102,1000,'ACTIVE'),(1003,103,1000,'INACTIVE'),(1004,104,1000,'ACTIVE'),
-                      (2001,105,2000,'ACTIVE'),(3001,106,2000,'ACTIVE')
+                      (2001,105,2000,'ACTIVE'),(3001,106,2000,'ACTIVE'),
+                      (1007,107,1000,'ACTIVE'),(1008,108,1000,'ACTIVE'),
+                      (1009,109,1000,'ACTIVE'),(1010,110,1000,'INACTIVE')
                     """);
             statement.execute("""
                     INSERT INTO class_enrollments VALUES (100,1001,10,'ACTIVE'),(101,1002,10,'ACTIVE'),
                       (102,1003,10,'INACTIVE'),(103,1004,10,'ACTIVE'),(200,2001,20,'ACTIVE'),
-                      (300,1001,11,'INACTIVE'),(400,3001,10,'ACTIVE')
+                      (300,1001,11,'INACTIVE'),(400,3001,10,'ACTIVE'),
+                      (107,1007,10,'ACTIVE'),(108,1008,10,'ACTIVE'),
+                      (109,1009,10,'INACTIVE'),(110,1010,10,'ACTIVE')
                     """);
             statement.execute("""
                     INSERT INTO assignments (assignment_id,class_id,template_id,title,assignment_purpose,
                       response_type,instructions,maximum_score,status,available_from,due_at,published_at,cancelled_at)
                     SELECT v.id,v.class_id,1,'Assignment '||v.id,'REGULAR',v.response_type,'Saved instructions',
                       10,v.status,clock_timestamp()-interval '2 days',clock_timestamp()+interval '2 days',
-                      CASE WHEN v.status <> 'DRAFT' THEN clock_timestamp()-interval '1 day' END,
+                      CASE WHEN v.status <> 'DRAFT' OR v.id = 502 THEN clock_timestamp()-interval '1 day' END,
                       CASE WHEN v.status = 'CANCELLED' THEN clock_timestamp() END
                     FROM (VALUES (501,10,'OBJECTIVE','PUBLISHED'),(502,11,'ESSAY','DRAFT'),
                       (503,10,'OBJECTIVE','CANCELLED'),(504,10,'ESSAY','DRAFT'),
@@ -161,6 +172,7 @@ class TeacherSubmissionDatabaseTest {
 
     private List<Long> ids(String search, String status) {
         return service().listPage(1,501,TeacherSubmissionFilter.from(search,status)).submissions().stream()
+                .filter(row -> row.hasSubmission())
                 .map(row -> row.submission().submissionId()).toList();
     }
 
@@ -188,6 +200,9 @@ class TeacherSubmissionDatabaseTest {
         assertNull(TeacherSubmissionFilter.from("", " ").status());
         for (SubmissionStatus status : SubmissionStatus.values())
             assertEquals(status,TeacherSubmissionFilter.from(null," "+status.name().toLowerCase()+" ").status());
+        var notStarted=TeacherSubmissionFilter.from(null," not_started ");
+        assertTrue(notStarted.notStartedOnly()); assertNull(notStarted.status());
+        assertEquals("NOT_STARTED",notStarted.statusValue());
         assertEquals(200, TeacherSubmissionFilter.from("😀".repeat(200),null).search().codePointCount(0,400));
         assertThrows(IllegalArgumentException.class,()->TeacherSubmissionFilter.from("😀".repeat(201),null));
         assertThrows(IllegalArgumentException.class,()->TeacherSubmissionFilter.from(null,"DELETED"));
@@ -210,31 +225,45 @@ class TeacherSubmissionDatabaseTest {
             throw new SQLException("Private JDBC connection failure");
         });
         var error=assertThrows(IllegalStateException.class,()->service.listPage(1,501,TeacherSubmissionFilter.from(null,null)));
-        assertEquals("Submissions could not be loaded.",error.getMessage());
+        assertEquals("Không thể tải danh sách bài nộp.",error.getMessage());
         assertInstanceOf(SQLException.class,error.getCause());
     }
 
-    @Test @Tag("database") void ownedListOrdersSubmittedTimesThenIdsAndNullTimesLast() {
-        assertEquals(List.of(7L,3L,2L,1L,6L,5L,4L),ids(null,null));
+    @Test @Tag("database") void ownedListGroupsStudentsAndOrdersTheirAttemptsNewestFirst() {
+        assertEquals(List.of(4L,1L,5L,2L,7L,6L,3L),ids(null,null));
         var page=service().listPage(1,501,TeacherSubmissionFilter.from(null,null));
         assertEquals("A1",page.assignment().classCode());
-        assertEquals(7,page.submissions().size());
+        assertEquals(9,page.submissions().size()); assertEquals(9,page.totalCount());
         assertThrows(UnsupportedOperationException.class,()->page.submissions().clear());
     }
 
+    @Test @Tag("database") void includesCurrentUnstartedStudentsWithoutInventingAttemptsOrDetailIds() {
+        var page=service().listPage(1,501,TeacherSubmissionFilter.from(null,"NOT_STARTED"));
+        assertEquals(2,page.totalCount());
+        assertEquals(List.of(107L,108L),page.submissions().stream().map(row -> row.studentId()).toList());
+        for (var row:page.submissions()) {
+            assertFalse(row.hasSubmission()); assertNull(row.submission()); assertNull(row.graderName());
+            assertNull(row.assignmentSnapshot()); assertNull(row.questionsSnapshot());
+            assertThrows(NoSuchElementException.class,()->service().detailPage(1,501,row.studentId()));
+        }
+        assertEquals(1,service().listPage(1,501,TeacherSubmissionFilter.from("50%_","NOT_STARTED")).totalCount());
+        assertEquals(1,service().listPage(1,501,TeacherSubmissionFilter.from("PENDING@EXAMPLE.TEST","NOT_STARTED")).totalCount());
+        assertEquals(0,service().listPage(1,501,TeacherSubmissionFilter.from("' OR 1=1 --","NOT_STARTED")).totalCount());
+    }
+
     @Test @Tag("database") void searchesStudentNameOrEmailLiterallyWithCaseInsensitiveMatching() {
-        assertEquals(List.of(1L,4L),ids("  ALICE  ",null));
-        assertEquals(List.of(3L,6L),ids("quang@EXAMPLE.test",null));
-        assertEquals(List.of(1L,4L),ids("100%_",null));
-        assertEquals(List.of(1L,4L),ids("%",null));
-        assertEquals(List.of(1L,4L),ids("_",null));
+        assertEquals(List.of(4L,1L),ids("  ALICE  ",null));
+        assertEquals(List.of(6L,3L),ids("quang@EXAMPLE.test",null));
+        assertEquals(List.of(4L,1L),ids("100%_",null));
+        assertEquals(List.of(4L,1L),ids("%",null));
+        assertEquals(List.of(4L,1L),ids("_",null));
         assertEquals(List.of(7L),ids("' OR 1=1 --",null));
         assertEquals(List.of(),ids("does not exist",null));
     }
 
     @Test @Tag("database") void filtersAllSixStatusesAndCombinesWithSearch() {
         assertEquals(List.of(6L),ids(null,"IN_PROGRESS"));
-        assertEquals(List.of(7L,1L),ids(null,"SUBMITTED"));
+        assertEquals(List.of(1L,7L),ids(null,"SUBMITTED"));
         assertEquals(List.of(2L),ids(null,"GRADED"));
         assertEquals(List.of(3L),ids(null,"RELEASED"));
         assertEquals(List.of(4L),ids(null,"EXPIRED"));
@@ -262,7 +291,7 @@ class TeacherSubmissionDatabaseTest {
     }
 
     @Test @Tag("database") void reassignmentImmediatelyChangesWhoCanReadOnNextRequest() throws SQLException {
-        assertEquals(7,service().listPage(1,501,TeacherSubmissionFilter.from(null,null)).submissions().size());
+        assertEquals(9,service().listPage(1,501,TeacherSubmissionFilter.from(null,null)).submissions().size());
         execute("UPDATE subject_classes SET teacher_id=2 WHERE class_id=10");
         assertThrows(NoSuchElementException.class,()->service().detailPage(1,501,1));
         assertEquals(1,service().detailPage(2,501,1).row().submission().submissionId());
@@ -286,11 +315,11 @@ class TeacherSubmissionDatabaseTest {
         assertFalse(ids(null,null).contains(11L));
     }
 
-    @Test @Tag("database") void includesCancelledAndDraftAssignmentHistoryWithoutMutation() {
-        var cancelled=service().listPage(1,503,TeacherSubmissionFilter.from(null,null));
-        assertEquals(1,cancelled.submissions().size());
-        assertEquals(SubmissionStatus.VOID,cancelled.submissions().get(0).submission().status());
-        assertEquals(13,service().detailPage(1,504,13).row().submission().submissionId());
+    @Test @Tag("database") void requiresPublishedAssignmentOrAcceptedHistoricalSubmission() {
+        assertThrows(NoSuchElementException.class, () -> service().listPage(1,503,TeacherSubmissionFilter.from(null,null)));
+        assertThrows(NoSuchElementException.class, () -> service().detailPage(1,503,12));
+        assertThrows(NoSuchElementException.class, () -> service().detailPage(1,504,13));
+        assertEquals(8,service().detailPage(1,502,8).row().submission().submissionId());
     }
 
     @Test @Tag("database") void detailRetainsSavedWorkEvaluationAndObjectiveQuestionContext() {
@@ -313,7 +342,9 @@ class TeacherSubmissionDatabaseTest {
     @Test @Tag("database") void listAndDetailLeaveEveryAcademicRowUnchanged() throws SQLException {
         String before=snapshot();
         ids(null,null);ids("alice","SUBMITTED");
-        service().detailPage(1,501,3);service().detailPage(1,503,12);
+        service().listPage(1,501,TeacherSubmissionFilter.from(null,"NOT_STARTED"));
+        service().listPage(1,501,TeacherSubmissionFilter.from("50%_","NOT_STARTED","99"));
+        service().detailPage(1,501,3);service().detailPage(1,501,6);
         assertEquals(before,snapshot());
     }
 

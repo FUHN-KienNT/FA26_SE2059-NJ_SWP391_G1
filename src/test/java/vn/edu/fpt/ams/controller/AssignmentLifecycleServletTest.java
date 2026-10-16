@@ -63,6 +63,7 @@ class AssignmentLifecycleServletTest {
         }
         @Override public void publishAssignment(long actor,long id,String revision) { write(actor,id,revision); }
         @Override public int cancelAssignment(long actor,long id,String revision) { write(actor,id,revision);return 2; }
+        @Override public void restoreAssignment(long actor,long id,String revision) { write(actor,id,revision); }
         private void write(long actor,long id,String revision) {
             writes++; assertEquals(1,actor);assertEquals(101,id);assertEquals(REVISION,revision);
             if(writeFailure!=null) throw writeFailure;
@@ -75,6 +76,15 @@ class AssignmentLifecycleServletTest {
         };
     }
 
+    @Test void forgedRestoreGetAndPostAreRejectedBeforeAnyServiceCall() throws Exception {
+        for(boolean post:List.of(false,true)) {
+            var e=new Exchange();e.params.putAll(Map.of("mode","restore","action","restore"));
+            var service=new Service();
+            if(post)servlet(service).doPost(e.request,e.response);else servlet(service).doGet(e.request,e.response);
+            assertEquals(400,e.status);assertEquals(0,service.loads);assertEquals(0,service.writes);
+            assertNull(e.forward);assertNull(e.redirect);
+        }
+    }
     @Test void getOnlyLoadsConfirmationAndRetainsFilters() throws Exception {
         for(String action:List.of("publish","cancel")) {
             var e=new Exchange(); e.params.putAll(Map.of("mode",action,"search","A & B","status","DRAFT"));
@@ -94,7 +104,7 @@ class AssignmentLifecycleServletTest {
             assertEquals(1,service.writes);assertEquals(302,e.status);assertNull(e.forward);
             assertTrue(e.redirect.contains("classId=10"));assertTrue(e.redirect.contains("assignmentId=101"));
             assertTrue(e.redirect.contains("search=A+%26+B"));assertTrue(e.redirect.contains("status=DRAFT"));
-            assertEquals(101L,e.session.get(action.equals("publish")?"publishedAssignmentId":"cancelledAssignmentId"));
+            assertEquals(101L,e.session.get(action.equals("publish")?"publishedAssignmentId":action.equals("cancel")?"cancelledAssignmentId":"restoredAssignmentId"));
             assertFalse(e.session.containsKey("updatedAssignmentId"));assertFalse(e.session.containsKey("createdAssignmentId"));
         }
     }
@@ -104,7 +114,7 @@ class AssignmentLifecycleServletTest {
             var e=new Exchange(); if(token==null)e.params.remove("csrf");else e.params.put("csrf",token);
             var service=new Service();servlet(service).doPost(e.request,e.response);
             assertEquals(403,e.status);assertEquals(VIEW,e.forward);assertEquals(0,service.writes);assertNull(e.redirect);
-            assertTrue(e.attributes.get("lifecycleError").toString().contains("Nothing was changed"));
+            assertTrue(e.attributes.get("lifecycleError").toString().contains("Chưa có dữ liệu nào thay đổi"));
             e.params.put("csrf",(String)e.session.get("csrf"));
             servlet(service).doPost(e.request,e.response);assertEquals(302,e.status);assertEquals(1,service.writes);
         }

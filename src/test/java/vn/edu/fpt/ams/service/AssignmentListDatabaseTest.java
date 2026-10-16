@@ -46,8 +46,8 @@ class AssignmentListDatabaseTest {
     private AssignmentListPage page(Long classId, String search, String purpose, String type, String status) {
         return service.listPage(1, classId, AssignmentListFilter.from(search, purpose, type, status));
     }
-    @Test void defaultsToFirstAssignedClassAndOrdersNewestFirst() {
-        var result = page(null, null, null, null, null);
+    @Test void loadsExplicitOwnedClassAndOrdersNewestFirst() {
+        var result = page(10L, null, null, null, null);
         assertEquals(10L, result.selectedClassId());
         assertEquals(List.of(10L, 11L), result.classes().stream().map(c -> c.classId()).toList());
         assertEquals(List.of(104L,103L,102L,101L), result.assignments().stream().map(a -> a.assignmentId()).toList());
@@ -82,18 +82,16 @@ class AssignmentListDatabaseTest {
         assertThrows(SecurityException.class, () -> page(20L,null,null,null,null));
         assertThrows(SecurityException.class, () -> page(999L,null,null,null,null));
     }
-    @Test void teacherWithoutClassesHasNoSelection() {
-        var result = service.listPage(3,null,AssignmentListFilter.from(null,null,null,null));
-        assertNull(result.selectedClassId());
-        assertTrue(result.assignments().isEmpty());
-        assertTrue(result.classes().isEmpty());
+    @Test void teacherWithoutClassesCannotAccessAnotherClass() {
+        assertThrows(SecurityException.class, () -> service.listPage(3,10L,AssignmentListFilter.from(null,null,null,null)));
     }
     @Test void rejectsInactiveWrongRoleAndMissingAccountsDespiteSessionId() {
         for (long id : new long[]{4,5,999})
-            assertThrows(SecurityException.class, () -> service.listPage(id,null,AssignmentListFilter.from(null,null,null,null)));
+            assertThrows(SecurityException.class, () -> service.listPage(id,10L,AssignmentListFilter.from(null,null,null,null)));
     }
     @Test void rejectsInvalidInputBeforeOpeningConnection() {
         var withoutDb = new AssignmentService(new AssignmentDAO(), () -> { throw new AssertionError("Must not connect"); });
+        assertThrows(IllegalArgumentException.class, () -> withoutDb.listPage(1,null,AssignmentListFilter.from(null,null,null,null)));
         assertThrows(IllegalArgumentException.class, () -> withoutDb.listPage(1,0L,AssignmentListFilter.from(null,null,null,null)));
         assertThrows(SecurityException.class, () -> withoutDb.listPage(0,null,AssignmentListFilter.from(null,null,null,null)));
     }

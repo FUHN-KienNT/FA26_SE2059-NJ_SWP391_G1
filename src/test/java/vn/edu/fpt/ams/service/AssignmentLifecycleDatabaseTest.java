@@ -53,6 +53,9 @@ class AssignmentLifecycleDatabaseTest {
             statement.execute("CREATE TEMP TABLE assignments (LIKE public.assignments INCLUDING ALL)");
             statement.execute("CREATE TEMP TABLE questions (LIKE public.questions INCLUDING ALL)");
             statement.execute("CREATE TEMP TABLE submissions (LIKE public.submissions INCLUDING ALL)");
+            statement.execute("ALTER TABLE assignments DROP CONSTRAINT IF EXISTS ck_assignments_draft_timestamps");
+            statement.execute("ALTER TABLE assignments ADD CONSTRAINT ck_assignments_draft_timestamps CHECK (status <> 'DRAFT' OR cancelled_at IS NULL)");
+            statement.execute("CREATE TEMP TABLE submission_content_snapshots (submission_id BIGINT PRIMARY KEY, assignment_data JSONB NOT NULL, questions_data JSONB NOT NULL)");
             // LIKE can copy serial defaults. Replace both serial and identity IDs so that
             // fixture setup and service writes cannot advance an application sequence.
             statement.execute("ALTER TABLE assignments ALTER COLUMN assignment_id DROP IDENTITY IF EXISTS");
@@ -91,20 +94,20 @@ class AssignmentLifecycleDatabaseTest {
                     VALUES (101,10,1,'Ready objective','REGULAR','OBJECTIVE','Answer every question.','','[]'::jsonb,
                         10,'DRAFT',clock_timestamp()+interval '1 hour',clock_timestamp()+interval '2 days',30,NULL,NULL,NULL),
                         (102,10,1,'Ready essay','REGULAR','ESSAY','Explain the design.','UML and Java',
-                        '[{"task_order":1,"title":"Describe the design","description":"Include one diagram."}]'::jsonb,
+                        '[{"task_order":1,"title":"Describe the design","description":"Include one diagram.","maximum_points":10}]'::jsonb,
                         10,'DRAFT',clock_timestamp()+interval '1 hour',clock_timestamp()+interval '2 days',NULL,NULL,NULL,NULL),
                         (103,10,1,'Published essay','REGULAR','ESSAY','Explain the design.','UML and Java',
-                        '[{"task_order":1,"title":"Describe the design","description":"Include one diagram."}]'::jsonb,
+                        '[{"task_order":1,"title":"Describe the design","description":"Include one diagram.","maximum_points":10}]'::jsonb,
                         10,'PUBLISHED',clock_timestamp()-interval '1 day',clock_timestamp()+interval '2 days',NULL,NULL,
                         clock_timestamp()-interval '2 days',NULL),
                         (104,10,1,'Cancelled essay','REGULAR','ESSAY','Explain the design.','UML and Java',
-                        '[{"task_order":1,"title":"Describe the design","description":"Include one diagram."}]'::jsonb,
+                        '[{"task_order":1,"title":"Describe the design","description":"Include one diagram.","maximum_points":10}]'::jsonb,
                         10,'CANCELLED',clock_timestamp()-interval '1 day',clock_timestamp()+interval '2 days',NULL,NULL,
                         clock_timestamp()-interval '2 days',clock_timestamp()-interval '1 day'),
                         (105,10,1,'Incomplete objective','REGULAR','OBJECTIVE','  ','','[]'::jsonb,
                         10,'DRAFT',NULL,NULL,NULL,NULL,NULL,NULL),
                         (106,10,1,'Past deadline','REGULAR','ESSAY','Explain the design.','UML and Java',
-                        '[{"task_order":1,"title":"Describe the design","description":"Include one diagram."}]'::jsonb,
+                        '[{"task_order":1,"title":"Describe the design","description":"Include one diagram.","maximum_points":10}]'::jsonb,
                         10,'DRAFT',clock_timestamp()-interval '2 days',clock_timestamp()-interval '1 day',NULL,NULL,NULL,NULL),
                         (107,10,1,'Incorrect score total','REGULAR','OBJECTIVE','Answer the question.','','[]'::jsonb,
                         10,'DRAFT',clock_timestamp()+interval '1 hour',clock_timestamp()+interval '2 days',NULL,NULL,NULL,NULL),
@@ -251,6 +254,23 @@ class AssignmentLifecycleDatabaseTest {
         return new AssignmentForm(values);
     }
 
+    private Map<Long, JsonObject> contentSnapshots(long assignmentId) throws SQLException {
+        resetConnection();
+        Map<Long,JsonObject> saved=new LinkedHashMap<>();
+        try(var statement=connection.prepareStatement("""
+                SELECT snapshot.submission_id,row_to_json(snapshot)::text
+                FROM submission_content_snapshots snapshot
+                JOIN submissions s ON s.submission_id=snapshot.submission_id
+                WHERE s.assignment_id=? ORDER BY snapshot.submission_id
+                """)) {
+            statement.setLong(1,assignmentId);
+            try(var rows=statement.executeQuery()) {
+                while(rows.next()) saved.put(rows.getLong(1),JsonParser.parseString(rows.getString(2)).getAsJsonObject());
+            }
+        }
+        return saved;
+    }
+
     private static void assertOnlyInProgressVoided(Snapshot before, Snapshot after) {
         assertEquals(before.submissions().keySet(), after.submissions().keySet());
         for (var entry : before.submissions().entrySet()) {
@@ -315,16 +335,14 @@ class AssignmentLifecycleDatabaseTest {
         assertTrue(service.lifecyclePage(1, 108, "publish").errors().containsKey("attemptLimit"));
     }
 
-    @Test void objectiveNeedsTwoOptionsExactlyOneCorrectAnswerAndMatchingScore() throws SQLException {
+    @Test void objectiveNeedsTwoOptionsAtLeastOneCorrectAnswerAndMatchingScore() throws SQLException {
         var service = service();
         var originalOptions = snapshot(101).questions().get(0).getAsJsonObject().get("options").toString();
         for (String options : List.of(
                 "[]",
                 "[{\"option_id\":11,\"option_order\":1,\"option_text\":\"Only answer\",\"is_correct\":true}]",
                 "[{\"option_id\":11,\"option_order\":1,\"option_text\":\"A\",\"is_correct\":false},"
-                        + "{\"option_id\":12,\"option_order\":2,\"option_text\":\"B\",\"is_correct\":false}]",
-                "[{\"option_id\":11,\"option_order\":1,\"option_text\":\"A\",\"is_correct\":true},"
-                        + "{\"option_id\":12,\"option_order\":2,\"option_text\":\"B\",\"is_correct\":true}]")) {
+                        + "{\"option_id\":12,\"option_order\":2,\"option_text\":\"B\",\"is_correct\":false}]")) {
             execute("UPDATE questions SET options=CAST(? AS jsonb) WHERE question_id=1001", options);
             var before = snapshot(101);
             var page = service.lifecyclePage(1, 101, "publish");
@@ -344,27 +362,27 @@ class AssignmentLifecycleDatabaseTest {
         assertEquals("PUBLISHED", snapshot(108).assignment().get("status").getAsString());
     }
 
-    @Test void essayNeedsInstructionsScopeAndTasksBeforePublication() throws SQLException {
+    @Test void essayNeedsInstructionsAndScoredQuestionsButNoScopeBeforePublication() throws SQLException {
         execute("UPDATE assignments SET instructions=' ',scope_text='',task_checklist='[]'::jsonb WHERE assignment_id=102");
         var service = service();
         var before = snapshot(102);
         var page = service.lifecyclePage(1, 102, "publish");
         assertTrue(page.errors().containsKey("instructions"));
-        assertTrue(page.errors().containsKey("scopeText"));
+        assertFalse(page.errors().containsKey("scopeText"));
         assertTrue(page.errors().containsKey("tasksJson"));
         assertThrows(ValidationException.class, () -> service.publishAssignment(1, 102, page.revision()));
         assertEquals(before, snapshot(102));
         execute("UPDATE assignments SET instructions='Valid instructions.' WHERE assignment_id=102");
         assertFalse(service.lifecyclePage(1, 102, "publish").errors().isEmpty(),
-                "An essay with neither scope nor tasks still needs content");
+                "An essay still needs scored questions");
         execute("UPDATE assignments SET scope_text='Valid scope.' WHERE assignment_id=102");
         assertTrue(service.lifecyclePage(1, 102, "publish").errors().containsKey("tasksJson"));
         execute("""
                 UPDATE assignments SET scope_text='',
-                    task_checklist='[{"task_order":1,"title":"Valid task","description":"Details"}]'::jsonb
+                    task_checklist='[{"task_order":1,"title":"Valid task","description":"Details","maximum_points":10}]'::jsonb
                 WHERE assignment_id=102
                 """);
-        assertTrue(service.lifecyclePage(1, 102, "publish").errors().containsKey("scopeText"));
+        assertTrue(service.lifecyclePage(1, 102, "publish").errors().isEmpty());
     }
 
     @Test void publishingPreservesAllSavedQuestionsOptionsAndSubmissionsAndRepeatsSafely() throws SQLException {
@@ -462,6 +480,20 @@ class AssignmentLifecycleDatabaseTest {
         assertThrows(AssignmentEditConflictException.class,
                 () -> service.publishAssignment(1, 104, cancellation.revision()));
         assertEquals(before, snapshot(104));
+    }
+
+    @Test void cancelledAssignmentRejectsRestoreWithoutChangingContentSubmissionsOrSnapshots() throws SQLException {
+        var service=service();
+        service.cancelAssignment(1,103,service.lifecyclePage(1,103,"cancel").revision());
+        var before=snapshot(103);
+        var storedSnapshots=contentSnapshots(103);
+        assertThrows(IllegalArgumentException.class,()->service.lifecyclePage(1,103,"restore"));
+        for(String revision:new String[]{null,"", "a".repeat(64)})
+            assertThrows(IllegalArgumentException.class,()->service.restoreAssignment(1,103,revision));
+        assertThrows(AssignmentEditConflictException.class,()->service.editPage(1,103));
+        assertThrows(AssignmentEditConflictException.class,()->service.publishAssignment(1,103,service.lifecyclePage(1,103,"publish").revision()));
+        assertEquals(before,snapshot(103));
+        assertEquals(storedSnapshots,contentSnapshots(103));
     }
 
     @Test void deniesForeignMissingInactiveAndWrongRoleActorsForLoadAndBothActions() throws SQLException {

@@ -15,7 +15,7 @@
     String action = lifecycle == null ? (String) request.getAttribute("lifecycleAction") : lifecycle.action();
     boolean publishing = "publish".equals(action);
     boolean cancelling = "cancel".equals(action);
-    String pageTitle = publishing ? "Publish Assignment" : cancelling ? "Cancel Assignment" : "Assignment action";
+    String pageTitle = publishing ? "Công bố bài tập" : cancelling ? "Hủy bài tập" : "Thao tác bài tập";
     String base = request.getContextPath();
     String listUrl = base + "/teacher/assignments";
     String backUrl = assignment == null ? listUrl : AssignmentDetailView.listUrl(base, assignment.classId(), filters);
@@ -29,7 +29,7 @@
     boolean canConfirm = statusAllowsAction && errors.isEmpty() && hasRevision;
 %>
 <!doctype html>
-<html lang="en"><head>
+<html lang="vi"><head>
     <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
     <title><%= escape(pageTitle) %> | AMS</title>
     <link rel="stylesheet" href="<%= escape(base) %>/css/assignment-list.css">
@@ -39,46 +39,46 @@
 </head><body class="ams-ui teacher-app">
 <%@ include file="/WEB-INF/views/shared/shell.jspf" %>
 <main class="ams-content assignment-lifecycle" id="page-content">
-    <nav class="breadcrumb" aria-label="Breadcrumb"><a href="<%= escape(base) %>/teacher/dashboard">Dashboard</a><span aria-hidden="true">/</span><a href="<%= escape(backUrl) %>">Assignments</a><span aria-hidden="true">/</span><% if (assignment != null) { %><a href="<%= escape(detailUrl) %>">Details</a><span aria-hidden="true">/</span><% } %><span aria-current="page"><%= publishing ? "Publish" : cancelling ? "Cancel" : "Action" %></span></nav>
-    <div class="page-heading"><div><p class="eyebrow">Review assignment</p><h1><%= escape(pageTitle) %></h1><p>Review the saved configuration and the effect of this action.</p></div></div>
+    <nav class="breadcrumb" aria-label="Đường dẫn"><a href="<%= escape(base) %>/teacher/dashboard">Bảng điều khiển</a><span aria-hidden="true">/</span><a href="<%= escape(backUrl) %>">Bài tập</a><span aria-hidden="true">/</span><% if (assignment != null) { %><a href="<%= escape(detailUrl) %>">Chi tiết</a><span aria-hidden="true">/</span><% } %><span aria-current="page"><%= publishing ? "Công bố" : cancelling ? "Hủy" : "Thao tác" %></span></nav>
+    <div class="page-heading"><div><p class="eyebrow">Kiểm tra bài tập</p><h1><%= escape(pageTitle) %></h1><p>Kiểm tra thông tin đã lưu và tác động của thao tác trước khi xác nhận.</p></div></div>
     <% if (hasError) { %>
-    <section class="notice error lifecycle-notice" role="alert"><h2>Unable to complete this action</h2><p><%= escape(error) %></p></section>
+    <section class="notice error lifecycle-notice" role="alert"><h2>Không thể hoàn tất thao tác</h2><p><%= escape(error) %></p></section>
     <% } %>
     <% if (assignment == null && !errors.isEmpty()) { %>
-    <section class="notice error lifecycle-notice" role="alert"><h2>Unable to complete this action</h2><ul><% for (String message : errors.values()) { %><li><%= escape(message) %></li><% } %></ul></section>
+    <section class="notice error lifecycle-notice" role="alert"><h2>Không thể hoàn tất thao tác</h2><ul><% for (String message : errors.values()) { %><li><%= escape(message) %></li><% } %></ul></section>
     <% } %>
     <% if (assignment == null) { %>
-    <section class="empty-state"><h2>Assignment unavailable</h2><p>The saved assignment could not be loaded. Return to the list to choose an assignment.</p><a class="ams-button back-button" href="<%= escape(backUrl) %>">Back to list</a></section>
+    <section class="empty-state"><h2>Bài tập không khả dụng</h2><p>Không thể tải bài tập đã lưu. Hãy quay về danh sách để chọn bài tập.</p><a class="ams-button back-button" href="<%= escape(backUrl) %>">Quay về danh sách</a></section>
     <% } else { %>
     <section class="detail-card lifecycle-panel" aria-labelledby="assignment-heading">
-        <div class="lifecycle-heading"><div><h2 id="assignment-heading"><%= escape(assignment.title()) %></h2><p><%= escape(detail.classCode()) %> — <%= escape(detail.className()) %> · <%= escape(detail.subjectCode()) %> · <%= escape(detail.termCode()) %></p></div><a href="<%= escape(detailUrl) %>">Review assignment content</a></div>
-        <div class="lifecycle-transition" role="group" aria-label="Assignment status">
-            <span class="lifecycle-status"><span>Current status</span><strong class="badge <%= assignment.status() == null ? "" : assignment.status().name().toLowerCase(java.util.Locale.ROOT) %>"><%= assignment.status() == null ? "Unknown" : escape(label(assignment.status())) %></strong></span>
-            <% if (publishing || cancelling) { %><span class="lifecycle-arrow" aria-hidden="true">→</span><span class="sr-only">Changes to</span><span class="lifecycle-status"><span>Proposed status</span><strong class="badge <%= publishing ? "published" : "cancelled" %>"><%= publishing ? "Published" : "Cancelled" %></strong></span><% } %>
+        <div class="lifecycle-heading"><div><h2 id="assignment-heading"><%= escape(assignment.title()) %></h2><p><%= escape(detail.classCode()) %> — <%= escape(detail.className()) %> · <%= escape(detail.subjectCode()) %> · <%= escape(detail.termCode()) %></p></div><a href="<%= escape(detailUrl) %>">Xem nội dung bài tập</a></div>
+        <div class="lifecycle-transition" role="group" aria-label="Trạng thái bài tập">
+            <span class="lifecycle-status"><span>Trạng thái hiện tại</span><strong class="badge <%= assignment.status() == null ? "" : assignment.status().name().toLowerCase(java.util.Locale.ROOT) %>"><%= assignment.status() == null ? "Chưa xác định" : escape(label(assignment.status())) %></strong></span>
+            <% if (publishing || cancelling) { %><span class="lifecycle-arrow" aria-hidden="true">→</span><span class="sr-only">Chuyển thành</span><span class="lifecycle-status"><span>Trạng thái sau thao tác</span><strong class="badge <%= publishing ? "published" : cancelling ? "cancelled" : "draft" %>"><%= publishing ? "Đã công bố" : cancelling ? "Đã hủy" : "Bản nháp" %></strong></span><% } %>
         </div>
         <dl class="metadata lifecycle-metadata">
-            <div><dt>Class</dt><dd><%= escape(detail.classCode()) %> — <%= escape(detail.className()) %></dd></div>
-            <div><dt>Purpose</dt><dd><%= escape(label(assignment.assignmentPurpose())) %></dd></div>
-            <div><dt>Response type</dt><dd><%= escape(label(assignment.responseType())) %></dd></div>
-            <div><dt>Maximum score</dt><dd><%= assignment.maximumScore() == null ? "Not set" : escape(assignment.maximumScore().stripTrailingZeros().toPlainString()) + " points" %></dd></div>
-            <div><dt>Available from (UTC+07)</dt><dd><%= escape(deadline(assignment.availableFrom())) %></dd></div>
-            <div><dt>Due at (UTC+07)</dt><dd><%= escape(deadline(assignment.dueAt())) %></dd></div>
+            <div><dt>Lớp</dt><dd><%= escape(detail.classCode()) %> — <%= escape(detail.className()) %></dd></div>
+            <div><dt>Mục đích</dt><dd><%= escape(label(assignment.assignmentPurpose())) %></dd></div>
+            <div><dt>Hình thức trả lời</dt><dd><%= escape(label(assignment.responseType())) %></dd></div>
+            <div><dt>Điểm tối đa</dt><dd><%= assignment.maximumScore() == null ? "Chưa đặt" : escape(assignment.maximumScore().stripTrailingZeros().toPlainString()) + " điểm" %></dd></div>
+            <div><dt>Thời gian mở bài (UTC+07)</dt><dd><%= escape(deadline(assignment.availableFrom())) %></dd></div>
+            <div><dt>Hạn nộp (UTC+07)</dt><dd><%= escape(deadline(assignment.dueAt())) %></dd></div>
         </dl>
         <% if (alreadyPublished) { %>
-        <p class="state-message" role="status">This assignment is already published. Its content and settings are frozen. No further confirmation is needed.</p>
+        <p class="state-message" role="status">Bài tập đã được công bố. Nội dung và cài đặt không thể chỉnh sửa. Không cần xác nhận thêm.</p>
         <% } else if (alreadyCancelled) { %>
-        <p class="state-message" role="status">This assignment is already cancelled. Students cannot start or continue attempts. No further confirmation is needed.</p>
+        <p class="state-message" role="status">Bài tập đã bị hủy. Sinh viên không thể bắt đầu hoặc tiếp tục làm bài. Không cần xác nhận thêm.</p>
         <% } else if (!statusAllowsAction) { %>
-        <div class="notice error lifecycle-notice" role="alert"><h2>Action unavailable</h2><p><%= publishing || cancelling ? "This action is unavailable for an assignment in its current status." : "This assignment action is not supported." %></p></div>
+        <div class="notice error lifecycle-notice" role="alert"><h2>Thao tác không khả dụng</h2><p><%= publishing && assignment.status() == AssignmentStatus.CANCELLED ? "Bài tập đã hủy không thể chuyển về bản nháp hoặc công bố lại." : publishing || cancelling ? "Không thể thực hiện thao tác với trạng thái hiện tại của bài tập." : "Thao tác bài tập này không được hỗ trợ." %></p></div>
         <% } else if (publishing) { %>
-        <section class="lifecycle-effect" aria-labelledby="effect-heading"><h3 id="effect-heading">What happens when you publish</h3><ul><li>Assignment content and settings are frozen. Published assignments cannot be edited.</li><li>Eligible students can start attempts only during the availability window shown above.</li></ul></section>
+        <section class="lifecycle-effect" aria-labelledby="effect-heading"><h3 id="effect-heading">Sau khi công bố</h3><ul><li>Nội dung và cài đặt được khóa. Bài tập đã công bố không thể chỉnh sửa.</li><li>Sinh viên đủ điều kiện chỉ có thể bắt đầu làm bài trong khoảng thời gian hiển thị ở trên.</li></ul></section>
         <% } else { %>
-        <section class="lifecycle-effect lifecycle-cancel-effect" aria-labelledby="effect-heading"><h3 id="effect-heading">What happens when you cancel</h3><ul><li>Students can no longer start or continue attempts.</li><li>In-progress attempts become void (VOID).</li><li>Submitted attempts and existing results are preserved.</li></ul><p class="lifecycle-count">Current preview: <strong><%= Math.max(0, lifecycle.inProgressCount()) %></strong> in-progress attempt<%= lifecycle.inProgressCount() == 1 ? "" : "s" %>. This count can change before you confirm.</p></section>
+        <section class="lifecycle-effect lifecycle-cancel-effect" aria-labelledby="effect-heading"><h3 id="effect-heading">Sau khi hủy</h3><ul><li>Sinh viên không thể bắt đầu hoặc tiếp tục làm bài.</li><li>Các lượt đang làm bị vô hiệu hóa.</li><li>Bài đã nộp và kết quả hiện có được giữ nguyên.</li><li>Bài tập đã hủy không thể chuyển về bản nháp hoặc công bố lại.</li></ul><p class="lifecycle-count">Hiện có: <strong><%= Math.max(0, lifecycle.inProgressCount()) %></strong> lượt đang làm. Số lượng có thể thay đổi trước khi bạn xác nhận.</p></section>
         <% } %>
         <% if (!errors.isEmpty()) { %>
-        <section class="notice error lifecycle-notice" role="alert" aria-labelledby="lifecycle-errors-heading"><h3 id="lifecycle-errors-heading"><%= publishing ? "Resolve these issues before publishing" : "Unable to cancel this assignment" %></h3><ul><% for (String message : errors.values()) { %><li><%= escape(message) %></li><% } %></ul></section>
+        <section class="notice error lifecycle-notice" role="alert" aria-labelledby="lifecycle-errors-heading"><h3 id="lifecycle-errors-heading"><%= publishing ? "Hãy xử lý các vấn đề sau trước khi công bố" : "Không thể hủy bài tập này" %></h3><ul><% for (String message : errors.values()) { %><li><%= escape(message) %></li><% } %></ul></section>
         <% } else if (statusAllowsAction && !hasRevision && !hasError) { %>
-        <section class="notice error lifecycle-notice" role="alert"><h3>Confirmation unavailable</h3><p>The saved configuration could not be verified. Reload the latest preview before confirming.</p></section>
+        <section class="notice error lifecycle-notice" role="alert"><h3>Chưa thể xác nhận</h3><p>Chưa thể xác minh thông tin đã lưu. Hãy tải lại thông tin mới nhất trước khi xác nhận.</p></section>
         <% } %>
         <% if (canConfirm) { %>
         <form method="post" action="<%= escape(listUrl) %>" id="lifecycle-form" class="lifecycle-actions">
@@ -91,16 +91,16 @@
             <input type="hidden" name="purpose" value="<%= filters.purpose() == null ? "" : escape(filters.purpose().name()) %>">
             <input type="hidden" name="responseType" value="<%= filters.responseType() == null ? "" : escape(filters.responseType().name()) %>">
             <input type="hidden" name="status" value="<%= filters.status() == null ? "" : escape(filters.status().name()) %>">
-            <button type="submit" class="<%= cancelling ? "lifecycle-cancel-button" : "ams-button-primary" %>"><%= publishing ? "Confirm publication" : "Confirm cancellation" %></button>
-            <a class="ams-button" href="<%= escape(detailUrl) %>">Go back to details</a>
-            <a href="<%= escape(backUrl) %>">Back to list</a>
+            <button type="submit" class="<%= cancelling ? "lifecycle-cancel-button" : "ams-button-primary" %>"><%= publishing ? "Xác nhận công bố" : "Xác nhận hủy" %></button>
+            <a class="ams-button" href="<%= escape(detailUrl) %>">Quay về chi tiết</a>
+            <a href="<%= escape(backUrl) %>">Quay về danh sách</a>
         </form>
         <% } else { %>
         <div class="lifecycle-actions">
-            <% if (publishing && assignment.status() == AssignmentStatus.DRAFT && !errors.isEmpty()) { %><a class="ams-button ams-button-primary" href="<%= escape(actionUrl) %>&amp;mode=edit">Edit Assignment</a><% } %>
-            <% if (statusAllowsAction && (hasError || !errors.isEmpty() || !hasRevision)) { %><a class="ams-button" href="<%= escape(actionUrl) %>&amp;mode=<%= escape(action) %>">Reload latest preview</a><% } %>
-            <a class="ams-button" href="<%= escape(detailUrl) %>">Go back to details</a>
-            <a href="<%= escape(backUrl) %>">Back to list</a>
+            <% if (publishing && assignment.status() == AssignmentStatus.DRAFT && !errors.isEmpty()) { %><a class="ams-button ams-button-primary" href="<%= escape(actionUrl) %>&amp;mode=edit">Sửa bài tập</a><% } %>
+            <% if (statusAllowsAction && (hasError || !errors.isEmpty() || !hasRevision)) { %><a class="ams-button" href="<%= escape(actionUrl) %>&amp;mode=<%= escape(action) %>">Tải lại thông tin mới nhất</a><% } %>
+            <a class="ams-button" href="<%= escape(detailUrl) %>">Quay về chi tiết</a>
+            <a href="<%= escape(backUrl) %>">Quay về danh sách</a>
         </div>
         <% } %>
     </section>
@@ -116,7 +116,7 @@
             if (form.dataset.submitting === 'true') { event.preventDefault(); return; }
             form.dataset.submitting = 'true';
             button.disabled = true;
-            button.textContent = 'Applying change…';
+            button.textContent = 'Đang xử lý…';
         });
         window.addEventListener('pageshow', () => {
             form.dataset.submitting = 'false'; button.disabled = false; button.textContent = label;

@@ -1,0 +1,14 @@
+.student-work { width: min(980px, 100%); margin: 0 auto; padding: 28px; }
+.work-card { margin: 24px 0; padding: 24px; border: 1px solid #d6dfeb; border-radius: 10px; background: #fff; }
+.work-card h2 { margin-top: 0; }
+.work-card legend { font-weight: 700; padding: 0 8px; }
+.pre-wrap { white-space: pre-wrap; overflow-wrap: anywhere; }
+.answer-option { display: flex; align-items: baseline; gap: 12px; padding: 14px; margin: 10px 0; border: 1px solid #d6dfeb; border-radius: 6px; cursor: pointer; }
+.answer-option input { width: auto; flex-shrink: 0; }
+.answer-option:has(input:checked) { background: #eaf3fc; border-color: #2f6c9c; }
+.work-error { color: #a42228; padding: 16px; background: #fff0f0; }
+.work-notice { padding: 16px; background: #eaf3fc; }
+.work-timer { position: sticky; top: 12px; z-index: 2; padding: 14px 18px; border: 1px solid #b9cde5; border-radius: 8px; background: #fff; box-shadow: 0 2px 8px #0001; }
+.work-timer span { display: block; font-size: .9rem; margin-top: 5px; }
+.work-timer.is-ending { border-color: #bc3535; color: #a42228; }
+@media (max-width: 600px) { .student-work { padding: 16px; } .work-card { padding: 16px; } }

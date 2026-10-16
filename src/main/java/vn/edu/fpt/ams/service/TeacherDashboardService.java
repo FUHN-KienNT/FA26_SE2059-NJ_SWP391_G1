@@ -14,11 +14,11 @@ public class TeacherDashboardService {
     private final UserDAO userDAO = new UserDAO();
 
     public UserAccount requireActiveTeacher(long teacherId) {
-        if (teacherId <= 0) throw new IllegalArgumentException("Teacher ID must be positive");
+        if (teacherId <= 0) throw new IllegalArgumentException("Mã giảng viên phải là số nguyên dương");
         UserAccount teacher = userDAO.findById(teacherId)
-                .orElseThrow(() -> new IllegalArgumentException("Teacher account was not found"));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy tài khoản giảng viên"));
         if (teacher.role() != UserRole.TEACHER || teacher.accountStatus() != AccountStatus.ACTIVE) {
-            throw new IllegalArgumentException("An active Teacher account is required");
+            throw new IllegalArgumentException("Cần tài khoản giảng viên đang hoạt động");
         }
         return teacher;
     }

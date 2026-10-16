@@ -88,10 +88,10 @@ class AssignmentEditDatabaseTest {
                         maximum_score,status,available_from,due_at,time_limit_minutes,attempt_limit,
                         published_at,cancelled_at)
                     VALUES (101,10,2,'Saved title <teacher>','PRACTICE','OBJECTIVE',
-                        'Saved instructions & teacher changes.','','[]'::jsonb,20.75,'DRAFT',
+                        'Saved instructions & teacher changes.','','[]'::jsonb,20,'DRAFT',
                         '2026-10-12 00:30:00+00','2026-10-13 16:59:00+00',25,3,NULL,NULL),
                         (102,10,1,'Saved essay','REGULAR','ESSAY','Saved essay instructions',
-                        'Saved UML scope','[{"task_order":1,"title":"Saved task","description":"Saved details"}]'::jsonb,
+                        'Saved UML scope','[{"task_order":1,"title":"Saved task","description":"Saved details","maximum_points":15}]'::jsonb,
                         15,'DRAFT',NULL,NULL,NULL,NULL,NULL,NULL),
                         (103,10,1,'Published fixture','REGULAR','ESSAY','Published instructions',
                         '','[]'::jsonb,10,'PUBLISHED','2026-10-05 00:00:00+00','2026-10-20 00:00:00+00',
@@ -110,7 +110,7 @@ class AssignmentEditDatabaseTest {
                     VALUES (1001,101,1,'Saved first question',2.50,
                         '[{"option_id":11,"option_order":1,"option_text":"Saved correct answer","is_correct":true},
                           {"option_id":12,"option_order":2,"option_text":"Saved alternative","is_correct":false}]'::jsonb),
-                        (1002,101,2,'Saved second question',3.75,
+                        (1002,101,2,'Saved second question',17.50,
                         '[{"option_id":21,"option_order":1,"option_text":"Second correct answer","is_correct":true},
                           {"option_id":22,"option_order":2,"option_text":"Second alternative","is_correct":false}]'::jsonb),
                         (2001,201,1,'Foreign question',10,
@@ -213,7 +213,7 @@ class AssignmentEditDatabaseTest {
                 () -> assertEquals("Saved instructions & teacher changes.", form.value("instructions")),
                 () -> assertEquals("PRACTICE", form.value("purpose")),
                 () -> assertEquals("OBJECTIVE", form.value("responseType")),
-                () -> assertEquals(new BigDecimal("20.75"), new BigDecimal(form.value("maximumScore"))),
+                () -> assertEquals(0,new BigDecimal("20").compareTo(new BigDecimal(form.value("maximumScore")))),
                 () -> assertEquals(LocalDateTime.of(2026, 10, 12, 7, 30), LocalDateTime.parse(form.value("availableFrom"))),
                 () -> assertEquals(LocalDateTime.of(2026, 10, 13, 23, 59), LocalDateTime.parse(form.value("dueAt"))),
                 () -> assertEquals("25", form.value("timeLimitMinutes")),
@@ -227,10 +227,10 @@ class AssignmentEditDatabaseTest {
         assertTrue(options(entered.get(0).getAsJsonObject()).get(0).getAsJsonObject().get("is_correct").getAsBoolean());
 
         var essay = service().editPage(1, 102).form();
-        assertEquals("Saved UML scope", essay.value("scopeText"));
+        assertEquals("", essay.value("scopeText"));
         var task = JsonParser.parseString(essay.value("tasksJson")).getAsJsonArray().get(0).getAsJsonObject();
-        assertEquals("Saved task", task.get("title").getAsString());
-        assertEquals("Saved details", task.get("description").getAsString());
+        assertEquals("Saved task\nSaved details", task.get("title").getAsString());
+        assertEquals("", task.get("description").getAsString());
     }
 
     @Test void unchangedInactiveTemplateRemainsValidAndKeepsTeacherContent() throws SQLException {
@@ -240,8 +240,8 @@ class AssignmentEditDatabaseTest {
         var currentSource = page.context().templates().stream().filter(t -> t.templateId() == 2).findFirst().orElseThrow();
         assertEquals(original.value("title"), currentSource.title());
         assertEquals(original.value("instructions"), currentSource.instructions());
-        assertTrue(currentSource.displayTitle().contains("inactive"));
-        assertFalse(currentSource.title().contains("inactive"));
+        assertTrue(currentSource.displayTitle().contains("đã ngừng hoạt động"));
+        assertFalse(currentSource.title().contains("đã ngừng hoạt động"));
         service.updateAssignment(1, 101, with(original, "title", "Teacher revision", "instructions", "Own revised instructions"));
         try (var statement = connection.createStatement(); var rows = statement.executeQuery("SELECT * FROM assignments WHERE assignment_id=101")) {
             assertTrue(rows.next());
@@ -265,6 +265,7 @@ class AssignmentEditDatabaseTest {
         var second = entered.get(1).getAsJsonObject();
         first.addProperty("question_text", "First question revised");
         first.addProperty("maximum_points", "4.25");
+        second.addProperty("maximum_points", "25.75");
         var reorderedOptions = new JsonArray();
         var alternative = options(first).get(1).getAsJsonObject();
         alternative.addProperty("option_text", "Alternative revised");
@@ -275,7 +276,7 @@ class AssignmentEditDatabaseTest {
         reordered.add(second);
         reordered.add(first);
         service.updateAssignment(1, 101, with(original, "templateId", "1", "title", "Updated own title",
-                "instructions", "Updated own instructions", "maximumScore", "30.50", "availableFrom", "2026-10-15T09:15",
+                "instructions", "Updated own instructions", "maximumScore", "30", "availableFrom", "2026-10-15T09:15",
                 "dueAt", "2026-10-16T18:45", "timeLimitMinutes", "40", "attemptLimit", "5",
                 "questionsJson", reordered.toString()));
 
@@ -286,7 +287,7 @@ class AssignmentEditDatabaseTest {
                     () -> assertEquals(1L, rows.getLong("template_id")),
                     () -> assertEquals("Updated own title", rows.getString("title")),
                     () -> assertEquals("Updated own instructions", rows.getString("instructions")),
-                    () -> assertEquals(new BigDecimal("30.50"), rows.getBigDecimal("maximum_score")),
+                    () -> assertEquals(0,new BigDecimal("30").compareTo(rows.getBigDecimal("maximum_score"))),
                     () -> assertEquals(Instant.parse("2026-10-15T02:15:00Z"), rows.getTimestamp("available_from").toInstant()),
                     () -> assertEquals(Instant.parse("2026-10-16T11:45:00Z"), rows.getTimestamp("due_at").toInstant()),
                     () -> assertEquals(40, rows.getInt("time_limit_minutes")),
@@ -320,7 +321,7 @@ class AssignmentEditDatabaseTest {
         var desired = new JsonArray();
         desired.add(kept);
         desired.add(JsonParser.parseString("""
-                {"question_text":"New question","maximum_points":"6.50",
+                {"question_text":"New question","maximum_points":"17.50",
                  "options":[{"option_text":"New correct answer","is_correct":true},
                             {"option_text":"New wrong answer","is_correct":false}]}
                 """));
@@ -367,7 +368,8 @@ class AssignmentEditDatabaseTest {
             assertEquals(before, snapshot(101));
         }
         var duplicates = questions(form);
-        duplicates.add(duplicates.get(0).deepCopy());
+        // Keep the points total valid so this test specifically reaches identity validation.
+        duplicates.get(1).getAsJsonObject().addProperty("question_id",1001);
         assertThrows(ValidationException.class,
                 () -> service.updateAssignment(1, 101, with(form, "questionsJson", duplicates.toString())));
         assertEquals(before, snapshot(101));
@@ -468,7 +470,7 @@ class AssignmentEditDatabaseTest {
         entered.remove(0);
         entered.get(0).getAsJsonObject().addProperty("question_text", "Changed before injected failure");
         entered.add(JsonParser.parseString("""
-                {"question_text":"Inserted before injected failure","maximum_points":"8",
+                {"question_text":"Inserted before injected failure","maximum_points":"22.50",
                  "options":[{"option_text":"Answer","is_correct":true}]}
                 """));
         var failing = new AssignmentDAO() {
@@ -493,22 +495,24 @@ class AssignmentEditDatabaseTest {
         service.updateAssignment(1, 101, with(original, "purpose", "REGULAR", "responseType", "ESSAY",
                 "attemptLimit", "", "scopeText", "UML & Java essay scope", "questionsJson", "{broken inactive questions",
                 "tasksJson", """
-                        [{"task_order":99,"title":"Essay task one","description":"First description"},
-                         {"task_order":4,"title":"Essay task two","description":"Second description"}]
+                        [{"task_order":99,"title":"Essay task one","description":"First description","maximum_points":"10"},
+                         {"task_order":4,"title":"Essay task two","description":"Second description","maximum_points":"10"}]
                         """));
         assertTrue(savedQuestions(101).isEmpty());
         try (var statement = connection.createStatement(); var rows = statement.executeQuery("SELECT * FROM assignments WHERE assignment_id=101")) {
             assertTrue(rows.next());
             assertEquals("ESSAY", rows.getString("response_type"));
             assertEquals("REGULAR", rows.getString("assignment_purpose"));
-            assertEquals("UML & Java essay scope", rows.getString("scope_text"));
+            assertEquals("", rows.getString("scope_text"));
             assertNull(rows.getObject("attempt_limit"));
             var tasks = JsonParser.parseString(rows.getString("task_checklist")).getAsJsonArray();
             assertEquals(2, tasks.size());
             assertEquals(1, tasks.get(0).getAsJsonObject().get("task_order").getAsInt());
             assertEquals(2, tasks.get(1).getAsJsonObject().get("task_order").getAsInt());
-            assertEquals("First description", tasks.get(0).getAsJsonObject().get("description").getAsString());
-            assertEquals("Second description", tasks.get(1).getAsJsonObject().get("description").getAsString());
+            assertEquals("Essay task one\nFirst description", tasks.get(0).getAsJsonObject().get("title").getAsString());
+            assertEquals("", tasks.get(0).getAsJsonObject().get("description").getAsString());
+            assertEquals("Essay task two\nSecond description", tasks.get(1).getAsJsonObject().get("title").getAsString());
+            assertEquals("", tasks.get(1).getAsJsonObject().get("description").getAsString());
         }
         assertEquals(List.of(2001L), questionIds(savedQuestions(201)));
     }
@@ -518,7 +522,7 @@ class AssignmentEditDatabaseTest {
         var original = service.editPage(1, 102).form();
         service.updateAssignment(1, 102, with(original, "responseType", "OBJECTIVE", "scopeText", "Inactive scope",
                 "tasksJson", "{broken inactive tasks", "questionsJson", """
-                        [{"question_text":"Objective replacement","maximum_points":"4",
+                        [{"question_text":"Objective replacement","maximum_points":"15",
                           "options":[{"option_text":"Answer","is_correct":true}]}]
                         """));
         try (var statement = connection.createStatement(); var rows = statement.executeQuery("SELECT * FROM assignments WHERE assignment_id=102")) {

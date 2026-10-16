@@ -23,7 +23,11 @@ public final class EssaySubmissionView {
     private EssaySubmissionView() {}
 
     /** Order 0 is a readable legacy task without a reliable identity; it is never paired. */
-    public record Item(int order, String title, String description, String answer) {}
+    public record Item(int order, String title, String description, String answer, String points) {
+        public Item(int order, String title, String description, String answer) {
+            this(order, title, description, answer, null);
+        }
+    }
     public record UnmatchedAnswer(String reference, String text) {}
     public record Essay(List<Item> items, String legacyContent, boolean structured,
                         boolean invalid, List<UnmatchedAnswer> unmatched) {
@@ -67,7 +71,7 @@ public final class EssaySubmissionView {
         for (JsonElement element : answers.getAsJsonArray()) {
             index++;
             if (!element.isJsonObject()) {
-                unmatched.add(new UnmatchedAnswer("Answer " + index + " (invalid format)", element.toString()));
+                unmatched.add(new UnmatchedAnswer("Câu trả lời " + index + " (sai định dạng)", element.toString()));
                 invalid = true;
                 continue;
             }
@@ -76,7 +80,7 @@ public final class EssaySubmissionView {
             if (order > 0) counts.merge(order, 1, Integer::sum);
             String answer = text(object.get("text"));
             if (order == 0 || answer == null) {
-                unmatched.add(new UnmatchedAnswer("Answer " + index + " (invalid reference or text)",
+                unmatched.add(new UnmatchedAnswer("Câu trả lời " + index + " (tham chiếu hoặc nội dung không hợp lệ)",
                         answer == null ? element.toString() : answer));
                 invalid = true;
             } else {
@@ -90,12 +94,12 @@ public final class EssaySubmissionView {
                     && tasks.items().stream().anyMatch(item -> item.order() == answer.order())) {
                 paired.put(answer.order(), answer.text());
             } else {
-                unmatched.add(new UnmatchedAnswer("Task #" + answer.order() + " (unavailable or ambiguous)", answer.text()));
+                unmatched.add(new UnmatchedAnswer("Câu hỏi #" + answer.order() + " (không tồn tại hoặc không xác định được)", answer.text()));
                 invalid = true;
             }
         }
         List<Item> items = tasks.items().stream().map(item -> new Item(item.order(), item.title(),
-                item.description(), item.order() == 0 ? null : paired.get(item.order()))).toList();
+                item.description(), item.order() == 0 ? null : paired.get(item.order()), item.points())).toList();
         return new Essay(items, null, true, invalid, unmatched);
     }
 
@@ -113,6 +117,7 @@ public final class EssaySubmissionView {
             for (JsonElement element : root.getAsJsonArray()) {
                 String title = text(element);
                 String description = null;
+                String points = null;
                 int order = 0;
                 if (element.isJsonObject()) {
                     var object = element.getAsJsonObject();
@@ -122,10 +127,13 @@ public final class EssaySubmissionView {
                     description = text(object.get("description"));
                     JsonElement rawDescription = object.get("description");
                     if (rawDescription != null && !rawDescription.isJsonNull() && description == null) invalid = true;
+                    JsonElement savedPoints = object.get("maximum_points");
+                    if (savedPoints != null && savedPoints.isJsonPrimitive() && savedPoints.getAsJsonPrimitive().isNumber())
+                        points = savedPoints.getAsBigDecimal().stripTrailingZeros().toPlainString();
                 }
                 if (order == 0) invalid = true;
                 if (title == null || title.isBlank()) { invalid = true; continue; }
-                items.add(new Item(order, title, description, null));
+                items.add(new Item(order, title, description, null, points));
             }
         } catch (RuntimeException ex) {
             invalid = true;

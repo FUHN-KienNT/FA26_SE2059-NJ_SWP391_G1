@@ -37,28 +37,28 @@ public class EnrollmentService {
     }
 
     public long addStudent(long teacherId, long classId, long studentId) {
-        requirePositive(teacherId, "Teacher ID");
-        requirePositive(classId, "Class ID");
-        requirePositive(studentId, "Student ID");
+        requirePositive(teacherId, "Mã giảng viên");
+        requirePositive(classId, "Mã lớp");
+        requirePositive(studentId, "Mã sinh viên");
         return enrollmentDAO.placeExistingStudent(teacherId, classId, studentId, EnrollmentMethod.MANUAL);
     }
 
     public long addStudentByEmail(long teacherId, long classId, String email) {
-        requirePositive(teacherId, "Teacher ID");
-        requirePositive(classId, "Class ID");
-        ValidationUtil.required(email, "Student email");
+        requirePositive(teacherId, "Mã giảng viên");
+        requirePositive(classId, "Mã lớp");
+        ValidationUtil.required(email, "Email sinh viên");
         UserAccount student = userDAO.findByEmail(email.trim())
-                .orElseThrow(() -> new IllegalArgumentException("No account uses that email"));
+                .orElseThrow(() -> new IllegalArgumentException("Không có tài khoản sử dụng email này"));
         if (student.role() != UserRole.STUDENT || student.accountStatus() != AccountStatus.ACTIVE) {
-            throw new IllegalArgumentException("An active Student account is required");
+            throw new IllegalArgumentException("Cần tài khoản sinh viên đang hoạt động");
         }
         return addStudent(teacherId, classId, student.userId());
     }
 
     public ImportResultDTO importStudentsFromCsv(long teacherId, long classId, InputStream fileStream) {
-        requirePositive(teacherId, "Teacher ID");
-        requirePositive(classId, "Class ID");
-        ValidationUtil.required(fileStream, "CSV upload");
+        requirePositive(teacherId, "Mã giảng viên");
+        requirePositive(classId, "Mã lớp");
+        ValidationUtil.required(fileStream, "Tệp CSV");
         requireOwnedClass(teacherId, classId);
         int imported = 0;
         int skipped = 0;
@@ -88,28 +88,28 @@ public class EnrollmentService {
                 }
             }
         } catch (java.io.IOException ex) {
-            throw new IllegalArgumentException("The CSV file could not be read");
+            throw new IllegalArgumentException("Không thể đọc tệp CSV");
         }
         return new ImportResultDTO(imported, skipped, rejected);
     }
 
     public void updateEnrollmentStatus(long teacherId, long enrollmentId, EnrollmentStatus status) {
-        requirePositive(teacherId, "Teacher ID");
-        requirePositive(enrollmentId, "Enrollment ID");
-        ValidationUtil.required(status, "Enrollment status");
+        requirePositive(teacherId, "Mã giảng viên");
+        requirePositive(enrollmentId, "Mã tham gia lớp");
+        ValidationUtil.required(status, "Trạng thái sinh viên trong lớp");
         enrollmentDAO.updateOwnedStatus(teacherId, enrollmentId, status);
     }
 
     private void requireOwnedClass(long teacherId, long classId) {
-        requirePositive(teacherId, "Teacher ID");
-        requirePositive(classId, "Class ID");
+        requirePositive(teacherId, "Mã giảng viên");
+        requirePositive(classId, "Mã lớp");
         if (!enrollmentDAO.teacherOwnsClass(teacherId, classId)) {
-            throw new IllegalArgumentException("This class is not assigned to the current teacher");
+            throw new IllegalArgumentException("Lớp này không thuộc phân công của giảng viên hiện tại");
         }
     }
 
     private static void requirePositive(long id, String name) {
-        if (id <= 0) throw new IllegalArgumentException(name + " must be positive");
+        if (id <= 0) throw new IllegalArgumentException(name + " phải là số nguyên dương");
     }
 
     private static UnsupportedOperationException pending() {

@@ -25,27 +25,27 @@ public final class TeacherSubmissionView {
     }
 
     public static String statusLabel(SubmissionStatus status) {
-        if (status == null) return "All";
+        if (status == null) return "Tất cả";
         return switch (status) {
-            case IN_PROGRESS -> "In progress";
-            case SUBMITTED -> "Submitted";
-            case GRADED -> "Graded";
-            case RELEASED -> "Released";
-            case EXPIRED -> "Expired";
-            case VOID -> "Void";
+            case IN_PROGRESS -> "Đang làm";
+            case SUBMITTED -> "Đã nộp";
+            case GRADED -> "Đã chấm";
+            case RELEASED -> "Đã công bố kết quả";
+            case EXPIRED -> "Đã hết hạn";
+            case VOID -> "Đã vô hiệu hóa";
         };
     }
     public static String submittedAt(Instant instant) {
-        return instant == null ? "Not submitted" : AssignmentListView.deadline(instant);
+        return instant == null ? "Chưa nộp" : AssignmentListView.deadline(instant);
     }
     public static String score(BigDecimal value) {
-        return value == null ? "Not graded" : value.stripTrailingZeros().toPlainString();
+        return value == null ? "Chưa chấm" : value.stripTrailingZeros().toPlainString();
     }
     public static String listUrl(String base, long assignmentId, TeacherSubmissionFilter filter) {
         String url = base + "/teacher/submissions?assignmentId=" + assignmentId;
         if (!filter.search().isEmpty())
             url += "&search=" + URLEncoder.encode(filter.search(), StandardCharsets.UTF_8);
-        if (filter.status() != null) url += "&status=" + filter.status().name();
+        if (!filter.statusValue().isEmpty()) url += "&status=" + filter.statusValue();
         return url;
     }
     public static String detailUrl(String base, long assignmentId, long submissionId, TeacherSubmissionFilter filter) {
@@ -76,36 +76,46 @@ public final class TeacherSubmissionView {
                 .toList();
         for (Question question : ordered) {
             SavedAnswer answer = remaining.remove(question.questionId());
-            String selectedId = answer == null ? null : answer.optionId();
+            List<String> selectedIds = answer == null ? List.of() : answer.optionIds();
             StoredOptions options = options(question.options());
             invalid |= options.invalid();
             List<StoredOption> selected = options.items().stream()
-                    .filter(option -> selectedId != null && selectedId.equals(option.id())).toList();
-            boolean resolved = selected.size() == 1;
-            String selectedText = selectedId == null ? "No answer selected"
-                    : resolved ? selected.get(0).text() : "Option #" + selectedId + " (unavailable)";
-            invalid |= selectedId != null && !resolved;
+                    .filter(option -> selectedIds.contains(option.id())).toList();
+            Set<String> resolvedIds = new HashSet<>();
+            List<String> selectedTexts = new ArrayList<>();
+            for (StoredOption option : selected) {
+                if (options.items().stream().filter(candidate -> Objects.equals(candidate.id(), option.id())).count() != 1)
+                    continue;
+                resolvedIds.add(option.id());
+                selectedTexts.add(option.text());
+            }
+            for (String id : selectedIds) if (!resolvedIds.contains(id)) {
+                selectedTexts.add("Lựa chọn #" + id + " (không có dữ liệu)");
+                invalid = true;
+            }
+            String selectedText = selectedTexts.isEmpty() ? "Chưa chọn đáp án" : String.join("\n", selectedTexts);
             List<Choice> choices = new ArrayList<>();
             for (int i = 0; i < options.items().size(); i++) {
                 StoredOption option = options.items().get(i);
                 choices.add(new Choice(choiceLabel(i), option.text(),
-                        resolved && selectedId.equals(option.id()), options.invalid() ? null : option.correct()));
+                        resolvedIds.contains(option.id()), options.invalid() ? null : option.correct()));
             }
-            out.add(new Answer("Question " + question.questionOrder() + " — " + question.questionText(),
-                    selectedText, answer == null ? "Not graded" : answer.points(), choices));
+            out.add(new Answer("Câu hỏi " + question.questionOrder() + " — " + question.questionText(),
+                    selectedText, answer == null ? "Chưa chấm" : answer.points(), choices));
         }
         // Keep orphaned historical answers visible instead of silently losing submitted work.
         for (var entry : remaining.entrySet()) {
             SavedAnswer answer = entry.getValue();
-            out.add(new Answer("Question #" + entry.getKey() + " (unavailable)",
-                    answer.optionId() == null ? "No answer selected" : "Option #" + answer.optionId() + " (unavailable)",
+            out.add(new Answer("Câu hỏi #" + entry.getKey() + " (không có dữ liệu)",
+                    answer.optionIds().isEmpty() ? "Chưa chọn đáp án" : answer.optionIds().stream()
+                            .map(id -> "Lựa chọn #" + id + " (không có dữ liệu)").collect(java.util.stream.Collectors.joining("\n")),
                     answer.points(), List.of()));
             invalid = true;
         }
         return new Answers(out, invalid);
     }
 
-    private record SavedAnswer(String optionId, String points) {}
+    private record SavedAnswer(List<String> optionIds, String points) {}
     private record SavedAnswers(Map<Long, SavedAnswer> items, boolean invalid) {}
 
     private static SavedAnswers savedAnswers(String json) {
@@ -123,20 +133,32 @@ public final class TeacherSubmissionView {
                     if (idText == null || !idText.matches("[1-9][0-9]*")) throw new IllegalArgumentException();
                     long id = Long.parseLong(idText);
                     if (items.containsKey(id)) throw new IllegalArgumentException();
-                    JsonElement savedOption = object.get("selected_option_id");
-                    String selected = null;
-                    if (savedOption != null && !savedOption.isJsonNull()) {
-                        selected = identity(savedOption);
-                        if (selected == null || selected.isBlank()) { selected = null; invalid = true; }
+                    List<String> selected = new ArrayList<>();
+                    JsonElement savedOptions = object.get("selected_option_ids");
+                    if (savedOptions != null && !savedOptions.isJsonNull()) {
+                        if (!savedOptions.isJsonArray()) { invalid = true; }
+                        else for (JsonElement savedOption : savedOptions.getAsJsonArray()) {
+                            String optionId = identity(savedOption);
+                            if (optionId == null || optionId.isBlank() || selected.contains(optionId)) invalid = true;
+                            else selected.add(optionId);
+                        }
+                    } else {
+                        // Older submissions contain a single selected_option_id.
+                        JsonElement savedOption = object.get("selected_option_id");
+                        if (savedOption != null && !savedOption.isJsonNull()) {
+                            String optionId = identity(savedOption);
+                            if (optionId == null || optionId.isBlank()) invalid = true;
+                            else selected.add(optionId);
+                        }
                     }
                     JsonElement points = object.get("awarded_points");
-                    String awarded = "Not graded";
+                    String awarded = "Chưa chấm";
                     if (points != null && !points.isJsonNull()) {
                         try {
                             awarded = savedPoints(points);
                         } catch (RuntimeException ex) { invalid = true; }
                     }
-                    items.put(id, new SavedAnswer(selected, awarded));
+                    items.put(id, new SavedAnswer(List.copyOf(selected), awarded));
                 } catch (RuntimeException ex) { invalid = true; }
             }
         } catch (RuntimeException ex) { invalid = true; }
@@ -181,7 +203,7 @@ public final class TeacherSubmissionView {
                 items.add(new StoredOption(id, text.getAsString(), key, optionOrder(object.get("option_order"), index), index));
             }
         } catch (RuntimeException ex) { invalid = true; }
-        if (items.size() < 2 || items.stream().filter(option -> Boolean.TRUE.equals(option.correct())).count() != 1)
+        if (items.size() < 2 || items.stream().noneMatch(option -> Boolean.TRUE.equals(option.correct())))
             invalid = true;
         items.sort(Comparator.comparingInt(StoredOption::order).thenComparingInt(StoredOption::index));
         return new StoredOptions(items, invalid);

@@ -18,7 +18,7 @@ import vn.edu.fpt.ams.model.ResponseType;
 class AssignmentPublicationValidatorTest {
     private static final Instant NOW = Instant.parse("2026-10-12T07:00:00Z");
     private static final String TASKS = """
-            [{"task_order":1,"title":"Explain the design","description":"Include a diagram."}]
+            [{"task_order":1,"title":"Explain the design","description":"Include a diagram.","maximum_points":10}]
             """;
     private static final String OPTIONS = """
             [{"option_id":"answer-a","option_order":1,"option_text":"A","is_correct":true},
@@ -55,7 +55,7 @@ class AssignmentPublicationValidatorTest {
                 new ArrayList<>(errors.keySet()));
         assertThrows(UnsupportedOperationException.class, () -> errors.put("title", "Changed"));
         assertThrows(UnsupportedOperationException.class, errors::clear);
-        assertEquals(Map.of("assignmentId", "Select a saved assignment to publish."),
+        assertEquals(Map.of("assignmentId", "Chọn một bài tập đã lưu để công bố."),
                 AssignmentPublicationValidator.errors(null, List.of(), NOW));
     }
 
@@ -76,23 +76,24 @@ class AssignmentPublicationValidatorTest {
         }
     }
 
-    @Test void enforcesNumericTenTwoWithoutRoundingOrFloatingPointTotals() {
+    @Test void enforcesWholeMaximumAndExactDecimalQuestionTotals() {
         Fixture fixture = new Fixture();
-        for (String maximum : List.of("0.01", "1", "1.00", "1.000", "99999999.99")) {
+        for (String maximum : List.of("1", "1.00", "1.000", "100")) {
             fixture.maximum = new BigDecimal(maximum);
+            fixture.tasks = "[{\"task_order\":1,\"title\":\"Task\",\"maximum_points\":"+maximum+"}]";
             assertTrue(fixture.errors().isEmpty(), maximum);
         }
-        for (String maximum : List.of("0", "-0.01", "0.001", "1.001", "100000000", "99999999.999")) {
+        for (String maximum : List.of("0", "0.01", "-0.01", "0.001", "1.001", "101", "100000000", "99999999.999")) {
             fixture.maximum = new BigDecimal(maximum);
             assertTrue(fixture.errors().containsKey("maximumScore"), maximum);
         }
         Fixture objective = new Fixture(AssignmentPurpose.REGULAR, ResponseType.OBJECTIVE);
-        objective.maximum = new BigDecimal("0.30");
-        objective.questions = List.of(question(101, 1, "0.10", OPTIONS), question(102, 2, "0.20", OPTIONS));
+        objective.maximum = new BigDecimal("1");
+        objective.questions = List.of(question(101, 1, "0.10", OPTIONS), question(102, 2, "0.90", OPTIONS));
         assertTrue(objective.errors().isEmpty());
-        objective.maximum = new BigDecimal("0.31");
-        assertTrue(objective.errors().get("questionsJson").contains("total"));
-        objective.maximum = new BigDecimal("0.3000");
+        objective.maximum = new BigDecimal("2");
+        assertTrue(objective.errors().get("questionsJson").contains("Tổng điểm"));
+        objective.maximum = new BigDecimal("1.0000");
         assertTrue(objective.errors().isEmpty());
     }
 
@@ -122,11 +123,11 @@ class AssignmentPublicationValidatorTest {
 
     @Test void appliesTimeAndAttemptLimitsByPurpose() {
         Fixture regular = new Fixture();
-        for (Integer minutes : Arrays.asList(null, 1, Integer.MAX_VALUE)) {
+        for (Integer minutes : Arrays.asList(null, 20, 21, 719, 720)) {
             regular.minutes = minutes;
             assertTrue(regular.errors().isEmpty());
         }
-        for (int minutes : List.of(0, -1)) {
+        for (int minutes : List.of(0, -1, 19, 721, Integer.MAX_VALUE)) {
             regular.minutes = minutes;
             assertTrue(regular.errors().containsKey("timeLimitMinutes"));
         }
@@ -146,11 +147,12 @@ class AssignmentPublicationValidatorTest {
         }
     }
 
-    @Test void requiresEssayScopeAndAtLeastOneTask() {
+    @Test void doesNotRequireEssayScopeButStillRequiresAtLeastOneQuestion() {
         Fixture fixture = new Fixture();
         for (String scope : Arrays.asList(null, "", " \n")) {
             fixture.scope = scope;
-            assertTrue(fixture.errors().containsKey("scopeText"));
+            assertFalse(fixture.errors().containsKey("scopeText"));
+            assertTrue(fixture.errors().isEmpty());
         }
         fixture.scope = "The project design";
         for (String tasks : Arrays.asList(null, "", "[]")) {
@@ -159,19 +161,21 @@ class AssignmentPublicationValidatorTest {
         }
     }
 
-    @Test void acceptsLegacyTextTasksAndOptionalTextDescriptionsWithoutChangingTheirOrder() {
+    @Test void acceptsScoredTasksAndOptionalDescriptionsWithoutChangingTheirOrder() {
         Fixture fixture = new Fixture();
-        for (String tasks : List.of("[\"First legacy task\",\"Second legacy task\"]", """
-                [{"task_order":7,"title":"First saved task"},
-                 {"task_order":3,"title":"Second saved task","description":""},
-                 {"task_order":9,"title":"Third saved task","description":null}]
-                """, "[\"Legacy task\",{\"task_order\":2,\"title\":\"New task\"}]")) {
+        for (String tasks : List.of("""
+                [{"task_order":7,"title":"First saved task","maximum_points":3},
+                 {"task_order":3,"title":"Second saved task","description":"","maximum_points":3},
+                 {"task_order":9,"title":"Third saved task","description":null,"maximum_points":4}]
+                """)) {
             fixture.tasks = tasks;
             Assignment before = fixture.assignment();
             assertTrue(fixture.errors().isEmpty(), tasks);
             assertEquals(tasks, before.taskChecklistJson());
             assertEquals(before, fixture.assignment());
         }
+        fixture.tasks = "[\"Legacy task without points\"]";
+        assertTrue(fixture.errors().containsKey("tasksJson"));
     }
 
     @Test void rejectsMalformedTasksAndInvalidSavedOrdersWithoutCoercingValues() {
@@ -198,7 +202,7 @@ class AssignmentPublicationValidatorTest {
             Fixture objective = new Fixture(purpose, ResponseType.OBJECTIVE);
             objective.scope = "Stale Essay scope";
             objective.tasks = TASKS;
-            assertTrue(objective.errors().containsKey("scopeText"));
+            assertFalse(objective.errors().containsKey("scopeText"));
             assertTrue(objective.errors().containsKey("tasksJson"));
             for (String tasks : List.of("{broken", "{}", "null", "[null]")) {
                 objective.tasks = tasks;
@@ -249,12 +253,12 @@ class AssignmentPublicationValidatorTest {
         }
         fixture.questions = List.of(new Question(101, 10, 1, "Question", null, OPTIONS));
         assertTrue(fixture.errors().containsKey("questionsJson"));
-        fixture.maximum = new BigDecimal("99999999.99");
-        fixture.questions = List.of(question(101, 1, "99999999.99", OPTIONS));
+        fixture.maximum = new BigDecimal("100");
+        fixture.questions = List.of(question(101, 1, "100", OPTIONS));
         assertTrue(fixture.errors().isEmpty());
     }
 
-    @Test void requiresAtLeastTwoStructuredOptionsAndExactlyOneBooleanCorrectAnswer() {
+    @Test void requiresAtLeastTwoStructuredOptionsAndAtLeastOneBooleanCorrectAnswer() {
         Fixture fixture = new Fixture(AssignmentPurpose.REGULAR, ResponseType.OBJECTIVE);
         for (String options : Arrays.asList(null, "", "{broken", "null", "{}", "[]", "[null,null]", "[\"A\",\"B\"]",
                 "[{\"option_id\":1,\"option_order\":1,\"option_text\":\"A\",\"is_correct\":true}]")) {
@@ -270,7 +274,7 @@ class AssignmentPublicationValidatorTest {
         var options = JsonParser.parseString(OPTIONS).getAsJsonArray();
         options.get(1).getAsJsonObject().addProperty("is_correct", true);
         fixture.questions = List.of(question(101, 1, "10", options.toString()));
-        assertTrue(fixture.errors().get("questionsJson").contains("exactly one"));
+        assertTrue(fixture.errors().isEmpty());
         options.get(0).getAsJsonObject().remove("is_correct");
         fixture.questions = List.of(question(101, 1, "10", options.toString()));
         assertTrue(fixture.errors().containsKey("questionsJson"));

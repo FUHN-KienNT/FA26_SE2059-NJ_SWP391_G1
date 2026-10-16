@@ -6,7 +6,7 @@ import java.util.Map;
 /** Keep entered text unchanged so a validation error does not erase the form. */
 public record AssignmentForm(Map<String, String> values) {
     public static final List<String> FIELDS = List.of("classId", "templateId", "title", "instructions",
-            "purpose", "responseType", "maximumScore", "scopeText", "availableFrom", "dueAt",
+            "purpose", "responseType", "maximumScore", "availableFrom", "dueAt",
             "timeLimitMinutes", "attemptLimit", "tasksJson", "questionsJson", "assignmentId", "revision");
 
     public AssignmentForm { values = Map.copyOf(values); }

@@ -32,7 +32,7 @@ public class AssignmentServlet extends HttpServlet {
         HttpSession session = req.getSession(false);
         if (session == null || !(session.getAttribute("userId") instanceof Long)
                 || session.getAttribute("accountStatus") != AccountStatus.ACTIVE) {
-            res.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Sign-in is required.");
+            res.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Vui lòng đăng nhập để tiếp tục.");
             return;
         }
         if (session.getAttribute("role") != UserRole.TEACHER) {
@@ -46,7 +46,7 @@ public class AssignmentServlet extends HttpServlet {
             if ("view".equals(mode)) {
                 view = "/WEB-INF/views/assignments/detail.jsp";
                 long assignmentId = Long.parseLong(req.getParameter("assignmentId"));
-                if (assignmentId <= 0) throw new IllegalArgumentException("Invalid assignment ID.");
+                if (assignmentId <= 0) throw new IllegalArgumentException("Mã bài tập không hợp lệ.");
                 var filter = AssignmentListFilter.from(req.getParameter("search"), req.getParameter("purpose"),
                         req.getParameter("responseType"), req.getParameter("status"));
                 var page = service.detailPage(teacherId, assignmentId);
@@ -75,9 +75,13 @@ public class AssignmentServlet extends HttpServlet {
                 WebSupport.csrf(req);
             } else {
                 if (mode != null && !mode.isBlank() && !"list".equals(mode))
-                    throw new IllegalArgumentException("Unknown assignment action.");
+                    throw new IllegalArgumentException("Thao tác bài tập không hợp lệ.");
                 String rawClassId = req.getParameter("classId");
-                Long classId = rawClassId == null || rawClassId.isBlank() ? null : Long.valueOf(rawClassId);
+                if (rawClassId == null || rawClassId.isBlank()) {
+                    res.sendRedirect(req.getContextPath() + "/teacher/dashboard");
+                    return;
+                }
+                long classId = WebSupport.id(rawClassId);
                 var filter = AssignmentListFilter.from(req.getParameter("search"), req.getParameter("purpose"),
                         req.getParameter("responseType"), req.getParameter("status"));
                 var page = service.listPage(teacherId, classId, filter);
@@ -85,11 +89,11 @@ public class AssignmentServlet extends HttpServlet {
                 req.setAttribute("assignments", page.assignments());
             }
         } catch (IllegalArgumentException ex) {
-            res.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid assignment, class or filters.");
+            res.sendError(HttpServletResponse.SC_BAD_REQUEST, "Bài tập, lớp hoặc bộ lọc không hợp lệ.");
             return;
         } catch (NoSuchElementException ex) {
             // Do not disclose whether an inaccessible assignment belongs to another Teacher.
-            res.sendError(HttpServletResponse.SC_NOT_FOUND, "Assignment not found or unavailable.");
+            res.sendError(HttpServletResponse.SC_NOT_FOUND, "Không tìm thấy bài tập hoặc bạn không có quyền truy cập.");
             return;
         } catch (SecurityException ex) {
             res.sendError(HttpServletResponse.SC_FORBIDDEN, ex.getMessage());
@@ -99,13 +103,13 @@ public class AssignmentServlet extends HttpServlet {
             getServletContext().log("Assignment page could not be loaded", ex);
             res.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
             if ("/WEB-INF/views/assignments/form.jsp".equals(view))
-                req.setAttribute("createError", "The form could not be loaded. Please try again.");
+                req.setAttribute("createError", "Không thể tải biểu mẫu. Vui lòng thử lại.");
             else if ("/WEB-INF/views/assignments/lifecycle.jsp".equals(view))
-                req.setAttribute("lifecycleError", "The confirmation could not be loaded. Please try again.");
+                req.setAttribute("lifecycleError", "Không thể tải trang xác nhận. Vui lòng thử lại.");
             else if ("/WEB-INF/views/assignments/detail.jsp".equals(view))
-                req.setAttribute("assignmentDetailError", "This assignment could not be loaded. Please try again.");
+                req.setAttribute("assignmentDetailError", "Không thể tải bài tập này. Vui lòng thử lại.");
             else
-                req.setAttribute("assignmentListError", "Assignments could not be loaded. Please try again.");
+                req.setAttribute("assignmentListError", "Không thể tải danh sách bài tập. Vui lòng thử lại.");
         }
         req.getRequestDispatcher(view).forward(req, res);
     }
@@ -115,16 +119,19 @@ public class AssignmentServlet extends HttpServlet {
         HttpSession session = req.getSession(false);
         if (session == null || !(session.getAttribute("userId") instanceof Long)
                 || session.getAttribute("accountStatus") != AccountStatus.ACTIVE) {
-            res.sendError(401, "Sign-in is required."); return;
+            res.sendError(401, "Vui lòng đăng nhập để tiếp tục."); return;
         }
         if (session.getAttribute("role") != UserRole.TEACHER) { res.sendError(403); return; }
         String action=req.getParameter("action");
+        if ("restore".equals(action)) {
+            res.sendError(400, "Bài tập đã hủy không thể chuyển về bản nháp."); return;
+        }
         if("publish".equals(action) || "cancel".equals(action)) {
             lifecyclePost(req,res,session,action); return;
         }
         boolean editing="update".equals(req.getParameter("action"));
         if (!editing && !"create".equals(req.getParameter("action"))) {
-            res.sendError(501, "This assignment action is not available yet."); return;
+            res.sendError(501, "Thao tác bài tập này chưa được hỗ trợ."); return;
         }
         Map<String, String> values = new HashMap<>();
         for (String field : AssignmentForm.FIELDS)
@@ -150,7 +157,7 @@ public class AssignmentServlet extends HttpServlet {
                 // Never save this POST. Redisplay with the current session token for an explicit retry.
                 res.setStatus(HttpServletResponse.SC_FORBIDDEN);
                 WebSupport.csrf(req);
-                req.setAttribute("createError", "Your sign-in session changed or this form expired. Nothing has been saved. Your entered content is kept below. Review it and click "+(editing?"Save Changes":"Save Draft")+" again.");
+                req.setAttribute("createError", "Phiên đăng nhập đã thay đổi hoặc biểu mẫu đã hết hạn. Chưa có dữ liệu nào được lưu. Nội dung bạn nhập được giữ bên dưới. Hãy kiểm tra và nhấn "+(editing?"Lưu thay đổi":"Lưu bản nháp")+" lần nữa.");
             } else {
                 long id;
                 if(editing) {
@@ -165,18 +172,18 @@ public class AssignmentServlet extends HttpServlet {
             res.setStatus(400);
             req.setAttribute("formErrors", ex.errors());
         } catch (NoSuchElementException ex) {
-            res.sendError(404,"Assignment not found or unavailable."); return;
+            res.sendError(404,"Không tìm thấy bài tập hoặc bạn không có quyền truy cập."); return;
         } catch (SecurityException ex) {
             res.sendError(403, ex.getMessage()); return;
         } catch (IllegalArgumentException ex) {
-            res.sendError(400, "Invalid class or assignment data."); return;
+            res.sendError(400, "Lớp hoặc dữ liệu bài tập không hợp lệ."); return;
         } catch (IllegalStateException ex) {
             if(ex instanceof AssignmentEditConflictException) {
                 res.setStatus(409); req.setAttribute("editConflict",true); req.setAttribute("createError",ex.getMessage());
             } else {
             getServletContext().log("Assignment draft could not be saved", ex);
             res.setStatus(503);
-            req.setAttribute("createError", "The draft could not be saved. Your entered data is kept below. Class and template availability will be checked again when you retry.");
+            req.setAttribute("createError", "Không thể lưu bản nháp. Dữ liệu bạn nhập được giữ bên dưới. Lớp và mẫu bài tập sẽ được kiểm tra lại khi bạn thử lưu.");
             }
             if (req.getAttribute("createPage") == null) {
                 req.setAttribute("createPage", retryContext(form));
@@ -201,7 +208,7 @@ public class AssignmentServlet extends HttpServlet {
             try { WebSupport.checkCsrf(req); }
             catch(SecurityException ex) {
                 res.setStatus(403);
-                req.setAttribute("lifecycleError","Your sign-in session changed or this confirmation expired. Nothing was changed. Review the saved assignment and confirm again.");
+                req.setAttribute("lifecycleError","Phiên đăng nhập đã thay đổi hoặc trang xác nhận đã hết hạn. Chưa có dữ liệu nào thay đổi. Hãy kiểm tra bài tập đã lưu và xác nhận lại.");
                 WebSupport.csrf(req);
                 req.getRequestDispatcher("/WEB-INF/views/assignments/lifecycle.jsp").forward(req,res);
                 return;
@@ -209,42 +216,45 @@ public class AssignmentServlet extends HttpServlet {
             if("publish".equals(action)) {
                 service.publishAssignment(teacherId,assignmentId,req.getParameter("revision"));
                 session.setAttribute("publishedAssignmentId",assignmentId);
-            } else {
+            } else if("cancel".equals(action)) {
                 service.cancelAssignment(teacherId,assignmentId,req.getParameter("revision"));
                 session.setAttribute("cancelledAssignmentId",assignmentId);
             }
-            // Do not repeat an earlier Create/Edit notice after a later lifecycle action.
-            for(String key:List.of("createdAssignmentId","updatedAssignmentId"))
-                if(Long.valueOf(assignmentId).equals(session.getAttribute(key))) session.removeAttribute(key);
+            // A new lifecycle action supersedes earlier notices for this assignment.
+            String currentNotice="publish".equals(action)?"publishedAssignmentId":"cancelledAssignmentId";
+            for(String key:List.of("createdAssignmentId","updatedAssignmentId","publishedAssignmentId",
+                    "cancelledAssignmentId","restoredAssignmentId"))
+                if(!key.equals(currentNotice) && Long.valueOf(assignmentId).equals(session.getAttribute(key)))
+                    session.removeAttribute(key);
             String detail=AssignmentDetailView.listUrl(req.getContextPath(),page.detail().assignment().classId(),filters)
                     +"&mode=view&assignmentId="+assignmentId;
             res.sendRedirect(detail); return;
         } catch(ValidationException ex) {
             res.setStatus(400);
             req.setAttribute("lifecycleErrors",ex.errors());
-            req.setAttribute("lifecycleError","The assignment was not changed. Correct the saved configuration or reopen the confirmation, then try again.");
+            req.setAttribute("lifecycleError","Bài tập chưa được thay đổi. Hãy sửa thông tin đã lưu hoặc mở lại trang xác nhận rồi thử lại.");
         } catch(NoSuchElementException ex) {
-            res.sendError(404,"Assignment not found or unavailable."); return;
+            res.sendError(404,"Không tìm thấy bài tập hoặc bạn không có quyền truy cập."); return;
         } catch(SecurityException ex) {
             res.sendError(403,ex.getMessage()); return;
         } catch(IllegalArgumentException ex) {
-            res.sendError(400,"Invalid assignment or filters."); return;
+            res.sendError(400,"Bài tập hoặc bộ lọc không hợp lệ."); return;
         } catch(IllegalStateException ex) {
             if(ex instanceof AssignmentEditConflictException) {
                 res.setStatus(409); req.setAttribute("lifecycleError",ex.getMessage());
             } else {
                 getServletContext().log("Assignment lifecycle action could not be saved",ex);
                 res.setStatus(503);
-                req.setAttribute("lifecycleError","The action could not be saved. Review the current assignment and try again.");
+                req.setAttribute("lifecycleError","Không thể lưu thao tác. Hãy kiểm tra bài tập hiện tại và thử lại.");
             }
         }
         // A stale confirmation must show the latest saved state before an explicit retry.
         try { req.setAttribute("lifecyclePage",service.lifecyclePage(teacherId,assignmentId,action)); }
-        catch(NoSuchElementException ex) { res.sendError(404,"Assignment not found or unavailable."); return; }
+        catch(NoSuchElementException ex) { res.sendError(404,"Không tìm thấy bài tập hoặc bạn không có quyền truy cập."); return; }
         catch(SecurityException ex) { res.sendError(403,ex.getMessage()); return; }
         catch(IllegalStateException ex) {
             req.removeAttribute("lifecyclePage"); res.setStatus(503);
-            req.setAttribute("lifecycleError","The latest assignment could not be loaded. Reopen the confirmation when the database is available.");
+            req.setAttribute("lifecycleError","Không thể tải phiên bản bài tập mới nhất. Hãy mở lại trang xác nhận khi kết nối dữ liệu hoạt động.");
         }
         req.getRequestDispatcher("/WEB-INF/views/assignments/lifecycle.jsp").forward(req,res);
     }
@@ -270,11 +280,11 @@ public class AssignmentServlet extends HttpServlet {
         try {
             long templateId = WebSupport.id(form.value("templateId"));
             templates = List.of(new AssignmentCreatePage.TemplateOption(templateId,
-                    "Selected template #" + templateId, "", BigDecimal.ZERO));
+                    "Mẫu đã chọn #" + templateId, "", BigDecimal.ZERO));
         } catch (IllegalArgumentException ex) {
             // No valid template was submitted; the normal required selection remains blank.
         }
-        return new AssignmentCreatePage(classId, 0, "Class #" + classId,
-                "Context temporarily unavailable", "", "", templates);
+        return new AssignmentCreatePage(classId, 0, "Lớp #" + classId,
+                "Thông tin lớp tạm thời không khả dụng", "", "", templates);
     }
 }

@@ -37,7 +37,7 @@ public class EnrollmentServlet extends HttpServlet {
                 TeacherClassSummary selected = classes.stream()
                         .filter(item -> item.classId() == classId)
                         .findFirst()
-                        .orElseThrow(() -> new IllegalArgumentException("This class is not assigned to the current teacher"));
+                        .orElseThrow(() -> new IllegalArgumentException("Lớp này không thuộc phân công của giảng viên hiện tại"));
                 request.setAttribute("selected", selected);
                 request.setAttribute("students", service.listStudents(teacherId, classId));
                 request.setAttribute("invitations", service.listInvitations(teacherId, classId));
@@ -49,7 +49,7 @@ public class EnrollmentServlet extends HttpServlet {
             }
             request.getRequestDispatcher("/WEB-INF/views/enrollments/list.jsp").forward(request, response);
         } catch (IllegalArgumentException ex) {
-            response.sendError(HttpServletResponse.SC_BAD_REQUEST, ex.getMessage());
+            response.sendError(HttpServletResponse.SC_BAD_REQUEST, message(ex.getMessage()));
         }
     }
 
@@ -61,26 +61,26 @@ public class EnrollmentServlet extends HttpServlet {
         try {
             if ("addStudent".equals(action)) {
                 service.addStudentByEmail(teacherId, classId, request.getParameter("email"));
-                request.getSession().setAttribute("enrollmentNotice", "Student added to the class.");
+                request.getSession().setAttribute("enrollmentNotice", "Đã thêm sinh viên vào lớp.");
             } else if ("importStudents".equals(action)) {
                 Part upload = request.getPart("file");
                 if (upload == null || upload.getSize() == 0 || upload.getSubmittedFileName() == null
                         || !upload.getSubmittedFileName().toLowerCase(java.util.Locale.ROOT).endsWith(".csv")) {
-                    throw new IllegalArgumentException("A CSV file is required");
+                    throw new IllegalArgumentException("Vui lòng chọn tệp CSV");
                 }
                 try (var stream = upload.getInputStream()) {
                     var result = service.importStudentsFromCsv(teacherId, classId, stream);
                     request.getSession().setAttribute("enrollmentNotice",
-                            "Import finished. Added " + result.imported()
-                                    + ", skipped " + result.skipped()
-                                    + ", rejected " + result.rejected() + ".");
+                            "Đã nhập danh sách. Thêm thành công " + result.imported()
+                                    + ", bỏ qua " + result.skipped()
+                                    + ", không hợp lệ " + result.rejected() + ".");
                 }
             } else if ("updateStatus".equals(action)) {
                 service.updateEnrollmentStatus(teacherId, requiredId(request, "enrollmentId"),
                         EnrollmentStatus.valueOf(request.getParameter("status")));
-                request.getSession().setAttribute("enrollmentNotice", "Enrollment status updated.");
+                request.getSession().setAttribute("enrollmentNotice", "Đã cập nhật trạng thái sinh viên trong lớp.");
             } else {
-                response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Unknown enrollment action");
+                response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Thao tác quản lý sinh viên không hợp lệ");
                 return;
             }
             response.sendRedirect(request.getContextPath() + "/teacher/enrollments?classId=" + classId + "&mode=manage");
@@ -88,10 +88,10 @@ public class EnrollmentServlet extends HttpServlet {
             try {
                 loadEnrollmentPage(request, teacherId, classId);
             } catch (IllegalArgumentException ignored) {
-                response.sendError(HttpServletResponse.SC_BAD_REQUEST, ex.getMessage());
+                response.sendError(HttpServletResponse.SC_BAD_REQUEST, message(ex.getMessage()));
                 return;
             }
-            request.setAttribute("error", ex.getMessage());
+            request.setAttribute("error", message(ex.getMessage()));
             request.getRequestDispatcher("/WEB-INF/views/enrollments/detail.jsp").forward(request, response);
         }
     }
@@ -101,7 +101,7 @@ public class EnrollmentServlet extends HttpServlet {
         TeacherClassSummary selected = classes.stream()
                 .filter(item -> item.classId() == classId)
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("This class is not assigned to the current teacher"));
+                .orElseThrow(() -> new IllegalArgumentException("Lớp này không thuộc phân công của giảng viên hiện tại"));
         request.setAttribute("selected", selected);
         request.setAttribute("students", service.listStudents(teacherId, classId));
         Object notice = request.getSession().getAttribute("enrollmentNotice");
@@ -111,6 +111,21 @@ public class EnrollmentServlet extends HttpServlet {
         }
     }
 
+    /** Translate database business messages at the UI boundary; import classification stays unchanged. */
+    private static String message(String text) {
+        if (text == null) return "Dữ liệu lớp học không hợp lệ.";
+        return switch (text) {
+            case "This class is not assigned to the current teacher" -> "Lớp này không thuộc phân công của giảng viên hiện tại.";
+            case "Students can be added only to an active class" -> "Chỉ có thể thêm sinh viên vào lớp đang hoạt động.";
+            case "An active Student account is required" -> "Cần tài khoản sinh viên đang hoạt động.";
+            case "The class has no available seat" -> "Lớp đã đủ sĩ số.";
+            case "This student already has an active enrollment for the subject term" -> "Sinh viên đã tham gia một lớp của môn học trong học kỳ này.";
+            case "Enrollment was not found for this teacher" -> "Không tìm thấy sinh viên trong lớp của giảng viên này.";
+            case "An inactive class cannot receive an active enrollment" -> "Không thể thêm sinh viên đang học vào lớp đã ngừng hoạt động.";
+            default -> text.replace(" is required", " là thông tin bắt buộc");
+        };
+    }
+
     private static Long optionalId(HttpServletRequest request, String name) {
         String raw = request.getParameter(name);
         return raw == null || raw.isBlank() ? null : Long.valueOf(raw);
@@ -118,7 +133,7 @@ public class EnrollmentServlet extends HttpServlet {
 
     private static long requiredId(HttpServletRequest request, String name) {
         Long id = optionalId(request, name);
-        if (id == null) throw new IllegalArgumentException(name + " is required");
+        if (id == null) throw new IllegalArgumentException(name + " là thông tin bắt buộc");
         return id;
     }
 }
