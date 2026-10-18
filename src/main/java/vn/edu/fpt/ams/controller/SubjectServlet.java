@@ -42,6 +42,8 @@ public class SubjectServlet extends HttpServlet {
       WebSupport.checkCsrf(req);
       long actor = WebSupport.actor(req);
       String action = req.getParameter("action");
+      String returnValue = req.getParameter("returnUserId");
+      Long returnUser = "experts".equals(action) && returnValue != null && !returnValue.isBlank() ? WebSupport.id(returnValue) : null;
       long id;
       String notice;
       if ("create".equals(action)) {
@@ -97,6 +99,7 @@ public class SubjectServlet extends HttpServlet {
               : "status".equals(action) && "list".equals(req.getParameter("returnTo"))
                   ? "/admin/subjects"
                   : "/admin/subjects?mode=" + successMode(action) + "&id=" + id;
+      if (returnUser != null) destination += "&returnUserId=" + returnUser;
       res.sendRedirect(req.getContextPath() + destination);
     } catch (IllegalArgumentException e) {
       redisplay(req, res, e);
@@ -143,6 +146,8 @@ public class SubjectServlet extends HttpServlet {
     try {
       long actor = WebSupport.actor(req);
       String action = req.getParameter("action");
+      String returnValue = req.getParameter("returnUserId");
+      Long returnUser = "experts".equals(action) && returnValue != null && !returnValue.isBlank() ? WebSupport.id(returnValue) : null;
       String mode =
           switch (action == null ? "" : action) {
             case "create" -> "create";

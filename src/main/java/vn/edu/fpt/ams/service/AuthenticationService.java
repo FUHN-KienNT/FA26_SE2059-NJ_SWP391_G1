@@ -1,4 +1,5 @@
 package vn.edu.fpt.ams.service;
+import vn.edu.fpt.ams.dao.*;
 
 import vn.edu.fpt.ams.dao.UserDAO;
 import vn.edu.fpt.ams.model.*;
@@ -32,8 +33,7 @@ public class AuthenticationService {
         connections,
         c -> {
           long id =
-              Jdbc.scalar(
-                  c, "SELECT user_id FROM users WHERE lower(trim(email))=? FOR UPDATE", normalized);
+              AuthenticationDAO.lockUserIdByEmail(c, normalized);
           UserAccount user = id == 0 ? null : new UserDAO().findById(c, id).orElseThrow();
           String hash =
               user == null || user.passwordHash() == null ? DUMMY_HASH : user.passwordHash();
@@ -42,7 +42,7 @@ public class AuthenticationService {
               || user == null
               || user.role() == UserRole.STUDENT
               || user.accountStatus() != AccountStatus.ACTIVE) throw new SecurityException(FAILURE);
-          Jdbc.update(c, "UPDATE users SET last_login_at=CURRENT_TIMESTAMP WHERE user_id=?", id);
+          AuthenticationDAO.updateLastLogin(c, id);
           return new UserDAO().findById(c, id).orElseThrow();
         });
   }

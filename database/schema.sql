@@ -351,3 +351,13 @@ CREATE TABLE submission_content_snapshots (
 
 -- Role eligibility, matching Subject Terms, class capacity, ownership, question/option
 -- context and score totals require transactional service validation in addition to these FKs.
+
+BEGIN;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT TRUE;
+CREATE TABLE IF NOT EXISTS student_email_verifications (
+  user_id BIGINT PRIMARY KEY REFERENCES users(user_id) ON DELETE CASCADE,
+  token_hash VARCHAR(64) NOT NULL UNIQUE,
+  expires_at TIMESTAMPTZ NOT NULL,
+  sent_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+COMMIT;

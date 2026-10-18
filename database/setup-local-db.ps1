@@ -214,20 +214,21 @@ DROP DATABASE $databaseIdentifier;
         "assignment_templates", "assignments", "class_enrollments", "class_experts",
         "overflow_batches", "questions", "student_invitations", "subject_classes",
         "subject_experts", "subject_registrations", "subject_terms", "subjects",
-        "submissions", "teacher_subjects", "users"
+        "submissions", "teacher_subjects", "users",
+        "submission_content_snapshots", "student_email_verifications"
     )
     $actualTables = @(Invoke-Psql -Executable $psql -Database $DatabaseName -User $DatabaseUser `
         -Password $applicationPassword -Sql "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY table_name;")
     $difference = Compare-Object -ReferenceObject $expectedTables -DifferenceObject $actualTables
     if ($difference) {
-        throw "Database verification failed. Expected 18 AMS business tables and 3 implementation audit tables."
+        throw "Database verification failed. Expected 18 AMS business tables, 3 audit tables and 2 support tables."
     }
 
     $seededUsers = Invoke-Psql -Executable $psql -Database $DatabaseName -User $DatabaseUser `
         -Password $applicationPassword -Sql "SELECT count(*) FROM users;"
     Write-Host ""
     Write-Host "AMS database setup completed successfully." -ForegroundColor Green
-    Write-Host "Verified tables: 18 business + 3 audit"
+    Write-Host "Verified tables: 18 business + 3 audit + 2 support"
     Write-Host "Seeded users: $($seededUsers | Select-Object -First 1)"
     Write-Host "Configure the application with:"
     Write-Host "  DB_HOST=$HostName"

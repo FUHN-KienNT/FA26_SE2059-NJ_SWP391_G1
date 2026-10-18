@@ -1,20 +1,254 @@
 <%@ page contentType="text/html;charset=UTF-8" import="vn.edu.fpt.ams.model.*,vn.edu.fpt.ams.util.WebSupport,java.time.*" %>
-<% String mode=(String)request.getAttribute("mode"); AcademicTerm term=(AcademicTerm)request.getAttribute("term"); AcademicTerm submitted=(AcademicTerm)request.getAttribute("submittedTerm"); AcademicTerm shown=submitted!=null?submitted:term; boolean view="view".equals(mode),create="create".equals(mode); ZoneId zone=ZoneOffset.UTC; String token=WebSupport.csrf(request),base=request.getContextPath()+"/admin/master-data",list=request.getContextPath()+"/admin/settings",detail=create?list:base+"?mode=view&id="+shown.termId(); %>
-<!doctype html><html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title><%=create?"Thêm học kỳ":view?"Chi tiết học kỳ":"Cập nhật học kỳ"%> | AMS</title><link rel="stylesheet" href="${pageContext.request.contextPath}/css/app.css"><%@ include file="/WEB-INF/views/shared/assets.jspf" %></head><body class="admin-users admin-app admin-settings ams-ui">
-<%@ include file="/WEB-INF/views/admin/shell.jspf" %>
-<main class="users-main subject-form ams-content bao-mode-page" id="page-content">
-<nav class="bao-context" aria-label="Ngữ cảnh"><span>Cài đặt</span><span aria-hidden="true">›</span><span>Học kỳ</span><span aria-hidden="true">›</span><span><%=create?"Thêm học kỳ":view?"Chi tiết":"Chỉnh sửa"%></span></nav>
-<div class="subject-heading"><div><h1><%=create?"Thêm học kỳ":view?"Chi tiết học kỳ":"Cập nhật học kỳ"%></h1><p class="muted"><%=create?"Tạo mới học kỳ trong hệ thống.":view?"Thông tin và trạng thái học kỳ trong hệ thống.":"Chỉnh sửa thông tin học kỳ."%></p></div><a class="secondary-button" href="<%=view||create?list:detail%>">← <%=view||create?"Quay lại danh sách":"Quay lại chi tiết"%></a></div>
-<% if(request.getAttribute("error")!=null){ %><p role="alert"><%=WebSupport.html(request.getAttribute("error"))%></p><% } %><% if("1".equals(request.getParameter("saved"))){ %><p role="status">Đã lưu học kỳ.</p><% } %>
-<% if(view){ %>
-<div class="bao-summary"><span class="section-symbol" aria-hidden="true">▦</span><div class="bao-summary-title"><strong><%=WebSupport.html(term.termCode())%></strong><p><%=WebSupport.html(term.termName())%></p><span class="status-badge <%=term.active()?"active":"inactive"%>"><%=term.active()?"Đang hoạt động":"Ngừng hoạt động"%></span> <% if(term.current()){ %><span class="term-current-badge current">Hiện tại</span><% } %></div><div class="bao-summary-dates"><span>Ngày bắt đầu<strong><%=term.startsAt().atZone(zone).toLocalDate()%></strong></span><span>Ngày kết thúc<strong><%=term.endsAt().atZone(zone).toLocalDate()%></strong></span></div></div>
-<div class="bao-term-layout"><section class="bao-card"><h2>Thông tin học kỳ</h2><dl class="bao-detail-rows"><div><dt>Mã học kỳ</dt><dd><%=WebSupport.html(term.termCode())%></dd></div><div><dt>Tên học kỳ</dt><dd><%=WebSupport.html(term.termName())%></dd></div><div><dt>Ngày bắt đầu</dt><dd><%=term.startsAt().atZone(zone).toLocalDate()%></dd></div><div><dt>Ngày kết thúc</dt><dd><%=term.endsAt().atZone(zone).toLocalDate()%></dd></div></dl></section><section class="bao-card"><h2>Trạng thái</h2><dl class="bao-state-list"><div><dt>Trạng thái</dt><dd><span class="status-badge <%=term.active()?"active":"inactive"%>"><%=term.active()?"Đang hoạt động":"Ngừng hoạt động"%></span></dd></div><div><dt>Học kỳ hiện tại</dt><dd><%=term.current()?"Có":"Không"%></dd></div></dl></section></div>
-<div class="form-actions"><a class="primary-button" href="<%=base%>?mode=edit&amp;id=<%=term.termId()%>">Sửa</a></div>
-<% }else{ %>
-<% if(!create){ %><div class="bao-edit-context"><strong><%=WebSupport.html(shown.termCode())%></strong><span class="status-badge <%=shown.active()?"active":"inactive"%>"><%=shown.active()?"Đang hoạt động":"Ngừng hoạt động"%></span><span class="term-current-badge <%=shown.current()?"current":""%>"><%=shown.current()?"Hiện tại":"Không phải học kỳ hiện tại"%></span></div><% } %>
-<form class="bao-focused-form bao-academic-form" method="post" action="${pageContext.request.contextPath}/admin/master-data"><input type="hidden" name="csrf" value="<%=token%>"><input type="hidden" name="action" value="<%=create?"create":"update"%>"><% if(shown!=null&&shown.termId()>0){ %><input type="hidden" name="termId" value="<%=shown.termId()%>"><% } %>
-<section class="bao-card"><h2>Thông tin học kỳ</h2><div class="form-grid"><label>Mã học kỳ <span class="bao-required" aria-hidden="true">*</span><input name="termCode" maxlength="20" required placeholder="Ví dụ: FALL2026" value="<%=shown==null?"":WebSupport.html(shown.termCode())%>"></label><label>Tên học kỳ <span class="bao-required" aria-hidden="true">*</span><input name="termName" maxlength="100" required placeholder="Ví dụ: Fall 2026" value="<%=shown==null?"":WebSupport.html(shown.termName())%>"></label><label>Ngày bắt đầu <span class="bao-required" aria-hidden="true">*</span><input type="date" name="startsAt" required value="<%=shown==null||shown.startsAt()==null?"":shown.startsAt().atZone(zone).toLocalDate()%>"></label><label>Ngày kết thúc <span class="bao-required" aria-hidden="true">*</span><input type="date" name="endsAt" required value="<%=shown==null||shown.endsAt()==null?"":shown.endsAt().atZone(zone).toLocalDate()%>"></label></div>
-<% if(create){ %><div class="bao-initial-flags"><label class="check"><input type="checkbox" name="active" <%=shown==null||shown.active()?"checked":""%>> Hoạt động</label><label class="check"><input type="checkbox" name="current" <%=shown!=null&&shown.current()?"checked":""%>> Đặt làm học kỳ hiện tại</label></div><% }else{ if(shown.active()){ %><input type="hidden" name="active" value="true"><% } if(shown.current()){ %><input type="hidden" name="current" value="true"><% } } %>
-</section><div class="form-actions"><a class="secondary-button" href="<%=create?list:detail%>">Hủy</a><button class="primary-button"><%=create?"Tạo học kỳ":"Lưu thay đổi"%></button></div></form>
-<% } %>
-</main></div></body></html>
+<%
+    String mode=(String)request.getAttribute("mode");
+    AcademicTerm term=(AcademicTerm)request.getAttribute("term");
+    AcademicTerm submitted=(AcademicTerm)request.getAttribute("submittedTerm");
+    AcademicTerm shown=submitted!=null?submitted:term;
+    boolean view="view".equals(mode),create="create".equals(mode);
+    ZoneId zone=ZoneOffset.UTC;
+    String token=WebSupport.csrf(request),base=request.getContextPath()+"/admin/master-data",list=request.getContextPath()+"/admin/settings",detail=create?list:base+"?mode=view&id="+shown.termId();
+%>
+<!doctype html>
+<html lang="vi">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width,initial-scale=1">
+        <title><%=create?"Thêm học kỳ":view?"Chi tiết học kỳ":"Cập nhật học kỳ"%> | AMS</title>
+        <link rel="stylesheet" href="${pageContext.request.contextPath}/css/app.css">
+        <%@ include file="/WEB-INF/views/shared/assets.jspf" %>
+    </head>
+    <body class="admin-users admin-app admin-settings ams-ui">
+        <%@ include file="/WEB-INF/views/admin/shell.jspf" %>
+        <main class="users-main subject-form ams-content bao-mode-page" id="page-content">
+            <nav class="bao-context" aria-label="Ngữ cảnh">
+                <span>Cài đặt</span><span aria-hidden="true">›</span><span>Học kỳ</span><span aria-hidden="true">›</span><span><%=create?"Thêm học kỳ":view?"Chi tiết":"Chỉnh sửa"%></span>
+            </nav>
+            <div class="subject-heading">
+                <div>
+                    <h1>
+                        <%=create?"Thêm học kỳ":view?"Chi tiết học kỳ":"Cập nhật học kỳ"%>
+                    </h1>
+                    <p class="muted">
+                        <%=create?"Tạo mới học kỳ trong hệ thống.":view?"Thông tin và trạng thái học kỳ trong hệ thống.":"Chỉnh sửa thông tin học kỳ."%>
+                    </p>
+                </div>
+                <a class="secondary-button" href="<%=view||create?list:detail%>">← <%=view||create?"Quay lại danh sách":"Quay lại chi tiết"%></a>
+            </div>
+            <%
+                if(request.getAttribute("error")!=null){
+                %>
+                <p role="alert">
+                    <%=WebSupport.html(request.getAttribute("error"))%>
+                </p>
+                <%
+                }
+            %>
+            <%
+                if("1".equals(request.getParameter("saved"))){
+                %>
+                <p role="status">
+                    Đã lưu học kỳ.
+                </p>
+                <%
+                }
+            %>
+            <%
+                if(view){
+                %>
+                <div class="bao-summary">
+                    <span class="section-symbol" aria-hidden="true">▦</span>
+                    <div class="bao-summary-title">
+                        <strong><%=WebSupport.html(term.termCode())%></strong>
+                        <p>
+                            <%=WebSupport.html(term.termName())%>
+                        </p>
+                        <span class="status-badge <%=term.active()?"active":"inactive"%>"><%=term.active()?"Đang hoạt động":"Ngừng hoạt động"%></span>
+                        <%
+                            if(term.current()){
+                            %>
+                            <span class="term-current-badge current">Hiện tại</span>
+                            <%
+                            }
+                        %>
+                    </div>
+                    <div class="bao-summary-dates">
+                        <span>Ngày bắt đầu<strong><%=term.startsAt().atZone(zone).toLocalDate()%></strong></span><span>Ngày kết thúc<strong><%=term.endsAt().atZone(zone).toLocalDate()%></strong></span>
+                    </div>
+                </div>
+                <div class="bao-term-layout">
+                    <section class="bao-card">
+                        <h2>
+                            Thông tin học kỳ
+                        </h2>
+                        <dl class="bao-detail-rows">
+                            <div>
+                                <dt>
+                                    Mã học kỳ
+                                </dt>
+                                <dd>
+                                    <%=WebSupport.html(term.termCode())%>
+                                </dd>
+                            </div>
+                            <div>
+                                <dt>
+                                    Tên học kỳ
+                                </dt>
+                                <dd>
+                                    <%=WebSupport.html(term.termName())%>
+                                </dd>
+                            </div>
+                            <div>
+                                <dt>
+                                    Ngày bắt đầu
+                                </dt>
+                                <dd>
+                                    <%=term.startsAt().atZone(zone).toLocalDate()%>
+                                </dd>
+                            </div>
+                            <div>
+                                <dt>
+                                    Ngày kết thúc
+                                </dt>
+                                <dd>
+                                    <%=term.endsAt().atZone(zone).toLocalDate()%>
+                                </dd>
+                            </div>
+                        </dl>
+                    </section>
+                    <section class="bao-card">
+                        <h2>
+                            Trạng thái
+                        </h2>
+                        <dl class="bao-state-list">
+                            <div>
+                                <dt>
+                                    Trạng thái
+                                </dt>
+                                <dd>
+                                    <span class="status-badge <%=term.active()?"active":"inactive"%>"><%=term.active()?"Đang hoạt động":"Ngừng hoạt động"%></span>
+                                </dd>
+                            </div>
+                            <div>
+                                <dt>
+                                    Học kỳ hiện tại
+                                </dt>
+                                <dd>
+                                    <%=term.current()?"Có":"Không"%>
+                                </dd>
+                            </div>
+                        </dl>
+                    </section>
+                </div>
+                <div class="form-actions">
+                    <a class="primary-button" href="<%=base%>?mode=edit&amp;id=<%=term.termId()%>">Sửa</a>
+                </div>
+                <%
+                }
+                else{
+                %>
+                <%
+                    if(!create){
+                    %>
+                    <div class="bao-edit-context">
+                        <strong><%=WebSupport.html(shown.termCode())%></strong><span class="status-badge <%=shown.active()?"active":"inactive"%>"><%=shown.active()?"Đang hoạt động":"Ngừng hoạt động"%></span>
+                        <span class="term-current-badge <%=shown.current()?"current":""%>"><%=shown.current()?"Hiện tại":"Không phải học kỳ hiện tại"%></span>
+                    </div>
+                    <%
+                    }
+                %>
+                <form
+                    class="bao-focused-form bao-academic-form"
+                    method="post"
+                    action="${pageContext.request.contextPath}/admin/master-data">
+                    <input type="hidden" name="csrf" value="<%=token%>">
+                    <input type="hidden" name="action" value="<%=create?"create":"update"%>">
+                    <%
+                        if(shown!=null&&shown.termId()>0){
+                        %>
+                        <input type="hidden" name="termId" value="<%=shown.termId()%>">
+                        <%
+                        }
+                    %>
+                    <section class="bao-card">
+                        <h2>
+                            Thông tin học kỳ
+                        </h2>
+                        <div class="form-grid">
+                            <label>
+                                Mã học kỳ <span class="bao-required" aria-hidden="true">*</span>
+                                <input
+                                    name="termCode"
+                                    maxlength="20"
+                                    required
+                                    placeholder="Ví dụ: FALL2026"
+                                    value="<%=shown==null?"":WebSupport.html(shown.termCode())%>">
+                            </label>
+                            <label>
+                                Tên học kỳ <span class="bao-required" aria-hidden="true">*</span>
+                                <input
+                                    name="termName"
+                                    maxlength="100"
+                                    required
+                                    placeholder="Ví dụ: Fall 2026"
+                                    value="<%=shown==null?"":WebSupport.html(shown.termName())%>">
+                            </label>
+                            <label>
+                                Ngày bắt đầu <span class="bao-required" aria-hidden="true">*</span>
+                                <input
+                                    type="date"
+                                    name="startsAt"
+                                    required
+                                    value="<%=shown==null||shown.startsAt()==null?"":shown.startsAt().atZone(zone).toLocalDate()%>">
+                            </label>
+                            <label>
+                                Ngày kết thúc <span class="bao-required" aria-hidden="true">*</span>
+                                <input
+                                    type="date"
+                                    name="endsAt"
+                                    required
+                                    value="<%=shown==null||shown.endsAt()==null?"":shown.endsAt().atZone(zone).toLocalDate()%>">
+                            </label>
+                        </div>
+                        <%
+                            if(create){
+                            %>
+                            <div class="bao-initial-flags">
+                                <label class="check">
+                                    <input type="checkbox" name="active" <%=shown==null||shown.active()?"checked":""%>>
+                                    Hoạt động
+                                </label>
+                                <label class="check">
+                                    <input type="checkbox" name="current" <%=shown!=null&&shown.current()?"checked":""%>>
+                                    Đặt làm học kỳ hiện tại
+                                </label>
+                            </div>
+                            <%
+                            }
+                            else{
+                                if(shown.active()){
+                                %>
+                                <input type="hidden" name="active" value="true">
+                                <%
+                                }
+                                if(shown.current()){
+                                %>
+                                <input type="hidden" name="current" value="true">
+                                <%
+                                }
+                            }
+                        %>
+                    </section>
+                    <div class="form-actions">
+                        <a class="secondary-button" href="<%=create?list:detail%>">Hủy</a>
+                        <button class="primary-button">
+                            <%=create?"Tạo học kỳ":"Lưu thay đổi"%>
+                        </button>
+                    </div>
+                </form>
+                <%
+                }
+            %>
+        </main>
+    </div>
+</body>
+</html>

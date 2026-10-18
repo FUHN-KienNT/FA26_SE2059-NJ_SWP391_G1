@@ -127,6 +127,159 @@ class AdminScreensWorkflowsTest {
             + " VALUES(1,4,'G1','Group One',10,TRUE)");
   }
 
+  private void verifiedStudent(String subject, String email) {
+    var account = google.signIn(new Identity(subject, email, "Student Name"), null);
+    sql("UPDATE users SET email_verified=TRUE WHERE user_id=?", account.userId());
+  }
+  @Test
+  void templateEditSavesContentAndStatusAtomicallyWithPrimaryPermission() {
+    long id=templates.createTemplate(2,new AssignmentTemplate(0,1,"Before","Instructions",BigDecimal.TEN,TemplateStatus.ACTIVE,null,null));
+    var changed=new AssignmentTemplate(id,1,"After","Updated instructions",BigDecimal.TEN,TemplateStatus.ACTIVE,null,null);
+    assertThrows(SecurityException.class,()->templates.updateTemplate(3,changed,TemplateStatus.INACTIVE));
+    assertEquals("Before",templates.findTemplate(2,id).title());
+    assertEquals(TemplateStatus.ACTIVE,templates.findTemplate(2,id).status());
+    templates.updateTemplate(2,changed,TemplateStatus.INACTIVE);
+    assertEquals("After",templates.findTemplate(2,id).title());
+    assertEquals(TemplateStatus.INACTIVE,templates.findTemplate(2,id).status());
+    templates.updateTemplate(3,changed);
+    assertEquals(TemplateStatus.INACTIVE,templates.findTemplate(2,id).status());
+    templates.updateTemplate(2,changed,TemplateStatus.ACTIVE);
+    assertEquals(TemplateStatus.ACTIVE,templates.findTemplate(2,id).status());
+  }
+  @Test
+  void templateMaximumScoreUsesIntegerRangeAndRejectsInvalidUpdates() {
+    long id = templates.createTemplate(2, new AssignmentTemplate(0,1,"Score test","Instructions",
+        BigDecimal.ONE,TemplateStatus.ACTIVE,null,null));
+    templates.updateTemplate(2, new AssignmentTemplate(id,1,"Score test","Instructions",
+        new BigDecimal("100"),TemplateStatus.ACTIVE,null,null));
+    for(String value:List.of("0","-1","101","1000","10.5")) {
+      var invalid = new AssignmentTemplate(id,1,"Invalid change","Instructions",
+          new BigDecimal(value),TemplateStatus.ACTIVE,null,null);
+      assertThrows(IllegalArgumentException.class, () -> templates.updateTemplate(2,invalid));
+      assertThrows(IllegalArgumentException.class, () -> templates.createTemplate(2,invalid));
+    }
+    assertEquals(0, new BigDecimal("100").compareTo(templates.findTemplate(2,id).maximumScore()));
+    assertEquals("Score test", templates.findTemplate(2,id).title());
+  }
+  @Test
+  void templatePagingPreservesFiltersAndRestrictsTeacherVisibility() {
+    for(int i=0;i<23;i++) sql("INSERT INTO assignment_templates(subject_id,title,instructions,maximum_score,status) VALUES(1,?,'Instructions',10,?)",
+        "Paging item " + i, i<21?"ACTIVE":"INACTIVE");
+    var first = templates.page(2,1,"Paging",null,1);
+    var second = templates.page(2,1,"Paging",null,2);
+    var last = templates.page(2,1,"Paging",null,999);
+    assertEquals(23, first.total());
+    assertEquals(10, first.items().size());
+    assertEquals(10, second.items().size());
+    assertEquals(3, last.page());
+    assertEquals(3, last.items().size());
+    assertTrue(first.items().stream().noneMatch(a -> second.items().stream().anyMatch(b -> a.templateId()==b.templateId())));
+    assertEquals(2, templates.page(2,1,"Paging",TemplateStatus.INACTIVE,1).total());
+    assertEquals(21, templates.page(4,1,"Paging",TemplateStatus.INACTIVE,1).total());
+    assertEquals(0, templates.page(2,1,"%_",null,1).total());
+    assertThrows(SecurityException.class, () -> templates.page(5,1,"",null,1));
+  }
+  @Test
+  void expertAssignmentsAreAdminOnlyAndIncludeRoleAndHistory() {
+    var primary = users.expertSubjects(1, 2);
+    assertEquals(2, primary.size());
+    assertEquals(ResponsibilityType.PRIMARY, primary.get(0).responsibility());
+    assertTrue(primary.get(0).active());
+    assertTrue(primary.stream().anyMatch(subject -> subject.subjectId()==2 && subject.responsibility()==null && !subject.active()));
+    assertEquals(ResponsibilityType.SUPPORTING, users.expertSubjects(1, 3).get(0).responsibility());
+    sql("UPDATE subject_experts SET is_active=FALSE,deactivated_at=CURRENT_TIMESTAMP WHERE expert_id=3");
+    assertFalse(users.expertSubjects(1, 3).get(0).active());
+    assertEquals(2, users.expertSubjects(1, 4).size());
+    assertTrue(users.expertSubjects(1, 4).stream().allMatch(subject -> subject.responsibility()==null));
+    assertEquals(2, users.expertSubjects(1, 0).size());
+    sql("UPDATE subjects SET status='INACTIVE' WHERE subject_id=2");
+    assertEquals(2, users.expertSubjects(1, 2).size());
+    assertThrows(SecurityException.class, () -> users.expertSubjects(2, 2));
+  }
+  @Test
+  void userDetailStatusIsSavedAtomicallyWithAccountChanges() {
+    var admin = users.detail(1, 1);
+    assertThrows(IllegalArgumentException.class, () -> users.update(1, 1,
+        "Changed Name", admin.email(), UserRole.ADMIN, Set.of(), AccountStatus.INACTIVE));
+    assertEquals(admin.fullName(), users.detail(1, 1).fullName());
+    assertEquals(AccountStatus.ACTIVE, users.detail(1, 1).accountStatus());
+    var expert = users.detail(1, 5);
+    users.update(1, 5, "New Name", expert.email(), UserRole.EXPERT, Set.of(), AccountStatus.INACTIVE);
+    assertEquals("New Name", users.detail(1, 5).fullName());
+    assertEquals(AccountStatus.INACTIVE, users.detail(1, 5).accountStatus());
+  }
+  @Test
+  void googleDisplayNamesAllowDigitsAndFitDatabaseWithoutSkippingVerification() {
+    var numbered = google.signIn(new Identity("numbered-sub", "numbered@test.edu", "Nguyễn Nam 123"), null);
+    assertEquals("Nguyễn Nam 123", numbered.fullName());
+    assertNull(numbered.lastLoginAt());
+    assertTrue(new StudentVerificationService(db, new EmailService()).pending(numbered.userId()));
+    var longName = google.signIn(new Identity("long-sub", "long@test.edu", "A".repeat(60)), null);
+    assertEquals(50, longName.fullName().length());
+    var missing = google.signIn(new Identity("missing-name-sub", "fallback@test.edu", null), null);
+    assertEquals("fallback", missing.fullName());
+  }
+  @Test
+  void templatesEnforceOwnershipValidationAndPersistLifecycle() {
+    var draft = new AssignmentTemplate(0, 1, "Test template", "Instructions", new BigDecimal("10.00"), TemplateStatus.ACTIVE, null, null);
+    long id = templates.createTemplate(2, draft);
+    assertEquals("Test template", templates.findTemplate(2, id).title());
+    assertThrows(SecurityException.class, () -> templates.createTemplate(5, draft));
+    assertThrows(SecurityException.class, () -> templates.findTemplate(1, id));
+    assertThrows(IllegalArgumentException.class, () -> templates.createTemplate(2,
+        new AssignmentTemplate(0, 1, " ", "Instructions", BigDecimal.TEN, TemplateStatus.ACTIVE, null, null)));
+    assertThrows(IllegalArgumentException.class, () -> templates.createTemplate(2,
+        new AssignmentTemplate(0, 1, "Title", "Instructions", new BigDecimal("0.001"), TemplateStatus.ACTIVE, null, null)));
+    templates.updateTemplate(2, new AssignmentTemplate(id, 1, "Updated", "New instructions", BigDecimal.TEN, TemplateStatus.ACTIVE, null, null));
+    assertEquals("Updated", templates.findTemplate(2, id).title());
+    templates.changeStatus(2, id, TemplateStatus.INACTIVE);
+    assertEquals(TemplateStatus.INACTIVE, templates.findTemplate(2, id).status());
+    assertThrows(SecurityException.class, () -> templates.findTemplate(4, id));
+    templates.changeStatus(2, id, TemplateStatus.ACTIVE);
+    assertEquals(TemplateStatus.ACTIVE, templates.findTemplate(4, id).status());
+  }
+  @Test
+  void studentConfirmationRequiresFreshSingleUseTokenAndCommittedAccount() {
+    var identity = new Identity("verify-sub", "verify@test.edu", "Student Name");
+    var account = google.signIn(identity, null);
+    assertNull(account.lastLoginAt());
+    var verification = new StudentVerificationService(db, new EmailService() {
+      @Override public void sendNotification(String to, String subject, String text) {
+        assertEquals(1, scalar("SELECT COUNT(*) FROM users WHERE email=? AND email_verified=FALSE", to));
+        mailed = text;
+      }
+    });
+    assertTrue(verification.pending(account.userId()));
+    assertTrue(verification.send(account.userId()));
+    String token = mailed.split("token=")[1].split("\\n")[0];
+    assertEquals(0, scalar("SELECT COUNT(*) FROM student_email_verifications WHERE token_hash=?", token));
+    assertThrows(IllegalArgumentException.class, () -> verification.send(account.userId()));
+    assertThrows(IllegalArgumentException.class, () -> verification.confirm("wrong"));
+    verification.confirm(token);
+    assertFalse(verification.pending(account.userId()));
+    assertThrows(IllegalArgumentException.class, () -> verification.confirm(token));
+    assertNotNull(google.signIn(identity, null).lastLoginAt());
+  }
+  @Test
+  void expiredTokenAndSmtpFailureDoNotActivateStudent() {
+    var account = google.signIn(new Identity("expire-sub", "expire@test.edu", "Student Name"), null);
+    var verification = new StudentVerificationService(db, new EmailService() {
+      @Override public void sendNotification(String to, String subject, String text) {
+        if(failMail) throw new IllegalStateException("SMTP unavailable");
+        mailed = text;
+      }
+    });
+    failMail = true;
+    assertFalse(verification.send(account.userId()));
+    assertTrue(verification.pending(account.userId()));
+    assertEquals(0, scalar("SELECT COUNT(*) FROM student_email_verifications"));
+    failMail = false;
+    assertTrue(verification.send(account.userId()));
+    String token = mailed.split("token=")[1].split("\\n")[0];
+    sql("UPDATE student_email_verifications SET expires_at=?", Instant.now().minusSeconds(1));
+    assertThrows(IllegalArgumentException.class, () -> verification.confirm(token));
+    assertTrue(verification.pending(account.userId()));
+  }
   private void apply(String script) throws Exception {
     script =
         script
@@ -288,7 +441,7 @@ class AdminScreensWorkflowsTest {
     assertEquals(first.userId(), again.userId());
     assertEquals(UserRole.STUDENT, first.role());
     assertNull(first.passwordHash());
-    assertNotNull(again.lastLoginAt());
+    assertNull(again.lastLoginAt());
     assertThrows(
         SecurityException.class,
         () ->
@@ -301,6 +454,8 @@ class AdminScreensWorkflowsTest {
   void invitedGoogleAcceptanceCommitsTogetherAndReplayDoesNotDuplicate() {
     invite("token", "student@test.edu");
     var identity = new Identity("subject", "student@test.edu", "Student Name");
+    var pending = google.signIn(identity, null);
+    sql("UPDATE users SET email_verified=TRUE WHERE user_id=?", pending.userId());
     var first = google.signIn(identity, "token");
     assertEquals(first.userId(), google.signIn(identity, "token").userId());
     assertEquals(1, scalar("SELECT COUNT(*) FROM subject_registrations"));
@@ -315,18 +470,20 @@ class AdminScreensWorkflowsTest {
   @Test
   void invalidInvitationEmailOrTokenRollsBackProvisioning() {
     invite("token", "invited@test.edu");
+    verifiedStudent("s", "wrong@test.edu"); verifiedStudent("invited-sub", "invited@test.edu");
     assertThrows(
         SecurityException.class,
         () -> google.signIn(new Identity("s", "wrong@test.edu", "Wrong Name"), "token"));
     assertThrows(
         IllegalArgumentException.class,
-        () -> google.signIn(new Identity("s", "invited@test.edu", "Student Name"), "missing"));
-    assertEquals(5, scalar("SELECT COUNT(*) FROM users"));
+        () -> google.signIn(new Identity("invited-sub", "invited@test.edu", "Student Name"), "missing"));
+    assertEquals(7, scalar("SELECT COUNT(*) FROM users"));
     assertEquals(0, scalar("SELECT COUNT(*) FROM class_enrollments"));
   }
 
   @Test
   void expiredOrOverCapacityInvitationRollsBackEverything() {
+    verifiedStudent("old-sub", "old@test.edu");
     sql(
         "INSERT INTO student_invitations(class_id,invited_by,email,token,sent_at,expires_at)"
             + " VALUES(1,4,'old@test.edu','old',?,?)",
@@ -335,11 +492,12 @@ class AdminScreensWorkflowsTest {
     assertThrows(
         IllegalArgumentException.class,
         () -> google.signIn(new Identity("old-sub", "old@test.edu", "Student Name"), "old"));
+    verifiedStudent("new-sub", "s0@test.edu");
     for (int n = 0; n < 11; n++) invite("t" + n, "s" + n + "@test.edu");
     assertThrows(
         IllegalArgumentException.class,
         () -> google.signIn(new Identity("new-sub", "s0@test.edu", "Student Name"), "t0"));
-    assertEquals(5, scalar("SELECT COUNT(*) FROM users"));
+    assertEquals(7, scalar("SELECT COUNT(*) FROM users"));
     assertEquals(0, scalar("SELECT COUNT(*) FROM subject_registrations"));
   }
 

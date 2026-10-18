@@ -13,3 +13,6 @@ smtp.port=587
 smtp.username=CHANGE_ME
 smtp.password=CHANGE_ME
 smtp.from=CHANGE_ME
+
+# Public AMS URL used in verification emails (HTTPS when deployed).
+app.baseUrl=http://localhost:8080/ams

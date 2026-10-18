@@ -11,6 +11,11 @@ import vn.edu.fpt.ams.util.WebSupport;
 
 @WebServlet("/admin/users")
 public class UserServlet extends HttpServlet {
+  private static AccountStatus requiredStatus(String value) {
+    AccountStatus status = WebSupport.option(AccountStatus.class, value);
+    if (status == null) throw new IllegalArgumentException("Vui lòng chọn trạng thái tài khoản.");
+    return status;
+  }
   private final UserService service = new UserService();
 
   @Override
@@ -24,10 +29,12 @@ public class UserServlet extends HttpServlet {
         req.setAttribute("mode", mode);
         long actor = WebSupport.actor(req);
         req.setAttribute("subjects", service.subjects(actor));
+        req.setAttribute("expertSubjects", service.expertSubjects(actor, 0));
         if (!"create".equals(mode)) {
           long id = WebSupport.id(req.getParameter("id"));
           req.setAttribute("user", service.detail(actor, id));
           req.setAttribute("eligibility", service.eligibility(actor, id));
+          req.setAttribute("expertSubjects", service.expertSubjects(actor, id));
         }
         WebSupport.csrf(req);
       } else {
@@ -61,6 +68,8 @@ public class UserServlet extends HttpServlet {
       WebSupport.checkCsrf(req);
       long actor = WebSupport.actor(req), id = 0;
       String action = req.getParameter("action"), notice = "Changes saved";
+      String continueValue = req.getParameter("continueSubjectId");
+      Long continueSubject = "update".equals(action) && continueValue != null && !continueValue.isBlank() ? WebSupport.id(continueValue) : null;
       if ("create".equals(action)) {
         var result =
             service.create(
@@ -84,7 +93,7 @@ public class UserServlet extends HttpServlet {
               req.getParameter("fullName"),
               req.getParameter("email"),
               WebSupport.option(UserRole.class, req.getParameter("role")),
-              WebSupport.ids(req.getParameterValues("subjects")));
+              WebSupport.ids(req.getParameterValues("subjects")), requiredStatus(req.getParameter("status")));
         else if ("status".equals(action))
           service.status(
               actor, id, WebSupport.option(AccountStatus.class, req.getParameter("status")));
@@ -97,6 +106,10 @@ public class UserServlet extends HttpServlet {
         } else throw new IllegalArgumentException("Unknown action");
       }
       req.getSession().setAttribute("notice", notice);
+      if (continueSubject != null) {
+        res.sendRedirect(req.getContextPath() + "/admin/subjects?mode=experts&id=" + continueSubject + "&returnUserId=" + id);
+        return;
+      }
       res.sendRedirect(req.getContextPath() + ("list".equals(req.getParameter("returnTo")) && "status".equals(action) ? "/admin/users" : "/admin/users?mode=edit&id=" + id));
     } catch (IllegalArgumentException e) {
       try {
@@ -104,10 +117,12 @@ public class UserServlet extends HttpServlet {
         boolean create = "create".equals(req.getParameter("action"));
         req.setAttribute("mode", create ? "create" : "edit");
         req.setAttribute("subjects", service.subjects(actor));
+        req.setAttribute("expertSubjects", service.expertSubjects(actor, 0));
         if (!create) {
           long id = WebSupport.id(req.getParameter("id"));
           req.setAttribute("user", service.detail(actor, id));
           req.setAttribute("eligibility", service.eligibility(actor, id));
+          req.setAttribute("expertSubjects", service.expertSubjects(actor, id));
         }
         req.setAttribute("error", e.getMessage());
         req.setAttribute("submitted", create || "update".equals(req.getParameter("action")));

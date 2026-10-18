@@ -1,16 +1,207 @@
 <%@ page contentType="text/html;charset=UTF-8" import="java.util.*,vn.edu.fpt.ams.dto.*,vn.edu.fpt.ams.model.*,vn.edu.fpt.ams.util.WebSupport,vn.edu.fpt.ams.util.Vietnamese" %>
-<% var subjects=(List<AssignedSubjectDTO>)request.getAttribute("subjects"); var terms=(List<TermOptionDTO>)request.getAttribute("terms"); var classes=(List<AssignedClassDTO>)request.getAttribute("classes"); String selectedSubject=request.getParameter("subjectId"); String selectedTerm=request.getParameter("termId"); %>
-<!doctype html><html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Môn học và lớp được phân công | AMS</title><link rel="stylesheet" href="${pageContext.request.contextPath}/css/app.css"><%@ include file="/WEB-INF/views/shared/assets.jspf" %></head><body class="expert-app baonvg-expert ams-ui">
-<%@ include file="/WEB-INF/views/expert/shell.jspf" %>
-<header class="expert-page-heading"><h1>Môn học và lớp được phân công</h1><p>Chuyên gia chính xem toàn bộ lớp của môn học. Chuyên gia hỗ trợ chỉ xem các lớp được phân công.</p></header>
-<form class="expert-filters" method="get" id="class-filters"><label><span class="sr-only">Tìm kiếm</span><input name="keyword" maxlength="50" value="<%=WebSupport.html(request.getParameter("keyword"))%>" placeholder="Tìm mã/tên môn học hoặc lớp..."></label><label><span>Môn học</span><select name="subjectId" onchange="this.form.requestSubmit()"><option value="">Tất cả</option><% if(subjects!=null)for(var subject:subjects){ %><option value="<%=subject.subjectId()%>" <%=String.valueOf(subject.subjectId()).equals(selectedSubject)?"selected":""%>><%=WebSupport.html(subject.subjectCode())%> — <%=WebSupport.html(subject.subjectName())%></option><% } %></select></label><label><span>Học kỳ</span><select name="termId" onchange="this.form.requestSubmit()"><option value="">Tất cả</option><% if(terms!=null)for(var term:terms){ %><option value="<%=term.termId()%>" <%=String.valueOf(term.termId()).equals(selectedTerm)?"selected":""%>><%=WebSupport.html(term.termCode())%></option><% } %></select></label><button>Tìm kiếm</button><output>Tìm thấy <%=classes==null?0:classes.size()%> lớp</output></form>
-<section class="expert-subject-groups">
-<% boolean hasFilter=(selectedSubject!=null&&!selectedSubject.isBlank())||(selectedTerm!=null&&!selectedTerm.isBlank())||(request.getParameter("keyword")!=null&&!request.getParameter("keyword").isBlank()); if(hasFilter&&(classes==null||classes.isEmpty())){ %><p class="expert-empty-panel">Không có lớp phù hợp với bộ lọc hiện tại.</p><% }else{ %>
-<% boolean anySubject=false; if(subjects!=null) for(var subject:subjects){ if(selectedSubject!=null&&!selectedSubject.isBlank()&&!String.valueOf(subject.subjectId()).equals(selectedSubject)) continue; anySubject=true; int groupCount=0; for(var item:classes) if(item.subjectId()==subject.subjectId()) groupCount++; %>
-  <details class="expert-subject-group" <%=groupCount>0?"open":""%>>
-    <summary><span><strong><%=WebSupport.html(subject.subjectCode())%> — <%=WebSupport.html(subject.subjectName())%></strong><span class="responsibility-badge <%=subject.responsibility().name().toLowerCase()%>"><%=subject.responsibility()==ResponsibilityType.PRIMARY?"Chuyên gia chính":"Chuyên gia hỗ trợ"%></span></span><span><%=groupCount%> lớp <b aria-hidden="true">⌄</b></span></summary>
-    <% if(groupCount==0){ %><p class="empty-state">Không có lớp phù hợp với bộ lọc hiện tại.</p><% } else { %><div class="expert-table-wrap"><table><thead><tr><th>Mã lớp</th><th>Học kỳ</th><th>Sĩ số</th><th>Giảng viên</th><th>Đăng ký</th><th>Trạng thái</th></tr></thead><tbody><% for(var item:classes) if(item.subjectId()==subject.subjectId()){ %><tr><td><strong><%=WebSupport.html(item.classCode())%></strong><% if(item.className()!=null&&!item.className().isBlank()){ %><br><small><%=WebSupport.html(item.className())%></small><% } %></td><td><strong><%=WebSupport.html(item.termCode())%></strong><br><small><%=WebSupport.html(item.termName())%></small></td><td><%=item.activeRosterCount()%> / <%=item.capacity()%></td><td><%=item.teacherName()==null?"Chưa phân công":WebSupport.html(item.teacherName())%><% if(item.teacherEmail()!=null){ %><br><small><%=WebSupport.html(item.teacherEmail())%></small><% } %></td><td><%=item.registrationEnabled()?"Bật":"Tắt"%></td><td><span class="status-badge <%=item.status().name().toLowerCase()%>"><%=Vietnamese.label(item.status())%></span></td></tr><% } %></tbody></table></div><% } %>
-  </details>
-<% } if(!anySubject){ %><p class="expert-empty-panel">Bạn chưa được phân công môn học nào phù hợp.</p><% } } %>
-</section>
-</main></div></body></html>
+<%
+    var subjects=(List<AssignedSubjectDTO>)request.getAttribute("subjects");
+    var terms=(List<TermOptionDTO>)request.getAttribute("terms");
+    var classes=(List<AssignedClassDTO>)request.getAttribute("classes");
+    String selectedSubject=request.getParameter("subjectId");
+    String selectedTerm=request.getParameter("termId");
+%>
+<!doctype html>
+<html lang="vi">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width,initial-scale=1">
+        <title>Môn học và lớp được phân công | AMS</title>
+        <link rel="stylesheet" href="${pageContext.request.contextPath}/css/app.css">
+        <%@ include file="/WEB-INF/views/shared/assets.jspf" %>
+    </head>
+    <body class="expert-app baonvg-expert ams-ui">
+        <%@ include file="/WEB-INF/views/expert/shell.jspf" %>
+        <header class="expert-page-heading">
+            <h1>
+                Môn học và lớp được phân công
+            </h1>
+            <p>
+                Chuyên gia chính xem toàn bộ lớp của môn học. Chuyên gia hỗ trợ chỉ xem các lớp được phân công.
+            </p>
+        </header>
+        <form class="expert-filters" method="get" id="class-filters">
+            <label>
+                <span class="sr-only">Tìm kiếm</span>
+                <input
+                    name="keyword"
+                    maxlength="50"
+                    value="<%=WebSupport.html(request.getParameter("keyword"))%>"
+                    placeholder="Tìm mã/tên môn học hoặc lớp...">
+            </label>
+            <label>
+                <span>Môn học</span>
+                <select name="subjectId" onchange="this.form.requestSubmit()">
+                    <option value="">
+                        Tất cả
+                    </option>
+                    <%
+                        if(subjects!=null)for(var subject:subjects){
+                        %>
+                        <option
+                            value="<%=subject.subjectId()%>"
+                            <%=String.valueOf(subject.subjectId()).equals(selectedSubject)?"selected":""%>>
+                            <%=WebSupport.html(subject.subjectCode())%> — <%=WebSupport.html(subject.subjectName())%>
+                        </option>
+                        <%
+                        }
+                    %>
+                </select>
+            </label>
+            <label>
+                <span>Học kỳ</span>
+                <select name="termId" onchange="this.form.requestSubmit()">
+                    <option value="">
+                        Tất cả
+                    </option>
+                    <%
+                        if(terms!=null)for(var term:terms){
+                        %>
+                        <option value="<%=term.termId()%>" <%=String.valueOf(term.termId()).equals(selectedTerm)?"selected":""%>>
+                            <%=WebSupport.html(term.termCode())%>
+                        </option>
+                        <%
+                        }
+                    %>
+                </select>
+            </label>
+            <button>
+                Tìm kiếm
+            </button>
+            <output>
+                Tìm thấy <%=classes==null?0:classes.size()%> lớp
+            </output>
+        </form>
+        <section class="expert-subject-groups">
+            <%
+                boolean hasFilter=(selectedSubject!=null&&!selectedSubject.isBlank())||(selectedTerm!=null&&!selectedTerm.isBlank())||(request.getParameter("keyword")!=null&&!request.getParameter("keyword").isBlank());
+                if(hasFilter&&(classes==null||classes.isEmpty())){
+                %>
+                <p class="expert-empty-panel">
+                    Không có lớp phù hợp với bộ lọc hiện tại.
+                </p>
+                <%
+                }
+                else{
+                %>
+                <%
+                    boolean anySubject=false;
+                    if(subjects!=null) for(var subject:subjects){
+                        if(selectedSubject!=null&&!selectedSubject.isBlank()&&!String.valueOf(subject.subjectId()).equals(selectedSubject)) continue;
+                        anySubject=true;
+                        int groupCount=0;
+                        for(var item:classes) if(item.subjectId()==subject.subjectId()) groupCount++;
+                    %>
+                    <details class="expert-subject-group" <%=groupCount>0?"open":""%>>
+                        <summary>
+                            <span><strong><%=WebSupport.html(subject.subjectCode())%> — <%=WebSupport.html(subject.subjectName())%></strong>
+                            <span class="responsibility-badge <%=subject.responsibility().name().toLowerCase()%>"><%=subject.responsibility()==ResponsibilityType.PRIMARY?"Chuyên gia chính":"Chuyên gia hỗ trợ"%></span></span>
+                            <span><%=groupCount%> lớp <b aria-hidden="true">⌄</b></span>
+                        </summary>
+                        <%
+                            if(groupCount==0){
+                            %>
+                            <p class="empty-state">
+                                Không có lớp phù hợp với bộ lọc hiện tại.
+                            </p>
+                            <%
+                            }
+                            else {
+                            %>
+                            <div class="expert-table-wrap">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>
+                                                Mã lớp
+                                            </th>
+                                            <th>
+                                                Học kỳ
+                                            </th>
+                                            <th>
+                                                Sĩ số
+                                            </th>
+                                            <th>
+                                                Giảng viên
+                                            </th>
+                                            <th>
+                                                Đăng ký
+                                            </th>
+                                            <th>
+                                                Trạng thái
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <%
+                                            for(var item:classes) if(item.subjectId()==subject.subjectId()){
+                                            %>
+                                            <tr>
+                                                <td>
+                                                    <strong><%=WebSupport.html(item.classCode())%></strong>
+                                                    <%
+                                                        if(item.className()!=null&&!item.className().isBlank()){
+                                                        %>
+                                                        <br>
+                                                        <small><%=WebSupport.html(item.className())%></small>
+                                                        <%
+                                                        }
+                                                    %>
+                                                </td>
+                                                <td>
+                                                    <strong><%=WebSupport.html(item.termCode())%></strong>
+                                                    <br>
+                                                    <small><%=WebSupport.html(item.termName())%></small>
+                                                </td>
+                                                <td>
+                                                    <%=item.activeRosterCount()%> / <%=item.capacity()%>
+                                                </td>
+                                                <td>
+                                                    <%=item.teacherName()==null?"Chưa phân công":WebSupport.html(item.teacherName())%>
+                                                    <%
+                                                        if(item.teacherEmail()!=null){
+                                                        %>
+                                                        <br>
+                                                        <small><%=WebSupport.html(item.teacherEmail())%></small>
+                                                        <%
+                                                        }
+                                                    %>
+                                                </td>
+                                                <td>
+                                                    <%=item.registrationEnabled()?"Bật":"Tắt"%>
+                                                </td>
+                                                <td>
+                                                    <span class="status-badge <%=item.status().name().toLowerCase()%>"><%=Vietnamese.label(item.status())%></span>
+                                                </td>
+                                            </tr>
+                                            <%
+                                            }
+                                        %>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <%
+                            }
+                        %>
+                    </details>
+                    <%
+                    }
+                    if(!anySubject){
+                    %>
+                    <p class="expert-empty-panel">
+                        Bạn chưa được phân công môn học nào phù hợp.
+                    </p>
+                    <%
+                    }
+                }
+            %>
+        </section>
+    </main>
+</div>
+</body>
+</html>

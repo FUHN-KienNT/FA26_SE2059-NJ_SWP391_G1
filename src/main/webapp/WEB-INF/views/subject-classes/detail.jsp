@@ -1,5 +1,64 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
-<!doctype html><html lang="vi"><head><title>Chi tiết lớp học | AMS</title><link rel="stylesheet" href="${pageContext.request.contextPath}/css/app.css"></head><body><main>
-<nav><a href="${pageContext.request.contextPath}/expert/classes">Danh sách lớp học</a></nav><h1>Chi tiết lớp học</h1><p>Tạo mới, cập nhật lớp học hoặc phân công giảng viên.</p>
-<form action="${pageContext.request.contextPath}/expert/classes" method="post"><label>Thao tác <select name="action"><option value="create">Tạo mới</option><option value="update">Cập nhật</option><option value="assignTeacher">Phân công giảng viên</option></select></label><label>Mã lớp <input type="number" name="classId"></label><label>Mã môn học trong học kỳ <input type="number" name="subjectTermId"></label><label>Mã lớp học <input name="classCode"></label><label>Tên lớp học <input name="className"></label><label>Sĩ số tối đa <input type="number" min="10" max="40" name="capacity"></label><label>Mã giảng viên <input type="number" name="teacherId"></label><button>Lưu</button></form>
-</main></body></html>
+<!doctype html>
+<html lang="vi">
+    <head>
+        <title>Chi tiết lớp học | AMS</title>
+        <link rel="stylesheet" href="${pageContext.request.contextPath}/css/app.css">
+    </head>
+    <body>
+        <main>
+            <nav>
+                <a href="${pageContext.request.contextPath}/expert/classes">Danh sách lớp học</a>
+            </nav>
+            <h1>
+                Chi tiết lớp học
+            </h1>
+            <p>
+                Tạo mới, cập nhật lớp học hoặc phân công giảng viên.
+            </p>
+            <form action="${pageContext.request.contextPath}/expert/classes" method="post">
+                <label>
+                    Thao tác
+                    <select name="action">
+                        <option value="create">
+                            Tạo mới
+                        </option>
+                        <option value="update">
+                            Cập nhật
+                        </option>
+                        <option value="assignTeacher">
+                            Phân công giảng viên
+                        </option>
+                    </select>
+                </label>
+                <label>
+                    Mã lớp
+                    <input type="number" name="classId">
+                </label>
+                <label>
+                    Mã môn học trong học kỳ
+                    <input type="number" name="subjectTermId">
+                </label>
+                <label>
+                    Mã lớp học
+                    <input name="classCode">
+                </label>
+                <label>
+                    Tên lớp học
+                    <input name="className">
+                </label>
+                <label>
+                    Sĩ số tối đa
+                    <input type="number" min="10" max="40" name="capacity">
+                </label>
+                <label>
+                    Mã giảng viên
+                    <input type="number" name="teacherId">
+                </label>
+                <button>
+                    Lưu
+                </button>
+            </form>
+        </main>
+    </body>
+</html>

@@ -1,0 +1,16 @@
+.template-toolbar{display:flex;align-items:flex-end;gap:20px;margin:24px 0}
+.template-toolbar>p{margin:0;flex-shrink:0}
+.template-filters{display:flex;align-items:flex-end;gap:12px;flex:1;min-width:0}
+.template-filters label{display:flex;flex-direction:column;gap:8px;margin:0;min-width:0;flex:1}
+.template-filters label:first-child{flex:1.5}
+.template-filters input,.template-filters select{width:100%;max-width:none}
+.template-filters button,.template-create{min-height:42px;white-space:nowrap}
+.template-footer{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-top:20px}
+.template-footer p{margin:0;font-size:14px}
+.template-footer .pagination{display:flex;gap:6px;align-items:center}
+.template-footer button:disabled{opacity:.45;cursor:default}
+.template-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.ams-ui .template-actions .ams-button{padding:6px 10px;font-size:13px;white-space:nowrap;color:var(--ams-brand);border-color:#cbdaf7}
+.ams-ui .template-actions .template-status-action{color:#9a4a08;border-color:#f0d0a7}
+@media(max-width:1050px){.template-toolbar{flex-wrap:wrap}.template-filters{flex-basis:100%}.template-footer{flex-wrap:wrap}}
+@media(max-width:650px){.template-filters{flex-direction:column;align-items:stretch}.template-filters label{width:100%}}
