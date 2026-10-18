@@ -325,3 +325,76 @@ button,input,select,textarea{font:inherit}
 
 /* Reserve the Admin scrollbar gutter to prevent header width jumps between short and long pages. */
 html:has(.ams-admin-header){scrollbar-gutter:stable}
+
+/* BaoNVG assigned Subject and Class read-only screens. */
+.baonvg-expert.expert-assigned .expert-crumb{display:flex;align-items:center;flex-wrap:wrap;gap:9px;margin:0 0 20px;color:#7183a0;font-size:13px}
+.baonvg-expert.expert-assigned .expert-crumb a{color:#3165c8;text-decoration:none}
+.baonvg-expert.expert-assigned .expert-page-heading{margin-bottom:23px}
+.baonvg-expert.expert-assigned .expert-list-card,.baonvg-expert.expert-assigned .expert-subject-context{background:#fff;border:1px solid #e1e9f5;border-radius:14px;box-shadow:0 4px 20px #22477804}
+.baonvg-expert.expert-assigned .expert-list-card{padding:20px}
+.baonvg-expert.expert-assigned .expert-list-filters{display:grid;grid-template-columns:minmax(220px,1.5fr) minmax(155px,1fr) minmax(165px,1fr) auto;gap:14px;align-items:end;margin-bottom:20px}
+.baonvg-expert.expert-assigned .expert-class-filters{grid-template-columns:minmax(220px,1.5fr) minmax(190px,1fr) auto}
+.baonvg-expert.expert-assigned .expert-list-filters label{display:grid;gap:7px;margin:0;color:#5a6d8a;font-size:12px;font-weight:650;min-width:0}
+.baonvg-expert.expert-assigned .expert-list-filters input,.baonvg-expert.expert-assigned .expert-list-filters select{box-sizing:border-box;width:100%;height:42px;min-width:0;border:1px solid #d5e0f0;border-radius:8px;padding:8px 11px;background:#fff;color:#203859;font-size:13px}
+.baonvg-expert.expert-assigned .expert-list-filters button,.baonvg-expert.expert-assigned .expert-view-classes,.baonvg-expert.expert-assigned .expert-back{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:42px;padding:9px 15px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:700;white-space:nowrap}
+.baonvg-expert.expert-assigned .expert-list-filters button{height:42px;margin:0;align-self:end;border:1px solid #235eff;background:#235eff;color:white}
+.baonvg-expert.expert-assigned .expert-view-classes,.baonvg-expert.expert-assigned .expert-back{gap:7px;border:1px solid #d8e4f4;background:#fff;color:#235eff}
+.baonvg-expert.expert-assigned .expert-view-classes:hover,.baonvg-expert.expert-assigned .expert-back:hover{background:#edf3ff}
+.baonvg-expert.expert-assigned .expert-list-table-wrap{overflow-x:auto}
+.baonvg-expert.expert-assigned .expert-list-table{width:100%;min-width:730px;border-collapse:collapse;font-size:13px}
+.baonvg-expert.expert-assigned .expert-list-table th{text-align:left;background:#f1f5fb;color:#5e7090;font-size:12px;font-weight:700;padding:14px;border-bottom:1px solid #e1e9f5}
+.baonvg-expert.expert-assigned .expert-list-table td{padding:14px;border-bottom:1px solid #e9eff7;vertical-align:middle;color:#243c60;overflow-wrap:anywhere}
+.baonvg-expert.expert-assigned .expert-list-table tbody tr:hover{background:#f8fbff}
+.baonvg-expert.expert-assigned .expert-list-table td small{display:block;color:#7485a0;margin-top:4px}
+.baonvg-expert.expert-assigned .expert-class-table{table-layout:fixed;min-width:850px}
+.baonvg-expert.expert-assigned .expert-class-table th:nth-child(1){width:30%}
+.baonvg-expert.expert-assigned .expert-class-table th:nth-child(2){width:17%}
+.baonvg-expert.expert-assigned .expert-class-table th:nth-child(3){width:25%}
+.baonvg-expert.expert-assigned .expert-class-table th:nth-child(4){width:10%}
+.baonvg-expert.expert-assigned .expert-class-table th:nth-child(5){width:18%}
+.baonvg-expert.expert-assigned .expert-list-empty{text-align:center;color:#73839c;padding:34px!important}
+.baonvg-expert.expert-assigned .expert-list-count{color:#7889a2;font-size:12px;margin:15px 0 0}
+.baonvg-expert.expert-assigned .expert-class-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:18px}
+.baonvg-expert.expert-assigned .expert-subject-context{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:19px 22px;margin-bottom:19px}
+.baonvg-expert.expert-assigned .expert-context-label{font-size:12px;color:#7788a1}
+.baonvg-expert.expert-assigned .expert-subject-context h2{font-size:18px;line-height:1.4;color:#18345f;margin:4px 0 0;overflow-wrap:anywhere}
+@media(max-width:1050px){.baonvg-expert.expert-assigned .expert-list-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.baonvg-expert.expert-assigned .expert-list-filters button{justify-self:start}}
+@media(max-width:560px){.baonvg-expert.expert-assigned .expert-list-card{padding:14px}.baonvg-expert.expert-assigned .expert-list-filters,.baonvg-expert.expert-assigned .expert-class-filters{grid-template-columns:1fr}.baonvg-expert.expert-assigned .expert-class-heading,.baonvg-expert.expert-assigned .expert-subject-context{flex-direction:column}.baonvg-expert.expert-assigned .expert-list-filters button{width:100%}}
+
+/* BaoNVG System Settings only. */
+.admin-app.admin-system-settings.ams-ui .setting-filters{display:grid;grid-template-columns:minmax(220px,1.5fr) minmax(180px,1fr) minmax(180px,1fr) auto;align-items:end;gap:14px;margin-bottom:20px}
+.admin-app.admin-system-settings.ams-ui .setting-filters label{display:grid;gap:7px;margin:0;font-size:12px;color:#5e708e;font-weight:650;min-width:0}
+.admin-app.admin-system-settings.ams-ui .setting-filters input,.admin-app.admin-system-settings.ams-ui .setting-filters select{box-sizing:border-box;width:100%;height:42px;padding:8px 11px;border:1px solid #d5e0f0;border-radius:8px;background:#fff;color:#203859}
+.admin-app.admin-system-settings.ams-ui .setting-filters button{height:42px;margin:0;align-self:end;border:0}
+.admin-app.admin-system-settings.ams-ui .setting-table-wrap{overflow-x:auto}
+.admin-app.admin-system-settings.ams-ui table.setting-records{min-width:890px}
+.admin-app.admin-system-settings.ams-ui .setting-records th,.admin-app.admin-system-settings.ams-ui .setting-records td{vertical-align:middle}
+.admin-app.admin-system-settings.ams-ui .setting-row-actions{display:flex;align-items:center;gap:7px;white-space:nowrap}
+.admin-app.admin-system-settings.ams-ui .setting-row-actions form{margin:0}
+.admin-app.admin-system-settings.ams-ui .setting-row-actions a,.admin-app.admin-system-settings.ams-ui .setting-row-actions button{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:34px;padding:6px 9px;border:1px solid #dbe5f4;border-radius:7px;background:#fff;color:#235eff;text-decoration:none;font-size:12px;font-weight:650;cursor:pointer;white-space:nowrap}
+.admin-app.admin-system-settings.ams-ui .setting-row-actions .setting-danger,.admin-app.admin-system-settings.ams-ui .setting-danger-button{color:#b93a3a;border-color:#f1caca;background:#fff8f8}
+.admin-app.admin-system-settings.ams-ui .setting-detail-page{max-width:none}
+.admin-app.admin-system-settings.ams-ui .setting-detail-page>*{max-width:1050px;margin-left:0;margin-right:0}
+.admin-app.admin-system-settings.ams-ui .setting-detail-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:22px}
+.admin-app.admin-system-settings.ams-ui .setting-detail-heading h1{margin:0 0 6px}
+.admin-app.admin-system-settings.ams-ui .setting-detail-heading p{margin:0}
+.admin-app.admin-system-settings.ams-ui .setting-identity-card,.admin-app.admin-system-settings.ams-ui .setting-form-card{box-sizing:border-box;max-width:1050px;border:1px solid #e1e9f5;border-radius:14px;background:#fff;padding:23px 26px;box-shadow:0 4px 20px #22477804}
+.admin-app.admin-system-settings.ams-ui .setting-identity-card{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-bottom:18px}
+.admin-app.admin-system-settings.ams-ui .setting-identity-card>div{display:grid;gap:8px;min-width:0}
+.admin-app.admin-system-settings.ams-ui .setting-identity-card .status-badge{justify-self:start;align-self:start}
+.admin-app.admin-system-settings.ams-ui .setting-identity-card span:first-child{color:#74849c;font-size:12px}
+.admin-app.admin-system-settings.ams-ui .setting-identity-card strong,.admin-app.admin-system-settings.ams-ui .setting-identity-card code{font-size:15px;color:#1c355a;overflow-wrap:anywhere}
+.admin-app.admin-system-settings.ams-ui .setting-form-card h2{margin:0 0 20px;font-size:18px;color:#1b355d}
+.admin-app.admin-system-settings.ams-ui .setting-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.admin-app.admin-system-settings.ams-ui .setting-form-grid label{display:grid;gap:8px;margin:0;min-width:0;font-size:13px;font-weight:650;color:#4e6381}
+.admin-app.admin-system-settings.ams-ui .setting-form-grid input,.admin-app.admin-system-settings.ams-ui .setting-form-grid select{box-sizing:border-box;width:100%;min-width:0;height:44px;padding:9px 12px;border:1px solid #d5e0f0;border-radius:8px;background:#fff;color:#203859}
+.admin-app.admin-system-settings.ams-ui .setting-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:0}
+.admin-app.admin-system-settings.ams-ui .setting-detail-grid>div{padding:14px;border:1px solid #ebf0f8;border-radius:9px}
+.admin-app.admin-system-settings.ams-ui .setting-detail-grid dt{color:#74849c;font-size:12px}
+.admin-app.admin-system-settings.ams-ui .setting-detail-grid dd{margin:7px 0 0;font-weight:650;color:#1e385e}
+.admin-app.admin-system-settings.ams-ui .setting-helper{color:#7586a0;font-size:12px;line-height:1.5;margin:17px 0 0}
+.admin-app.admin-system-settings.ams-ui .setting-action-bar{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:10px;max-width:1050px;margin-top:20px}
+.admin-app.admin-system-settings.ams-ui .setting-action-bar>a,.admin-app.admin-system-settings.ams-ui .setting-action-bar button{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:42px;padding:9px 16px;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;cursor:pointer}
+.admin-app.admin-system-settings.ams-ui .setting-action-bar form{display:flex;align-items:center;gap:10px;margin:0}
+@media(max-width:1100px){.admin-app.admin-system-settings.ams-ui .setting-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.admin-app.admin-system-settings.ams-ui .setting-filters button{justify-self:start}}
+@media(max-width:620px){.admin-app.admin-system-settings.ams-ui .setting-filters,.admin-app.admin-system-settings.ams-ui .setting-form-grid,.admin-app.admin-system-settings.ams-ui .setting-detail-grid,.admin-app.admin-system-settings.ams-ui .setting-identity-card{grid-template-columns:1fr}.admin-app.admin-system-settings.ams-ui .setting-detail-heading,.admin-app.admin-system-settings.ams-ui .setting-action-bar,.admin-app.admin-system-settings.ams-ui .setting-status-form{align-items:stretch;flex-direction:column}.admin-app.admin-system-settings.ams-ui .setting-action-bar>a,.admin-app.admin-system-settings.ams-ui .setting-action-bar button{width:100%}.admin-app.admin-system-settings.ams-ui .setting-identity-card,.admin-app.admin-system-settings.ams-ui .setting-form-card{padding:18px}}

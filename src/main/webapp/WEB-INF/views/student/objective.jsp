@@ -12,11 +12,12 @@
         <title>Bài tập trắc nghiệm | AMS</title>
         <link rel="stylesheet" href="<%=base%>/css/app.css">
         <link rel="stylesheet" href="<%=base%>/css/common-ui.css">
-        <link rel="stylesheet" href="<%=base%>/css/student-objective.css">
+        <link rel="stylesheet" href="<%=base%>/css/student-objective.css?v=20261019-2">
     </head>
-    <body>
+    <body class="ams-ui student-objective">
         <%@ include file="../shared/shell.jspf" %>
         <main id="page-content" class="ams-content student-work">
+            <div class="student-work-inner">
             <p>
                 <a href="<%=base%>/student/dashboard">Bảng điều khiển</a> / <a href="<%=base%>/student/assignments">Bài tập trắc nghiệm</a>
             </p>
@@ -65,9 +66,7 @@
                     <h2>
                         Hướng dẫn
                     </h2>
-                    <p class="pre-wrap">
-                        <%=WebSupport.html(data.assignment().instructions())%>
-                    </p>
+                    <p class="pre-wrap"><%=WebSupport.html(data.assignment().instructions())%></p>
                     <p>
                         Mở: <%=WebSupport.html(AssignmentListView.deadline(data.assignment().availableFrom()))%> · Hạn nộp: <%=WebSupport.html(AssignmentListView.deadline(data.assignment().dueAt()))%> (UTC+07)
                     </p>
@@ -125,9 +124,7 @@
                                 <legend>
                                     Câu <%=q.order()%> · <%=WebSupport.html(q.points().stripTrailingZeros().toPlainString())%> điểm
                                 </legend>
-                                <p class="pre-wrap">
-                                    <%=WebSupport.html(q.text())%>
-                                </p>
+                                <p class="pre-wrap"><%=WebSupport.html(q.text())%></p>
                                 <p>
                                     <%=q.multiple()?"Chọn nhiều đáp án":"Chọn một đáp án"%>
                                 </p>
@@ -177,9 +174,10 @@
                     }
                 }
             %>
+            </div>
         </main>
     </div>
     <script src="<%=base%>/js/common-ui.js" defer></script>
-    <script src="<%=base%>/js/student-objective.js" defer></script>
+    <script src="<%=base%>/js/student-objective.js?v=20261019-2" defer></script>
 </body>
 </html>

@@ -26,15 +26,21 @@ class BaonvgRoutingAndViewContractTest {
   }
 
   @Test
-  void classDropdownsSubmitTheSameFormAndPreserveAllFilters() throws Exception {
-    String view = Files.readString(VIEWS.resolve("subject-classes/list.jsp"));
-    assertTrue(view.contains("name=\"keyword\""));
-    assertTrue(view.contains("value=\"<%=WebSupport.html(request.getParameter(\"keyword\"))%>\""));
-    assertTrue(view.contains("name=\"subjectId\" onchange=\"this.form.requestSubmit()\""));
-    assertTrue(view.contains("name=\"termId\" onchange=\"this.form.requestSubmit()\""));
-    assertTrue(view.contains("String.valueOf(subject.subjectId()).equals(selectedSubject)?\"selected\":\"\""));
-    assertTrue(view.contains("String.valueOf(term.termId()).equals(selectedTerm)?\"selected\":\"\""));
-    assertTrue(view.contains("Không có lớp phù hợp với bộ lọc hiện tại."));
+  void assignedSubjectsAndClassesUseTwoReadOnlyViews() throws Exception {
+    String subjects = Files.readString(VIEWS.resolve("subject-classes/list.jsp"));
+    String classes = Files.readString(VIEWS.resolve("subject-classes/classes.jsp"));
+    assertTrue(subjects.contains("Môn học được phân công"));
+    assertTrue(subjects.contains("name=\"role\""));
+    assertTrue(subjects.contains("name=\"status\""));
+    assertTrue(subjects.contains("mode=subject&amp;subjectId="));
+    assertFalse(subjects.contains("<details"));
+    assertTrue(classes.contains("name=\"subjectId\""));
+    assertTrue(classes.contains("name=\"termId\""));
+    assertTrue(classes.contains("name=\"keyword\""));
+    assertTrue(classes.contains("String.valueOf(term.termId()).equals(termId)?\"selected\":\"\""));
+    assertTrue(classes.contains("Không có lớp phù hợp"));
+    assertFalse(classes.contains("<th>Đăng ký</th>"));
+    assertFalse(classes.contains("mode=edit"));
   }
 
   @Test
@@ -42,14 +48,14 @@ class BaonvgRoutingAndViewContractTest {
     String view = Files.readString(VIEWS.resolve("settings/list.jsp"));
     String terms = Files.readString(VIEWS.resolve("master-data/list.jsp"));
     assertTrue(view.contains("Danh sách thiết lập"));
-    assertTrue(view.contains("Tất cả loại"));
+    assertTrue(view.contains("Tất cả nhóm"));
     assertFalse(view.contains("Học kỳ"));
     assertTrue(terms.contains("Trạng thái học kỳ"));
     assertTrue(terms.contains("Không có học kỳ phù hợp."));
   }
 
   @Test
-  void settingsListOffersStatusActionsWithoutDuplicatingEditStatus() throws Exception {
+  void settingsViewsShowGroupTypeValueAndValidatedEditStatus() throws Exception {
     String list = Files.readString(VIEWS.resolve("settings/list.jsp"));
     String detail = Files.readString(VIEWS.resolve("settings/detail.jsp"));
     assertTrue(list.contains("name=\"action\" value=\"status\""));
@@ -57,7 +63,12 @@ class BaonvgRoutingAndViewContractTest {
     assertTrue(list.contains("data-confirm=\"Xác nhận vô hiệu hóa thiết lập này?"));
     assertTrue(list.contains("name=\"csrf\""));
     assertTrue(detail.contains("name=\"action\" value=\"update\""));
-    assertFalse(detail.contains("name=\"status\""));
+    assertTrue(list.contains("Nhóm thiết lập"));
+    assertTrue(list.contains("<th>Loại</th>"));
+    assertTrue(detail.contains("Tên loại hiển thị"));
+    assertTrue(detail.contains("<select name=\"active\" required>"));
+    assertTrue(detail.contains("settings-edit.js"));
+    assertTrue(detail.contains("setting-status-form"));
   }
 
   @Test

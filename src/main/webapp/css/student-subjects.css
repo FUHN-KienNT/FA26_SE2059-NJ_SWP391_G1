@@ -1,0 +1,28 @@
+.student-subjects .student-breadcrumb{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:20px;color:#64748b;font-size:14px}
+.student-subjects .student-tabs{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+.student-subjects .student-tabs a,.student-subjects .student-outline-button{display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:10px 16px;border:1px solid #d7e3f6;border-radius:9px;background:white;color:#245bd8;text-decoration:none;font-weight:600;white-space:nowrap}
+.student-subjects .student-tabs a[aria-current]{background:#2563eb;color:#fff;border-color:#2563eb}
+.student-subjects .student-subject-filter{display:grid;grid-template-columns:minmax(0,620px) auto;justify-content:start;align-items:end;gap:14px;margin:0 0 24px}
+.student-subjects .student-subject-filter label{display:flex;flex-direction:column;gap:8px;margin:0;min-width:0}
+.student-subjects .student-subject-filter input{width:100%;max-width:none;height:44px;border:1px solid #d7e3f6;border-radius:9px;padding:10px 14px;box-sizing:border-box}
+.student-subjects .student-subject-filter button{height:44px;margin:0;align-self:end;white-space:nowrap}
+.student-subjects small{display:block;margin-top:6px;color:#64748b;font-weight:400}
+.student-subjects .student-status{display:inline-block;padding:6px 11px;background:#edf3ff;color:#245bd8;border-radius:20px;font-size:13px}
+.student-subjects .student-subject-info{margin:20px 0;display:grid;gap:0}
+.student-subjects .student-subject-info>div{display:grid;grid-template-columns:minmax(120px,1fr) 2fr;gap:16px;padding:15px 0;border-bottom:1px solid #edf1f8;min-width:0}
+.student-subjects dt{color:#64748b}.student-subjects dd{margin:0;overflow-wrap:anywhere;color:#163252;font-weight:600}
+.student-subjects .student-description{white-space:pre-wrap;font-weight:400}
+.student-subjects .student-notice{padding:16px 20px;border:1px solid #bbebd0;background:#eefbf3;border-radius:10px;color:#17683f;margin-bottom:24px}
+.student-subjects .student-notice.error{color:#ad2525;border-color:#fecaca;background:#fff1f1}
+.student-subjects .student-panel+.student-panel,.student-subjects .student-detail-grid+.student-panel{margin-top:24px}
+.student-subjects .student-detail-grid>.student-panel+.student-panel{margin-top:0}
+.student-subjects .student-subject-info>div{grid-template-columns:minmax(130px,180px) minmax(0,1fr)}
+.student-subjects .student-table-wrap table{table-layout:fixed;min-width:760px}
+.student-subjects .student-table-wrap th:nth-child(1){width:34%}
+.student-subjects .student-table-wrap th:nth-child(2){width:14%}
+.student-subjects .student-table-wrap th:nth-child(3){width:18%}
+.student-subjects .student-table-wrap th:nth-child(4){width:19%}
+.student-subjects .student-table-wrap th:nth-child(5){width:15%}
+.student-subjects .student-table-wrap th,.student-subjects .student-table-wrap td{vertical-align:middle;overflow-wrap:anywhere}
+.student-subjects .student-table-wrap .student-outline-button{min-height:40px;padding:8px 12px}
+@media(max-width:700px){.student-subjects .student-subject-filter{grid-template-columns:1fr;justify-content:stretch}.student-subjects .student-subject-filter button{justify-self:start}.student-subjects .student-subject-info>div{grid-template-columns:1fr;gap:8px}.student-subjects .student-heading .student-outline-button{align-self:flex-start}}

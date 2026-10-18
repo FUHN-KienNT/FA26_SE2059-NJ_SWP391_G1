@@ -1142,6 +1142,11 @@ class AdminScreensWorkflowsTest {
     assertEquals(1,subjectClasses.listAssignedSubjects(3).size());
     assertEquals(1,subjectClasses.accessibleTerms(3).size());
     assertThrows(SecurityException.class,()->subjectClasses.listAssignedSubjects(4));
+    assertEquals(1,subjectClasses.listAssignedSubjects(2,"swp",ResponsibilityType.PRIMARY,SubjectStatus.ACTIVE).size());
+    assertTrue(subjectClasses.listAssignedSubjects(2,"swp",ResponsibilityType.SUPPORTING,null).isEmpty());
+    assertTrue(subjectClasses.listAssignedSubjects(3,"swp",null,SubjectStatus.INACTIVE).isEmpty());
+    assertEquals(ResponsibilityType.SUPPORTING,subjectClasses.assignedSubject(3,1).responsibility());
+    assertThrows(java.util.NoSuchElementException.class,()->subjectClasses.assignedSubject(3,2));
   }
 
   @Test

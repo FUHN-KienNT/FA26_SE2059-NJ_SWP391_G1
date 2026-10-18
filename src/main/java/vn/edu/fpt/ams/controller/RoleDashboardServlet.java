@@ -8,7 +8,7 @@ import vn.edu.fpt.ams.service.DashboardService;
 import vn.edu.fpt.ams.util.WebSupport;
 
 /** Role landing pages; business dashboards remain owned by their tracking tasks. */
-@WebServlet({"/expert/dashboard", "/student/dashboard"})
+@WebServlet("/expert/dashboard")
 public class RoleDashboardServlet extends HttpServlet {
   private final DashboardService dashboards = new DashboardService();
   @Override
