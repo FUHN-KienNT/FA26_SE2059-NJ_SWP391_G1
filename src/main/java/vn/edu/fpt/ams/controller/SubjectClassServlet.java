@@ -6,8 +6,12 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.LinkedHashMap;
 import vn.edu.fpt.ams.dao.UserDAO;
+import vn.edu.fpt.ams.dto.TermOptionDTO;
 import vn.edu.fpt.ams.dto.SubjectClassFormDTO;
+import vn.edu.fpt.ams.model.ResponsibilityType;
+import vn.edu.fpt.ams.model.SubjectStatus;
 import vn.edu.fpt.ams.service.SubjectClassService;
 import vn.edu.fpt.ams.util.WebSupport;
 
@@ -21,24 +25,38 @@ public class SubjectClassServlet extends HttpServlet {
         String view = "/WEB-INF/views/subject-classes/list.jsp";
         try {
             String mode = req.getParameter("mode");
-            if ("view".equals(mode) || "create".equals(mode) || "edit".equals(mode) || "teacher".equals(mode)) {
+            if ("subject".equals(mode)) {
+                view = "/WEB-INF/views/subject-classes/classes.jsp";
+            } else if ("view".equals(mode) || "create".equals(mode) || "edit".equals(mode) || "teacher".equals(mode)) {
                 view = "/WEB-INF/views/subject-classes/detail.jsp";
                 req.setAttribute("mode", mode);
+            } else if (mode != null && !mode.isBlank()) {
+                throw new IllegalArgumentException("Màn hình lớp học không hợp lệ.");
             }
             long expertId = WebSupport.actor(req);
             req.setAttribute("account", new UserDAO().findById(expertId).orElseThrow());
             req.setAttribute("expertPage", "classes");
             if (view.endsWith("list.jsp")) {
-                req.setAttribute("subjects", service.listAssignedSubjects(expertId));
-                req.setAttribute("terms", service.accessibleTerms(expertId));
+                req.setAttribute("subjects", service.listAssignedSubjects(expertId,
+                        req.getParameter("keyword"), option(ResponsibilityType.class, req.getParameter("role")),
+                        option(SubjectStatus.class, req.getParameter("status"))));
+            } else if (view.endsWith("classes.jsp")) {
+                long subjectId = requiredId(req, "subjectId");
+                req.setAttribute("subject", service.assignedSubject(expertId, subjectId));
+                var terms = new LinkedHashMap<Long, TermOptionDTO>();
+                for (var item : service.listAssignedClasses(expertId, subjectId, null, null))
+                    terms.putIfAbsent(item.termId(), new TermOptionDTO(item.termId(), item.termCode(), item.termName()));
+                req.setAttribute("terms", terms.values());
                 req.setAttribute("classes", service.listAssignedClasses(expertId,
-                        optionalId(req, "subjectId"), optionalId(req, "termId"),
-                        req.getParameter("keyword")));
+                        subjectId, optionalId(req, "termId"), req.getParameter("keyword")));
             }
         } catch (UnsupportedOperationException ex) {
             req.setAttribute("featurePending", "Class data loading is pending in this initial iteration.");
         } catch (IllegalArgumentException ex) {
             res.sendError(HttpServletResponse.SC_BAD_REQUEST, ex.getMessage());
+            return;
+        } catch (RuntimeException ex) {
+            WebSupport.failure(req, res, ex);
             return;
         }
         req.getRequestDispatcher(view).forward(req, res);
@@ -77,5 +95,11 @@ public class SubjectClassServlet extends HttpServlet {
         Long id = optionalId(req, name);
         if (id == null) throw new IllegalArgumentException(name + " is required");
         return id;
+    }
+
+    private static <E extends Enum<E>> E option(Class<E> type, String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        try { return Enum.valueOf(type, raw); }
+        catch (IllegalArgumentException ex) { throw new IllegalArgumentException("Bộ lọc không hợp lệ."); }
     }
 }

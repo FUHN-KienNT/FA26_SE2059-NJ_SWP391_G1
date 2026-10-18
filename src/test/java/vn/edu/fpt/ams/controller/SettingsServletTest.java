@@ -58,5 +58,23 @@ class SettingsServletTest {
     assertEquals("/WEB-INF/views/settings/list.jsp", forwarded[0]);
     assertEquals("Không thể vô hiệu hóa thiết lập này vì hệ thống phải duy trì ít nhất một tổ hợp loại bài tập và hình thức trả lời hợp lệ.", attributes.get("error"));
     assertTrue(service.detail(1, 1).active());
+
+    params.put("action", "update");
+    params.put("name", "Changed");
+    params.put("priority", "8");
+    params.put("currentActive", "true");
+    result[0] = 200;
+    new SettingsServlet(service).doPost(request, response);
+    assertEquals(400, result[0]);
+    assertEquals("Regular", service.detail(1, 1).name());
+    assertEquals(1, service.detail(1, 1).priority());
+    assertTrue(service.detail(1, 1).active());
+
+    params.put("active", "unknown");
+    result[0] = 200;
+    new SettingsServlet(service).doPost(request, response);
+    assertEquals(400, result[0]);
+    assertEquals("Trạng thái thiết lập không hợp lệ.", attributes.get("error"));
+    assertEquals("Regular", service.detail(1, 1).name());
   }
 }

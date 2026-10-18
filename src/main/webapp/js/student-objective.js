@@ -2,6 +2,8 @@
     'use strict';
     const form = document.getElementById('objective-work');
     if (!form) return;
+    // The hidden input named "action" shadows form.action through DOM named properties.
+    const actionUrl = new URL(form.getAttribute('action') || location.href, location.href).href;
     const clock = document.getElementById('work-countdown');
     const status = document.getElementById('work-save-status');
     let deadline = Number(form.dataset.deadline);
@@ -10,7 +12,7 @@
     let syncedAt = performance.now();
     let dirty = true, saving = false, submitting = false, conflicted = false, debounce, submissionPayload;
     const now = () => serverTime + performance.now() - syncedAt;
-    const resultUrl = () => `${form.action}?assignmentId=${encodeURIComponent(form.elements.assignmentId.value)}&submissionId=${encodeURIComponent(form.elements.submissionId.value)}`;
+    const resultUrl = () => `${actionUrl}?assignmentId=${encodeURIComponent(form.elements.assignmentId.value)}&submissionId=${encodeURIComponent(form.elements.submissionId.value)}`;
     const body = action => {
         const data = new URLSearchParams(new FormData(form));
         data.set('action', action);
@@ -30,7 +32,7 @@
         status.textContent = 'Đang lưu đáp án...';
         const started = performance.now();
         try {
-            const response = await fetch(form.action, {method: 'POST', body: body('save'), credentials: 'same-origin', cache: 'no-store'});
+            const response = await fetch(actionUrl, {method: 'POST', body: body('save'), credentials: 'same-origin', cache: 'no-store'});
             if (response.status === 409) { conflict(); return; }
             if (!response.ok || !response.headers.get('content-type')?.includes('application/json')) throw new Error('save');
             const saved = await response.json();
@@ -62,7 +64,7 @@
         if (conflicted) return;
         submissionPayload.set('answerRevision', form.elements.answerRevision.value);
         try {
-            const response = await fetch(form.action, {method: 'POST', body: submissionPayload, credentials: 'same-origin', cache: 'no-store'});
+            const response = await fetch(actionUrl, {method: 'POST', body: submissionPayload, credentials: 'same-origin', cache: 'no-store'});
             if (response.status === 409) { conflict(); return; }
             if (!response.ok) throw new Error('submit');
             location.assign(resultUrl());

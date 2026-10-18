@@ -63,12 +63,11 @@ public class SettingsServlet extends HttpServlet {
       long id = WebSupport.id(req.getParameter("id"));
       String action = req.getParameter("action");
       if ("update".equals(action)) {
-        service.update(actor, id, req.getParameter("name"), priority(req.getParameter("priority")));
+        service.updateWithStatus(actor, id, req.getParameter("name"),
+            priority(req.getParameter("priority")), active(req.getParameter("active")),
+            active(req.getParameter("currentActive")));
       } else if ("status".equals(action)) {
-        String raw = req.getParameter("active");
-        if (!"true".equals(raw) && !"false".equals(raw))
-          throw new IllegalArgumentException("Trạng thái thiết lập không hợp lệ.");
-        service.setActive(actor, id, Boolean.parseBoolean(raw));
+        service.setActive(actor, id, active(req.getParameter("active")));
       } else {
         throw new IllegalArgumentException("Thao tác thiết lập không hợp lệ.");
       }
@@ -126,6 +125,12 @@ public class SettingsServlet extends HttpServlet {
     catch (RuntimeException e) {
       throw new IllegalArgumentException("Độ ưu tiên phải là số nguyên từ 1 đến 9999.");
     }
+  }
+
+  private static boolean active(String raw) {
+    if (!"true".equals(raw) && !"false".equals(raw))
+      throw new IllegalArgumentException("Trạng thái thiết lập không hợp lệ.");
+    return Boolean.parseBoolean(raw);
   }
 
   private static String queryParameter(HttpServletRequest req, String name) {

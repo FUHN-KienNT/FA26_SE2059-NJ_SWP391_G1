@@ -40,8 +40,13 @@ class SystemSettingPostgresTest {
           () -> service.setActive(1, 1, false));
       assertTrue(error.getMessage().contains("ít nhất một tổ hợp"));
       assertTrue(service.detail(1, 1).active());
-      service.setActive(1, 4, true);
+      assertThrows(IllegalArgumentException.class,
+          () -> service.updateWithStatus(1, 1, "Changed", 8, false, true));
+      assertEquals("Regular", service.detail(1, 1).name());
+      assertEquals(1, service.detail(1, 1).priority());
+      service.updateWithStatus(1, 4, "Objective", 5, true, false);
       assertTrue(service.detail(1, 4).active());
+      assertEquals(5, service.detail(1, 4).priority());
     }
   }
 

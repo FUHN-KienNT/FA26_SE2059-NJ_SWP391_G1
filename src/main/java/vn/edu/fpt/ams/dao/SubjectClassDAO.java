@@ -67,10 +67,9 @@ public class SubjectClassDAO {
         if(subjectId!=null){ sql+=" AND s.subject_id=?"; args.add(subjectId); }
         if(termId!=null){ sql+=" AND at.term_id=?"; args.add(termId); }
         if(keyword!=null&&!keyword.isBlank()){
-            sql+=" AND (lower(s.subject_code) LIKE ? OR lower(s.subject_name) LIKE ?"
-                    + " OR lower(sc.class_code) LIKE ? OR lower(sc.class_name) LIKE ?)";
+            sql+=" AND (lower(sc.class_code) LIKE ? OR lower(sc.class_name) LIKE ?)";
             String pattern="%"+keyword.strip().toLowerCase(Locale.ROOT)+"%";
-            args.add(pattern); args.add(pattern); args.add(pattern); args.add(pattern);
+            args.add(pattern); args.add(pattern);
         }
         sql+=" ORDER BY at.starts_at DESC,s.subject_code,sc.class_code";
         try(var p=Jdbc.statement(c,sql,args.toArray()); var r=p.executeQuery()){

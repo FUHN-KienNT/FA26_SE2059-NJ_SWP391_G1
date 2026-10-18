@@ -117,6 +117,26 @@ class SystemSettingServiceTest {
   }
 
   @Test
+  void editStatusUsesSameRuleAndRollsBackMetadataWhenRejected() throws SQLException {
+    service.setActive(1, 2, false);
+    service.setActive(1, 4, false);
+    var before = service.detail(1, 1);
+    var error = assertThrows(IllegalArgumentException.class,
+        () -> service.updateWithStatus(1, 1, "Changed", 77, false, true));
+    assertEquals(REQUIRED_MESSAGE, error.getMessage());
+    assertEquals(before, service.detail(1, 1));
+    service.updateWithStatus(1, 1, "Changed", 77, true, true);
+    assertEquals("Changed", service.detail(1, 1).name());
+    assertEquals(77, service.detail(1, 1).priority());
+    service.updateWithStatus(1, 5, "Quản trị viên", 9, false, true);
+    assertFalse(active(5));
+    assertEquals("Quản trị viên", service.detail(1, 5).name());
+    assertThrows(IllegalArgumentException.class,
+        () -> service.updateWithStatus(1, 5, "Stale edit", 20, true, true));
+    assertEquals("Quản trị viên", service.detail(1, 5).name());
+  }
+
+  @Test
   void simultaneousAdminsCannotRemoveTheLastPair() throws Exception {
     active(2, false);
     var start = new CountDownLatch(1);

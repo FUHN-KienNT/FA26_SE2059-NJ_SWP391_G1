@@ -1,6 +1,8 @@
 package vn.edu.fpt.ams.service;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.NoSuchElementException;
 import vn.edu.fpt.ams.dao.EnrollmentDAO;
 import vn.edu.fpt.ams.dao.SubjectClassDAO;
 import vn.edu.fpt.ams.dao.SubjectExpertDAO;
@@ -12,6 +14,8 @@ import vn.edu.fpt.ams.dto.AssignedSubjectDTO;
 import vn.edu.fpt.ams.dto.TermOptionDTO;
 import vn.edu.fpt.ams.integration.EmailService;
 import vn.edu.fpt.ams.model.SubjectClass;
+import vn.edu.fpt.ams.model.ResponsibilityType;
+import vn.edu.fpt.ams.model.SubjectStatus;
 import vn.edu.fpt.ams.model.UserRole;
 import vn.edu.fpt.ams.util.DBConnection;
 import vn.edu.fpt.ams.util.Jdbc;
@@ -36,6 +40,27 @@ public class SubjectClassService {
     public List<AssignedSubjectDTO> listAssignedSubjects(long expertId) {
         requirePositive(expertId, "Expert ID");
         return Jdbc.transaction(connections,c->{ requireExpert(c,expertId); return classDAO.findAssignedSubjects(c,expertId); });
+    }
+
+    public List<AssignedSubjectDTO> listAssignedSubjects(long expertId, String keyword,
+            ResponsibilityType role, SubjectStatus status) {
+        if (keyword != null && keyword.length() > 50)
+            throw new IllegalArgumentException("Từ khóa không được quá 50 ký tự.");
+        String search = keyword == null ? "" : keyword.strip().toLowerCase(Locale.ROOT);
+        return listAssignedSubjects(expertId).stream()
+                .filter(s -> role == null || s.responsibility() == role)
+                .filter(s -> status == null || s.status() == status)
+                .filter(s -> search.isEmpty() || s.subjectCode().toLowerCase(Locale.ROOT).contains(search)
+                        || s.subjectName().toLowerCase(Locale.ROOT).contains(search))
+                .toList();
+    }
+
+    public AssignedSubjectDTO assignedSubject(long expertId, long subjectId) {
+        requirePositive(subjectId, "Subject ID");
+        return listAssignedSubjects(expertId).stream()
+                .filter(s -> s.subjectId() == subjectId)
+                .findFirst()
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy môn học được phân công."));
     }
 
     public List<AssignedClassDTO> listAssignedClasses(
