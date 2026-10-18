@@ -23,7 +23,7 @@ application.properties
 /database/seed_*_quang.sql
 /docs/quang-*.md
 
-# DungNM's personal notes and local Cursor files
+# DungNM personal notes and local Cursor files
 /.cursor/
 /TODO.md
 /docs/INTEGRATION_TEST_DungNM.md

@@ -10,7 +10,7 @@ public record AssignmentListFilter(String search, AssignmentPurpose purpose,
                                    ResponseType responseType, AssignmentStatus status) {
     public AssignmentListFilter {
         search = search == null ? "" : search.strip();
-        if (search.length() > 200) throw new IllegalArgumentException("Search must be 200 characters or fewer.");
+        if (search.length() > 200) throw new IllegalArgumentException("Từ khóa tìm kiếm không được quá 200 ký tự.");
     }
 
     public static AssignmentListFilter from(String search, String purpose, String responseType, String status) {
@@ -23,7 +23,7 @@ public record AssignmentListFilter(String search, AssignmentPurpose purpose,
         try {
             return Enum.valueOf(type, value.strip().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException ex) {
-            throw new IllegalArgumentException("Invalid assignment filter.");
+            throw new IllegalArgumentException("Bộ lọc bài tập không hợp lệ.");
         }
     }
 }

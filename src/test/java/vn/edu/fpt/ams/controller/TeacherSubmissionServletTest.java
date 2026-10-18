@@ -23,6 +23,7 @@ class TeacherSubmissionServletTest {
         int status = 200;
         String error, forward;
         boolean anonymous, called;
+        List<TeacherSubmissionRow> listRows = List.of();
         HttpSession httpSession = proxy(HttpSession.class, (method,args) -> session.get(args[0]));
         RequestDispatcher dispatcher = proxy(RequestDispatcher.class, (method,args) -> null);
         HttpServletRequest request = proxy(HttpServletRequest.class, (method,args) -> switch (method) {
@@ -50,7 +51,7 @@ class TeacherSubmissionServletTest {
                 e.called = true;
                 assertEquals(7, teacherId); assertEquals(101, assignmentId);
                 if (failure != null) throw failure;
-                return new TeacherSubmissionListPage(context(), filter, List.of());
+                return new TeacherSubmissionListPage(context(), filter, e.listRows);
             }
             @Override public TeacherSubmissionDetailPage detailPage(long teacherId, long assignmentId, long submissionId) {
                 e.called = true;
@@ -59,7 +60,7 @@ class TeacherSubmissionServletTest {
                 var submission = new Submission(55,101,12,1,SubmissionStatus.SUBMITTED, Instant.EPOCH,
                         Instant.EPOCH.plusSeconds(3600), Instant.EPOCH.plusSeconds(100),"Work",null,"[]",
                         null,null,null,null,null);
-                return new TeacherSubmissionDetailPage(context(), new TeacherSubmissionRow(submission,8,"Student","student@example.test",null));
+                return new TeacherSubmissionDetailPage(context(), new TeacherSubmissionRow(submission,8,"Sinh viên","student@example.test",null));
             }
         };
         return new TeacherSubmissionServlet(service) {
@@ -69,8 +70,8 @@ class TeacherSubmissionServletTest {
         };
     }
     private AssignmentDetailPage context() {
-        var assignment = new Assignment(101,10,1,"Assignment",AssignmentPurpose.REGULAR,ResponseType.ESSAY,
-                "Instructions","Scope","[]",BigDecimal.TEN,AssignmentStatus.PUBLISHED,
+        var assignment = new Assignment(101,10,1,"Bài tập",AssignmentPurpose.REGULAR,ResponseType.ESSAY,
+                "Hướng dẫn","Scope","[]",BigDecimal.TEN,AssignmentStatus.PUBLISHED,
                 Instant.EPOCH,Instant.EPOCH.plusSeconds(3600),null,null,Instant.EPOCH,null);
         return new AssignmentDetailPage(assignment,"CL-A","Class A","SUB","Subject","FA26","Template",List.of());
     }
@@ -85,12 +86,34 @@ class TeacherSubmissionServletTest {
         assertEquals(10,page.assignment().assignment().classId());
     }
     @Test void viewLoadsOnlyTheRequestedAttemptAndRetainsListFilters() throws Exception {
-        var e = new Exchange(); e.params.putAll(Map.of("mode","view","submissionId","55","search","name & email","status","GRADED"));
+        var e = new Exchange(); e.params.putAll(Map.of("mode","view","submissionId","55","search","name & email","status","GRADED","page","2"));
         servlet(e,null).doGet(e.request,e.response);
         assertEquals(200,e.status); assertEquals("/WEB-INF/views/submissions/detail.jsp",e.forward);
         assertEquals(55,((TeacherSubmissionDetailPage)e.attributes.get("submissionDetail")).row().submission().submissionId());
         assertEquals("name & email",((TeacherSubmissionFilter)e.attributes.get("submissionFilters")).search());
         assertEquals(SubmissionStatus.GRADED,((TeacherSubmissionFilter)e.attributes.get("submissionFilters")).status());
+        assertEquals(2,((TeacherSubmissionFilter)e.attributes.get("submissionFilters")).page());
+    }
+    @Test void listAcceptsNotStartedFilterAndForwardsStudentWithoutInventingSubmission() throws Exception {
+        var e = new Exchange();
+        e.params.putAll(Map.of("search"," New student ","status"," not_started ","page","2"));
+        e.listRows=List.of(new TeacherSubmissionRow(null,8,"New student","new@example.test",null));
+        servlet(e,null).doGet(e.request,e.response);
+        assertEquals(200,e.status); assertEquals("/WEB-INF/views/submissions/list.jsp",e.forward);
+        var page=(TeacherSubmissionListPage)e.attributes.get("submissionPage");
+        assertEquals("New student",page.filter().search());
+        assertTrue(page.filter().notStartedOnly()); assertNull(page.filter().status());
+        assertEquals("NOT_STARTED",page.filter().statusValue()); assertEquals(2,page.filter().page());
+        assertEquals(8,page.submissions().get(0).studentId());
+        assertFalse(page.submissions().get(0).hasSubmission()); assertNull(page.submissions().get(0).submission());
+    }
+    @Test void detailRetainsNotStartedFilterForReturnNavigation() throws Exception {
+        var e = new Exchange(); e.params.putAll(Map.of("mode","view","submissionId","55","status","NOT_STARTED","page","2"));
+        servlet(e,null).doGet(e.request,e.response);
+        assertEquals(200,e.status); assertEquals("/WEB-INF/views/submissions/detail.jsp",e.forward);
+        var filter=(TeacherSubmissionFilter)e.attributes.get("submissionFilters");
+        assertTrue(filter.notStartedOnly()); assertEquals("NOT_STARTED",filter.statusValue()); assertEquals(2,filter.page());
+        assertEquals(55,((TeacherSubmissionDetailPage)e.attributes.get("submissionDetail")).row().submission().submissionId());
     }
     @Test void getAndPostRequireAnActiveTeacherSessionBeforeServiceAccess() throws Exception {
         for (boolean post : new boolean[]{false,true}) for (String scenario : List.of("anonymous","student","inactive","badId")) {
@@ -109,7 +132,9 @@ class TeacherSubmissionServletTest {
         for (Map<String,String> params : List.of(Map.of("assignmentId",""),Map.of("assignmentId","abc"),
                 Map.of("assignmentId","0"),Map.of("assignmentId","-1"),Map.of("assignmentId","99999999999999999999999"),
                 Map.of("mode","view"),Map.of("mode","view","submissionId","-1"),Map.of("mode","view","submissionId","abc"),
-                Map.of("mode","edit"),Map.of("status","DELETED"),Map.of("search","L".repeat(201)))) {
+                Map.of("mode","edit"),Map.of("status","DELETED"),Map.of("search","L".repeat(201)),
+                Map.of("page","0"),Map.of("page","-1"),Map.of("page","1.5"),Map.of("page","abc"),
+                Map.of("page","2147483648"))) {
             var e = new Exchange(); e.params.putAll(params);
             servlet(e,null).doGet(e.request,e.response);
             assertEquals(400,e.status); assertFalse(e.called); assertNull(e.forward);

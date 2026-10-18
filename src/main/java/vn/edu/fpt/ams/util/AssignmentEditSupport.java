@@ -20,7 +20,7 @@ public final class AssignmentEditSupport {
         values.put("templateId", Long.toString(a.templateId()));
         values.put("title", text(a.title())); values.put("instructions", text(a.instructions()));
         values.put("purpose", a.assignmentPurpose().name()); values.put("responseType", a.responseType().name());
-        values.put("maximumScore", a.maximumScore().toPlainString()); values.put("scopeText", text(a.scopeText()));
+        values.put("maximumScore", a.maximumScore().stripTrailingZeros().toPlainString());
         values.put("availableFrom", localTime(a.availableFrom())); values.put("dueAt", localTime(a.dueAt()));
         values.put("timeLimitMinutes", text(a.timeLimitMinutes())); values.put("attemptLimit", text(a.attemptLimit()));
         JsonArray tasks = new JsonArray();
@@ -28,6 +28,7 @@ public final class AssignmentEditSupport {
             JsonObject task = new JsonObject();
             if (element.isJsonPrimitive() && element.getAsJsonPrimitive().isString()) {
                 task.addProperty("title", element.getAsString()); task.addProperty("description", "");
+                task.addProperty("maximum_points", "");
             } else if (element.isJsonObject()) {
                 JsonObject source = element.getAsJsonObject();
                 String title = "";
@@ -35,8 +36,13 @@ public final class AssignmentEditSupport {
                     title = string(source, key);
                     if (!title.isBlank()) break;
                 }
-                task.addProperty("title", title); task.addProperty("description", string(source,"description"));
-            } else throw new IllegalStateException("Stored task content needs repair.");
+                String description = string(source, "description");
+                if (!description.isBlank() && !description.equals(title)) title += "\n" + description;
+                task.addProperty("title", title); task.addProperty("description", "");
+                JsonElement points = source.get("maximum_points");
+                task.addProperty("maximum_points", points != null && points.isJsonPrimitive()
+                        ? points.getAsString() : "");
+            } else throw new IllegalStateException("Nội dung câu hỏi tự luận đã lưu cần được sửa lại.");
             tasks.add(task);
         }
         values.put("tasksJson", tasks.toString());
@@ -54,12 +60,12 @@ public final class AssignmentEditSupport {
                     option.addProperty("option_text", string(source,"option_text"));
                     JsonElement correct = source.get("is_correct");
                     if (correct == null || !correct.isJsonPrimitive() || !correct.getAsJsonPrimitive().isBoolean())
-                        throw new IllegalStateException("Stored answer options need repair.");
+                        throw new IllegalStateException("Các lựa chọn trả lời đã lưu cần được sửa lại.");
                     option.addProperty("is_correct", correct.getAsBoolean());
                 } else if (element.isJsonPrimitive() && element.getAsJsonPrimitive().isString()) {
                     // Support old text-only option arrays when the Teacher repairs a Draft.
                     option.addProperty("option_text", element.getAsString()); option.addProperty("is_correct", false);
-                } else throw new IllegalStateException("Stored answer options need repair.");
+                } else throw new IllegalStateException("Các lựa chọn trả lời đã lưu cần được sửa lại.");
                 options.add(option);
             }
             q.add("options", options); editorQuestions.add(q);
@@ -117,7 +123,7 @@ public final class AssignmentEditSupport {
                 saved.add(new Question(id, 0, i+1, validated.questionText(), validated.maximumPoints(), options.toString()));
             }
         } catch (RuntimeException ex) {
-            throw new ValidationException(Map.of("questionsJson", "Question or answer identities are invalid. Use only this draft's questions and options."));
+            throw new ValidationException(Map.of("questionsJson", "Mã câu hỏi hoặc lựa chọn không hợp lệ. Chỉ sử dụng các câu hỏi và lựa chọn thuộc bản nháp này."));
         }
         return new AssignmentDraftValidator.Draft(draft.assignment(), List.copyOf(saved));
     }
@@ -138,6 +144,6 @@ public final class AssignmentEditSupport {
     private static JsonArray array(String json) {
         if (json == null || json.isBlank()) return new JsonArray();
         try { return JsonParser.parseString(json).getAsJsonArray(); }
-        catch (RuntimeException ex) { throw new IllegalStateException("Stored draft content needs repair.",ex); }
+        catch (RuntimeException ex) { throw new IllegalStateException("Nội dung bản nháp đã lưu cần được sửa lại.",ex); }
     }
 }

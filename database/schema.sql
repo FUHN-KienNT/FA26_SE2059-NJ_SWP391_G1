@@ -286,7 +286,7 @@ CREATE TABLE assignments (
   CHECK (status <> 'PUBLISHED' OR due_at > published_at),
   CHECK (status <> 'PUBLISHED' OR published_at IS NOT NULL),
   CONSTRAINT ck_assignments_draft_timestamps
-    CHECK (status <> 'DRAFT' OR (published_at IS NULL AND cancelled_at IS NULL)),
+    CHECK (status <> 'DRAFT' OR cancelled_at IS NULL),
   CONSTRAINT ck_assignments_cancellation
     CHECK ((status = 'CANCELLED') = (cancelled_at IS NOT NULL)),
   CONSTRAINT ck_assignments_cancellation_time
@@ -317,6 +317,7 @@ CREATE TABLE submissions (
   content TEXT,
   submission_link VARCHAR(2048),
   answer JSONB NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(answer) = 'array'),
+  answer_revision BIGINT NOT NULL DEFAULT 0 CHECK (answer_revision >= 0),
   score NUMERIC(10,2) CHECK (score >= 0),
   feedback TEXT,
   graded_by BIGINT REFERENCES users(user_id),
@@ -340,6 +341,13 @@ CREATE TABLE submissions (
 CREATE UNIQUE INDEX uq_submissions_one_in_progress ON submissions (enrollment_id, assignment_id) WHERE status = 'IN_PROGRESS';
 CREATE INDEX ix_submissions_graded_by ON submissions (graded_by);
 CREATE INDEX ix_submissions_assignment_status ON submissions (assignment_id, status);
+
+-- Preserve the version answered by each attempt when a cancelled assignment is reopened.
+CREATE TABLE submission_content_snapshots (
+  submission_id BIGINT PRIMARY KEY REFERENCES submissions(submission_id),
+  assignment_data JSONB NOT NULL CHECK (jsonb_typeof(assignment_data) = 'object'),
+  questions_data JSONB NOT NULL CHECK (jsonb_typeof(questions_data) = 'array')
+);
 
 -- Role eligibility, matching Subject Terms, class capacity, ownership, question/option
 -- context and score totals require transactional service validation in addition to these FKs.

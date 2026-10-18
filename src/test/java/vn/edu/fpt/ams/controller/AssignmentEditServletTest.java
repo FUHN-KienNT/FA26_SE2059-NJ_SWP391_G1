@@ -286,7 +286,7 @@ class AssignmentEditServletTest {
                 if (post) servlet(service).doPost(exchange.request, exchange.response);
                 else servlet(service).doGet(exchange.request, exchange.response);
                 assertEquals(404, exchange.status);
-                assertEquals("Assignment not found or unavailable.", exchange.errorMessage);
+                assertEquals("Không tìm thấy bài tập hoặc bạn không có quyền truy cập.", exchange.errorMessage);
                 assertEquals(1, service.loads); assertEquals(0, service.updates);
                 assertNull(exchange.forward); assertNull(exchange.redirect);
                 assertFalse(exchange.attributes.containsKey("createPage"));
@@ -299,7 +299,7 @@ class AssignmentEditServletTest {
         service.updateFailure = new NoSuchElementException("private ownership details");
         servlet(service).doPost(exchange.request, exchange.response);
         assertEquals(404, exchange.status);
-        assertEquals("Assignment not found or unavailable.", exchange.errorMessage);
+        assertEquals("Không tìm thấy bài tập hoặc bạn không có quyền truy cập.", exchange.errorMessage);
         assertEquals(1, service.updates); assertNull(exchange.forward); assertNull(exchange.redirect);
         assertFalse(exchange.session.containsKey("updatedAssignmentId"));
     }

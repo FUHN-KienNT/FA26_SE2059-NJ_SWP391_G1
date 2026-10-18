@@ -6,6 +6,12 @@ import java.util.Map;
 public final class Vietnamese {
  private Vietnamese(){}
  private static final Map<String,String> LABELS=Map.ofEntries(
+  Map.entry("REGULAR","Thông thường"),Map.entry("PRACTICE","Luyện tập"),Map.entry("ESSAY","Tự luận"),Map.entry("OBJECTIVE","Trắc nghiệm"),
+  Map.entry("DRAFT","Bản nháp"),Map.entry("PUBLISHED","Đã công bố"),Map.entry("CANCELLED","Đã hủy"),
+  Map.entry("IN_PROGRESS","Đang làm"),Map.entry("SUBMITTED","Đã nộp"),Map.entry("GRADED","Đã chấm"),Map.entry("RELEASED","Đã công bố kết quả"),Map.entry("EXPIRED","Đã hết hạn"),Map.entry("VOID","Đã vô hiệu hóa"),
+  Map.entry("PENDING","Đang chờ"),Map.entry("ACCEPTED","Đã chấp nhận"),Map.entry("DECLINED","Đã từ chối"),
+  Map.entry("PENDING_REVIEW","Chờ duyệt"),Map.entry("APPROVED","Đã duyệt"),Map.entry("REJECTED","Đã từ chối"),Map.entry("RESOLVED","Đã xử lý"),
+  Map.entry("OPEN","Đang mở"),Map.entry("PROCESSING","Đang xử lý"),Map.entry("COMPLETED","Đã hoàn tất"),
   Map.entry("ADMIN","Quản trị viên"),Map.entry("EXPERT","Chuyên gia"),Map.entry("TEACHER","Giảng viên"),Map.entry("STUDENT","Sinh viên"),
   Map.entry("ACTIVE","Hoạt động"),Map.entry("INACTIVE","Ngừng hoạt động"),Map.entry("PRIMARY","Chính"),Map.entry("SUPPORTING","Hỗ trợ"),
   Map.entry("users","Tổng tài khoản"),Map.entry("subjects","Tổng môn học"),Map.entry("academic_terms","Tổng học kỳ"),Map.entry("subject_classes","Tổng lớp học"),Map.entry("assignment_templates","Tổng mẫu bài tập"),Map.entry("active_users","Tài khoản hoạt động"),Map.entry("pending_invitations","Lời mời đang chờ"),

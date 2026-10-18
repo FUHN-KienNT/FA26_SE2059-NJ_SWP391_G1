@@ -4,5 +4,5 @@
 <%@ include file="session-nav.jspf" %><h1><%=vn.edu.fpt.ams.util.Vietnamese.label(account.role())%> Bảng điều khiển</h1><p>Xin chào <%=WebSupport.html(account.fullName())%>.</p>
 <% if(account.role()==UserRole.EXPERT){ %><p><a href="${pageContext.request.contextPath}/expert/templates">Mẫu bài tập</a></p>
 <% } else if(account.role()==UserRole.TEACHER){ %><p><a href="${pageContext.request.contextPath}/teacher/templates">Mẫu bài tập</a></p>
-<% } else { %><p>Bạn đã đăng nhập bằng Google. Các chức năng học tập sẽ được tích hợp vào bảng điều khiển này.</p><% } %>
+<% } else { %><p><a href="${pageContext.request.contextPath}/student/assignments">Xem bài tập và làm bài trắc nghiệm</a></p><% } %>
 </main></body></html>

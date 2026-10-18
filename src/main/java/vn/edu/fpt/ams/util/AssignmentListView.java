@@ -7,7 +7,7 @@ import java.util.Locale;
 
 /** Output helpers restricted to the Assignment List JSP. */
 public final class AssignmentListView {
-    private static final DateTimeFormatter DEADLINE = DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm", Locale.ENGLISH)
+    private static final DateTimeFormatter DEADLINE = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm", Locale.forLanguageTag("vi-VN"))
             .withZone(ZoneId.of("Asia/Ho_Chi_Minh"));
     private AssignmentListView() {}
 
@@ -17,9 +17,7 @@ public final class AssignmentListView {
                 .replace("\"", "&quot;").replace("'", "&#39;");
     }
     public static String label(Enum<?> value) {
-        if (value == null) return "All";
-        String name = value.name().toLowerCase(Locale.ROOT);
-        return Character.toUpperCase(name.charAt(0)) + name.substring(1);
+        return value == null ? "Tất cả" : Vietnamese.label(value.name());
     }
-    public static String deadline(Instant instant) { return instant == null ? "Not set" : DEADLINE.format(instant); }
+    public static String deadline(Instant instant) { return instant == null ? "Chưa đặt" : DEADLINE.format(instant); }
 }

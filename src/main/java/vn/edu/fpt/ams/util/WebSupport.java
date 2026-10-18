@@ -22,7 +22,7 @@ public final class WebSupport {
 
   public static long actor(HttpServletRequest r) {
     Object id = r.getSession(false) == null ? null : r.getSession(false).getAttribute("userId");
-    if (!(id instanceof Long)) throw new SecurityException("Sign-in required");
+    if (!(id instanceof Long)) throw new SecurityException("Vui lòng đăng nhập.");
     return (Long) id;
   }
 
@@ -44,7 +44,7 @@ public final class WebSupport {
         || !MessageDigest.isEqual(
             ((String) stored).getBytes(StandardCharsets.UTF_8),
             submitted.getBytes(StandardCharsets.UTF_8)))
-      throw new SecurityException("Form token is invalid; refresh the page");
+      throw new SecurityException("Phiên biểu mẫu không hợp lệ. Vui lòng tải lại trang.");
   }
 
   public static long id(String v) {

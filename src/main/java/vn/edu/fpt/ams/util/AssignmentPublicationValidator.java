@@ -8,7 +8,6 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.google.gson.Strictness;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.HashSet;
@@ -24,103 +23,110 @@ import vn.edu.fpt.ams.model.ResponseType;
 
 /** Checks saved publication content without rewriting fields, order values or identities. */
 public final class AssignmentPublicationValidator {
-    private static final BigDecimal MAXIMUM_POINTS = new BigDecimal("99999999.99");
     private static final Gson JSON = new GsonBuilder().setStrictness(Strictness.STRICT).create();
 
     private AssignmentPublicationValidator() {}
 
     public static Map<String, String> errors(Assignment assignment, List<Question> questions, Instant now) {
-        Objects.requireNonNull(now, "Current time is required.");
+        Objects.requireNonNull(now, "Cần có thời gian hiện tại.");
         Map<String, String> errors = new LinkedHashMap<>();
         if (assignment == null) {
-            errors.put("assignmentId", "Select a saved assignment to publish.");
+            errors.put("assignmentId", "Chọn một bài tập đã lưu để công bố.");
             return immutable(errors);
         }
 
         if (assignment.assignmentId() <= 0)
-            errors.put("assignmentId", "Select a saved assignment to publish.");
-        if (assignment.classId() <= 0) errors.put("classId", "Select a valid class.");
-        if (assignment.templateId() <= 0) errors.put("templateId", "Select a valid source template.");
+            errors.put("assignmentId", "Chọn một bài tập đã lưu để công bố.");
+        if (assignment.classId() <= 0) errors.put("classId", "Chọn lớp hợp lệ.");
+        if (assignment.templateId() <= 0) errors.put("templateId", "Chọn mẫu bài tập hợp lệ.");
         String title = assignment.title();
         if (blank(title) || title.codePointCount(0, title.length()) > 200)
-            errors.put("title", "Enter a title of 1–200 characters.");
-        if (assignment.assignmentPurpose() == null) errors.put("purpose", "Select a valid assignment purpose.");
-        if (assignment.responseType() == null) errors.put("responseType", "Select a valid response type.");
+            errors.put("title", "Nhập tiêu đề từ 1 đến 200 ký tự.");
+        if (assignment.assignmentPurpose() == null) errors.put("purpose", "Chọn mục đích bài tập hợp lệ.");
+        if (assignment.responseType() == null) errors.put("responseType", "Chọn hình thức trả lời hợp lệ.");
         if (assignment.assignmentPurpose() == AssignmentPurpose.PRACTICE
                 && assignment.responseType() != ResponseType.OBJECTIVE)
-            errors.put("responseType", "Practice assignments must use Objective questions.");
-        boolean validMaximum = validPoints(assignment.maximumScore());
-        if (!validMaximum) errors.put("maximumScore", pointsMessage());
+            errors.put("responseType", "Bài luyện tập phải sử dụng câu hỏi trắc nghiệm.");
+        boolean validMaximum = AssignmentRules.validMaximum(assignment.maximumScore());
+        if (!validMaximum) errors.put("maximumScore", "Điểm tối đa phải là số nguyên từ 1 đến 100.");
         if (blank(assignment.instructions()))
-            errors.put("instructions", "Enter instructions before publishing.");
+            errors.put("instructions", "Nhập hướng dẫn trước khi công bố.");
+        else if (AssignmentRules.length(assignment.instructions()) > AssignmentRules.MAX_INSTRUCTIONS)
+            errors.put("instructions", "Hướng dẫn không được vượt quá 500 ký tự.");
         if (assignment.availableFrom() == null)
-            errors.put("availableFrom", "Enter Available from before publishing.");
-        if (assignment.dueAt() == null) errors.put("dueAt", "Enter Due at before publishing.");
+            errors.put("availableFrom", "Nhập thời gian mở bài trước khi công bố.");
+        if (assignment.dueAt() == null) errors.put("dueAt", "Nhập hạn nộp trước khi công bố.");
         else if (!assignment.dueAt().isAfter(now)
                 || (assignment.availableFrom() != null && !assignment.dueAt().isAfter(assignment.availableFrom())))
-            errors.put("dueAt", "Due at must be later than Available from and the current time.");
-        if (assignment.timeLimitMinutes() != null && assignment.timeLimitMinutes() <= 0)
-            errors.put("timeLimitMinutes", "Enter a positive time limit or leave it blank.");
+            errors.put("dueAt", "Hạn nộp phải sau thời gian mở bài và thời gian hiện tại.");
+        if (assignment.timeLimitMinutes() != null && (assignment.timeLimitMinutes() < AssignmentRules.MIN_MINUTES
+                || assignment.timeLimitMinutes() > AssignmentRules.MAX_MINUTES))
+            errors.put("timeLimitMinutes", "Thời gian làm bài phải từ 20 đến 720 phút (12 giờ).");
         if (assignment.assignmentPurpose() == AssignmentPurpose.REGULAR && assignment.attemptLimit() != null)
-            errors.put("attemptLimit", "Attempt limit applies only to Practice assignments.");
+            errors.put("attemptLimit", "Giới hạn số lượt làm chỉ áp dụng cho bài luyện tập.");
         if (assignment.assignmentPurpose() == AssignmentPurpose.PRACTICE
                 && (assignment.attemptLimit() == null || assignment.attemptLimit() <= 0))
-            errors.put("attemptLimit", "Enter a positive attempt limit for Practice assignments.");
+            errors.put("attemptLimit", "Nhập số lượt làm tối đa từ 1 trở lên cho bài luyện tập.");
 
         List<Question> savedQuestions = questions == null ? List.of() : questions;
         if (assignment.responseType() == ResponseType.ESSAY) {
-            if (blank(assignment.scopeText())) errors.put("scopeText", "Enter Essay scope before publishing.");
-            validateTasks(assignment.taskChecklistJson(), errors);
+            validateTasks(assignment, errors);
             if (!savedQuestions.isEmpty())
-                errors.put("questionsJson", "Essay assignments cannot contain Objective questions. Edit the draft to remove them.");
+                errors.put("questionsJson", "Bài tự luận không được chứa câu hỏi trắc nghiệm. Hãy sửa bản nháp để loại bỏ chúng.");
         } else if (assignment.responseType() == ResponseType.OBJECTIVE) {
-            if (!blank(assignment.scopeText()))
-                errors.put("scopeText", "Objective assignments cannot contain Essay scope. Edit the draft to remove it.");
             validateNoTasks(assignment.taskChecklistJson(), errors);
             validateQuestions(assignment, savedQuestions, validMaximum, errors);
         }
         return immutable(errors);
     }
 
-    private static void validateTasks(String json, Map<String, String> errors) {
-        JsonArray tasks = array(json);
+    private static void validateTasks(Assignment assignment, Map<String, String> errors) {
+        JsonArray tasks = array(assignment.taskChecklistJson());
         if (tasks == null) {
-            errors.put("tasksJson", "Check the saved task list. Each task needs a title and a positive, unique order.");
+            errors.put("tasksJson", "Kiểm tra các câu hỏi tự luận đã lưu. Mỗi câu cần nội dung và số thứ tự nguyên dương, không trùng nhau.");
             return;
         }
-        if (tasks.isEmpty()) {
-            errors.put("tasksJson", "Add at least one Essay task before publishing.");
+        if (tasks.isEmpty() || tasks.size() > AssignmentRules.MAX_TASKS) {
+            errors.put("tasksJson", "Thêm từ 1 đến 200 câu hỏi tự luận trước khi công bố.");
             return;
         }
         Set<Integer> orders = new HashSet<>();
+        BigDecimal total = BigDecimal.ZERO;
+        boolean validTotal = true;
         for (int i = 0; i < tasks.size(); i++) {
             JsonElement element = tasks.get(i);
             // Existing detail/edit views support legacy text tasks, whose order is their array position.
             if (element.isJsonPrimitive() && element.getAsJsonPrimitive().isString()) {
-                if (blank(element.getAsString()) || !orders.add(i + 1))
-                    taskError(errors, i, "needs a title and a unique order.");
+                taskError(errors, i, "chưa có điểm. Hãy sửa bản nháp để thêm điểm.");
+                validTotal = false;
             } else if (element.isJsonObject()) {
                 JsonObject task = element.getAsJsonObject();
                 Integer order = positiveInteger(task.get("task_order"));
-                if (order == null || !orders.add(order)) taskError(errors, i, "needs a positive, unique order.");
-                if (!requiredText(task.get("title"))) taskError(errors, i, "needs a nonblank title.");
+                if (order == null || !orders.add(order)) taskError(errors, i, "cần số thứ tự nguyên dương, không trùng nhau.");
+                if (!requiredText(task.get("title"))) taskError(errors, i, "cần nội dung không để trống.");
                 JsonElement description = task.get("description");
                 if (description != null && !description.isJsonNull() && !string(description))
-                    taskError(errors, i, "has an invalid description. Enter text or leave it blank.");
-            } else taskError(errors, i, "is invalid. Enter a task title and order.");
+                    taskError(errors, i, "có nội dung mô tả cũ không hợp lệ. Hãy sửa lại bản nháp.");
+                BigDecimal points = decimal(task.get("maximum_points"));
+                if (!validPoints(points)) { taskError(errors, i, "cần điểm hợp lệ với tối đa 2 chữ số thập phân."); validTotal = false; }
+                else total = total.add(points);
+            } else taskError(errors, i, "không hợp lệ. Hãy kiểm tra nội dung và thứ tự câu hỏi.");
         }
+        if (validTotal && AssignmentRules.validMaximum(assignment.maximumScore())
+                && total.compareTo(assignment.maximumScore()) != 0)
+            errors.putIfAbsent("tasksJson", "Tổng điểm các câu hỏi phải bằng điểm tối đa của bài tập.");
     }
 
     private static void validateNoTasks(String json, Map<String, String> errors) {
         JsonArray tasks = array(json);
         if (tasks == null || !tasks.isEmpty())
-            errors.put("tasksJson", "Objective assignments cannot contain Essay tasks. Edit the draft to remove them.");
+            errors.put("tasksJson", "Bài trắc nghiệm không được chứa câu hỏi tự luận. Hãy sửa bản nháp để loại bỏ chúng.");
     }
 
     private static void validateQuestions(Assignment assignment, List<Question> questions, boolean validMaximum,
             Map<String, String> errors) {
-        if (questions.isEmpty()) {
-            errors.put("questionsJson", "Add at least one Objective question before publishing.");
+        if (questions.isEmpty() || questions.size() > AssignmentRules.MAX_QUESTIONS) {
+            errors.put("questionsJson", "Thêm từ 1 đến 500 câu hỏi trắc nghiệm trước khi công bố.");
             return;
         }
         Set<Long> ids = new HashSet<>();
@@ -130,31 +136,31 @@ public final class AssignmentPublicationValidator {
         for (int i = 0; i < questions.size(); i++) {
             Question question = questions.get(i);
             if (question == null) {
-                questionError(errors, i, "is missing. Repair the saved question list.");
+                questionError(errors, i, "bị thiếu. Hãy sửa danh sách câu hỏi đã lưu.");
                 validTotal = false;
                 continue;
             }
             if (question.questionId() <= 0 || !ids.add(question.questionId()))
-                questionError(errors, i, "needs a positive, unique saved identity.");
+                questionError(errors, i, "cần mã định danh nguyên dương, không trùng nhau.");
             if (question.assignmentId() <= 0 || question.assignmentId() != assignment.assignmentId())
-                questionError(errors, i, "does not belong to this assignment.");
+                questionError(errors, i, "không thuộc bài tập này.");
             if (question.questionOrder() <= 0 || !orders.add(question.questionOrder()))
-                questionError(errors, i, "needs a positive, unique order.");
-            if (blank(question.questionText())) questionError(errors, i, "needs nonblank question text.");
+                questionError(errors, i, "cần số thứ tự nguyên dương, không trùng nhau.");
+            if (blank(question.questionText())) questionError(errors, i, "cần nội dung câu hỏi không để trống.");
             if (!validPoints(question.maximumPoints())) {
-                questionError(errors, i, "has invalid points. " + pointsMessage());
+                questionError(errors, i, "có điểm không hợp lệ. " + pointsMessage());
                 validTotal = false;
             } else total = total.add(question.maximumPoints());
             validateOptions(question.options(), i, errors);
         }
         if (validMaximum && validTotal && total.compareTo(assignment.maximumScore()) != 0)
-            errors.putIfAbsent("questionsJson", "Question points must total the assignment maximum score.");
+            errors.putIfAbsent("questionsJson", "Tổng điểm các câu hỏi phải bằng điểm tối đa của bài tập.");
     }
 
     private static void validateOptions(String json, int questionIndex, Map<String, String> errors) {
         JsonArray options = array(json);
-        if (options == null || options.size() < 2) {
-            questionError(errors, questionIndex, "needs at least two valid answer options.");
+        if (options == null || options.size() < 2 || options.size() > AssignmentRules.MAX_OPTIONS) {
+            questionError(errors, questionIndex, "cần từ 2 đến 10 lựa chọn trả lời hợp lệ.");
             return;
         }
         Set<String> ids = new HashSet<>();
@@ -162,9 +168,9 @@ public final class AssignmentPublicationValidator {
         int correctCount = 0;
         for (int i = 0; i < options.size(); i++) {
             JsonElement element = options.get(i);
-            String prefix = "answer " + (i + 1) + " ";
+            String prefix = "lựa chọn " + (i + 1) + " ";
             if (!element.isJsonObject()) {
-                questionError(errors, questionIndex, prefix + "is invalid. Repair the saved answer options.");
+                questionError(errors, questionIndex, prefix + "không hợp lệ. Hãy sửa các lựa chọn đã lưu.");
                 continue;
             }
             JsonObject option = element.getAsJsonObject();
@@ -172,18 +178,18 @@ public final class AssignmentPublicationValidator {
             if (id == null || !id.isJsonPrimitive()
                     || !(id.getAsJsonPrimitive().isString() || id.getAsJsonPrimitive().isNumber())
                     || blank(id.getAsString()) || !ids.add(id.getAsString()))
-                questionError(errors, questionIndex, prefix + "needs a nonblank, unique saved identity.");
+                questionError(errors, questionIndex, prefix + "cần mã định danh không để trống và không trùng nhau.");
             Integer order = positiveInteger(option.get("option_order"));
             if (order == null || !orders.add(order))
-                questionError(errors, questionIndex, prefix + "needs a positive, unique order.");
+                questionError(errors, questionIndex, prefix + "cần số thứ tự nguyên dương, không trùng nhau.");
             if (!requiredText(option.get("option_text")))
-                questionError(errors, questionIndex, prefix + "needs nonblank answer text.");
+                questionError(errors, questionIndex, prefix + "cần nội dung trả lời không để trống.");
             JsonElement correct = option.get("is_correct");
             if (correct == null || !correct.isJsonPrimitive() || !correct.getAsJsonPrimitive().isBoolean())
-                questionError(errors, questionIndex, prefix + "needs a valid correct-answer selection.");
+                questionError(errors, questionIndex, prefix + "cần trạng thái đáp án đúng hợp lệ.");
             else if (correct.getAsBoolean()) correctCount++;
         }
-        if (correctCount != 1) questionError(errors, questionIndex, "must have exactly one correct answer.");
+        if (correctCount < 1) questionError(errors, questionIndex, "phải có ít nhất một đáp án đúng.");
     }
 
     private static JsonArray array(String json) {
@@ -197,13 +203,12 @@ public final class AssignmentPublicationValidator {
     }
 
     private static boolean validPoints(BigDecimal points) {
-        if (points == null || points.signum() <= 0 || points.compareTo(MAXIMUM_POINTS) > 0) return false;
-        try {
-            points.setScale(2, RoundingMode.UNNECESSARY);
-            return true;
-        } catch (ArithmeticException ex) {
-            return false;
-        }
+        return AssignmentRules.validPoints(points);
+    }
+
+    private static BigDecimal decimal(JsonElement value) {
+        if (value == null || !value.isJsonPrimitive() || !value.getAsJsonPrimitive().isNumber()) return null;
+        try { return value.getAsBigDecimal(); } catch (NumberFormatException ex) { return null; }
     }
 
     private static Integer positiveInteger(JsonElement element) {
@@ -222,13 +227,13 @@ public final class AssignmentPublicationValidator {
     }
     private static boolean blank(String value) { return value == null || value.isBlank(); }
     private static String pointsMessage() {
-        return "Points must be greater than 0, at most 99999999.99, with up to two decimal places.";
+        return "Điểm phải từ 0.01 đến 100, có tối đa 2 chữ số thập phân.";
     }
     private static void taskError(Map<String, String> errors, int index, String message) {
-        errors.putIfAbsent("tasksJson", "Task " + (index + 1) + " " + message);
+        errors.putIfAbsent("tasksJson", "Câu tự luận " + (index + 1) + " " + message);
     }
     private static void questionError(Map<String, String> errors, int index, String message) {
-        errors.putIfAbsent("questionsJson", "Question " + (index + 1) + " " + message);
+        errors.putIfAbsent("questionsJson", "Câu hỏi " + (index + 1) + " " + message);
     }
     private static Map<String, String> immutable(Map<String, String> errors) {
         return Collections.unmodifiableMap(new LinkedHashMap<>(errors));

@@ -28,13 +28,22 @@ class TeacherSubmissionViewTest {
         assertTrue(list.endsWith("&status=GRADED"));
         assertEquals(list+"&mode=view&submissionId=55",TeacherSubmissionView.detailUrl("/ams",10,55,filter));
     }
+    @Test void notStartedFilterAndPageSurviveNavigation() {
+        var filter = TeacherSubmissionFilter.from(" Sinh viên & 100%_ ", "NOT_STARTED", "2");
+        String url = TeacherSubmissionNavigation.listUrl("/ams", 10, filter);
+        assertTrue(url.contains("status=NOT_STARTED"));
+        assertTrue(url.contains("search=Sinh+vi%C3%AAn+%26+100%25_"));
+        assertTrue(url.endsWith("&page=2"));
+        assertTrue(TeacherSubmissionNavigation.listUrl("/ams", 10, filter.withPage(3))
+                .endsWith("&status=NOT_STARTED&page=3"));
+    }
     @Test void nullAndZeroScoreAreDifferentAndDatesUseVietnamTime() {
-        assertEquals("Not graded",TeacherSubmissionView.score(null));
+        assertEquals("Chưa chấm",TeacherSubmissionView.score(null));
         assertEquals("0",TeacherSubmissionView.score(BigDecimal.ZERO));
         assertEquals("10.5",TeacherSubmissionView.score(new BigDecimal("10.50")));
-        assertEquals("Not submitted",TeacherSubmissionView.submittedAt(null));
-        assertEquals("05 Oct 2026, 00:00",TeacherSubmissionView.submittedAt(Instant.parse("2026-10-04T17:00:00Z")));
-        assertEquals("In progress",TeacherSubmissionView.statusLabel(SubmissionStatus.IN_PROGRESS));
+        assertEquals("Chưa nộp",TeacherSubmissionView.submittedAt(null));
+        assertEquals("05/10/2026 00:00",TeacherSubmissionView.submittedAt(Instant.parse("2026-10-04T17:00:00Z")));
+        assertEquals("Đang làm",TeacherSubmissionView.statusLabel(SubmissionStatus.IN_PROGRESS));
     }
     @Test void savedAnswersResolveIdsToTextWithoutRegradingOrInjectingHtml() {
         var result = TeacherSubmissionView.answers("[{\"question_id\":1,\"selected_option_id\":\"A\",\"awarded_points\":0}]",questions);
@@ -49,8 +58,8 @@ class TeacherSubmissionViewTest {
     }
     @Test void unfinishedAnswerStaysUnselectedAndUngraded() {
         var result = TeacherSubmissionView.answers("[{\"question_id\":1,\"selected_option_id\":null,\"awarded_points\":null}]",questions);
-        assertFalse(result.invalid()); assertEquals("No answer selected",result.items().get(0).selectedOption());
-        assertEquals("Not graded",result.items().get(0).awardedPoints());
+        assertFalse(result.invalid()); assertEquals("Chưa chọn đáp án",result.items().get(0).selectedOption());
+        assertEquals("Chưa chấm",result.items().get(0).awardedPoints());
         assertEquals(2,result.items().get(0).choices().size());
         assertTrue(result.items().get(0).choices().stream().noneMatch(TeacherSubmissionView.Choice::selected));
     }
@@ -60,8 +69,8 @@ class TeacherSubmissionViewTest {
         var result = TeacherSubmissionView.answers("[{\"question_id\":1,\"selected_option_id\":\"B\"},{\"question_id\":1},{\"question_id\":99,\"selected_option_id\":\"Z\"}]",questions);
         assertTrue(result.invalid()); assertEquals(2,result.items().size());
         assertEquals("Other",result.items().get(0).selectedOption());
-        assertEquals("Question #99 (unavailable)",result.items().get(1).question());
-        assertEquals("Option #Z (unavailable)",result.items().get(1).selectedOption());
+        assertEquals("Câu hỏi #99 (không có dữ liệu)",result.items().get(1).question());
+        assertEquals("Lựa chọn #Z (không có dữ liệu)",result.items().get(1).selectedOption());
     }
 
     @Test void wrongSelectionAndUnselectedCorrectOptionRemainDistinctWithoutChangingStoredPoints() {
@@ -77,8 +86,8 @@ class TeacherSubmissionViewTest {
             var result = TeacherSubmissionView.answers(json,questions);
             assertFalse(result.invalid());
             assertEquals(1,result.items().size());
-            assertEquals("No answer selected",result.items().get(0).selectedOption());
-            assertEquals("Not graded",result.items().get(0).awardedPoints());
+            assertEquals("Chưa chọn đáp án",result.items().get(0).selectedOption());
+            assertEquals("Chưa chấm",result.items().get(0).awardedPoints());
             assertEquals(2,result.items().get(0).choices().size());
             assertTrue(result.items().get(0).choices().stream().noneMatch(TeacherSubmissionView.Choice::selected));
         }
@@ -105,9 +114,9 @@ class TeacherSubmissionViewTest {
         var result = TeacherSubmissionView.answers(
                 "[{\"question_id\":8,\"selected_option_id\":\"middle\"},{\"question_id\":1,\"selected_option_id\":\"A\"}]",unordered);
         assertFalse(result.invalid());
-        assertTrue(result.items().get(0).question().startsWith("Question 1"));
-        assertEquals("Question 2 — Q7",result.items().get(1).question());
-        assertEquals("Question 2 — Q8",result.items().get(2).question());
+        assertTrue(result.items().get(0).question().startsWith("Câu hỏi 1"));
+        assertEquals("Câu hỏi 2 — Q7",result.items().get(1).question());
+        assertEquals("Câu hỏi 2 — Q8",result.items().get(2).question());
         assertEquals(List.of(new TeacherSubmissionView.Choice("A","First",false,true),
                 new TeacherSubmissionView.Choice("B","Second",true,false),
                 new TeacherSubmissionView.Choice("C","Third",false,false)),result.items().get(2).choices());
@@ -131,7 +140,6 @@ class TeacherSubmissionViewTest {
         for (String options : List.of(
                 "[{\"option_id\":\"A\",\"option_text\":\"First\"},{\"option_id\":\"B\",\"option_text\":\"Second\",\"is_correct\":false}]",
                 "[{\"option_id\":\"A\",\"option_text\":\"First\",\"is_correct\":\"true\"},{\"option_id\":\"B\",\"option_text\":\"Second\",\"is_correct\":false}]",
-                "[{\"option_id\":\"A\",\"option_text\":\"First\",\"is_correct\":true},{\"option_id\":\"B\",\"option_text\":\"Second\",\"is_correct\":true}]",
                 "[{\"option_id\":\"A\",\"option_text\":\"First\",\"is_correct\":false},{\"option_id\":\"B\",\"option_text\":\"Second\",\"is_correct\":false}]",
                 "[{\"option_id\":\"A\",\"option_text\":\"First\",\"is_correct\":true},{\"option_id\":\"B\",\"option_text\":\"Second\",\"is_correct\":false},false]")) {
             var result = TeacherSubmissionView.answers("[{\"question_id\":1,\"selected_option_id\":\"B\"}]",List.of(question(options)));
@@ -149,7 +157,7 @@ class TeacherSubmissionViewTest {
                 """;
         var result = TeacherSubmissionView.answers("[{\"question_id\":1,\"selected_option_id\":\"A\"}]",List.of(question(options)));
         assertTrue(result.invalid());
-        assertEquals("Option #A (unavailable)",result.items().get(0).selectedOption());
+        assertEquals("Lựa chọn #A (không có dữ liệu)",result.items().get(0).selectedOption());
         assertEquals(2,result.items().get(0).choices().size());
         assertTrue(result.items().get(0).choices().stream().allMatch(choice -> !choice.selected() && choice.correct() == null));
     }
@@ -157,7 +165,7 @@ class TeacherSubmissionViewTest {
     @Test void unknownSelectionPreservesAllOptionsAndTheUnavailableIdentity() {
         var result = TeacherSubmissionView.answers("[{\"question_id\":1,\"selected_option_id\":\"Z\",\"awarded_points\":5}]",questions);
         assertTrue(result.invalid());
-        assertEquals("Option #Z (unavailable)",result.items().get(0).selectedOption());
+        assertEquals("Lựa chọn #Z (không có dữ liệu)",result.items().get(0).selectedOption());
         assertEquals("5",result.items().get(0).awardedPoints());
         assertEquals(2,result.items().get(0).choices().size());
         assertTrue(result.items().get(0).choices().stream().noneMatch(TeacherSubmissionView.Choice::selected));
@@ -167,7 +175,7 @@ class TeacherSubmissionViewTest {
         for (String points : List.of("true","\"5\"","-1","1e999999999","1e-999999999","999999999999999999999999999")) {
             var result = TeacherSubmissionView.answers("[{\"question_id\":1,\"selected_option_id\":\"A\",\"awarded_points\":"+points+"}]",questions);
             assertTrue(result.invalid());
-            assertEquals("Not graded",result.items().get(0).awardedPoints());
+            assertEquals("Chưa chấm",result.items().get(0).awardedPoints());
             assertEquals("Choice <b>",result.items().get(0).selectedOption());
             assertTrue(result.items().get(0).choices().get(0).selected());
         }
@@ -178,8 +186,24 @@ class TeacherSubmissionViewTest {
             var result = TeacherSubmissionView.answers("[{\"question_id\":"+id+",\"selected_option_id\":\"A\"}]",questions);
             assertTrue(result.invalid());
             assertEquals(1,result.items().size());
-            assertEquals("No answer selected",result.items().get(0).selectedOption());
+            assertEquals("Chưa chọn đáp án",result.items().get(0).selectedOption());
         }
+    }
+
+    @Test void multipleSelectionsKeepCorrectWrongAndUnselectedOptionsVisible() {
+        String options = """
+                [{"option_id":"A","option_text":"First","is_correct":true},
+                 {"option_id":"B","option_text":"Second","is_correct":false},
+                 {"option_id":"C","option_text":"Third","is_correct":true}]
+                """;
+        var result=TeacherSubmissionView.answers("[{\"question_id\":1,\"selected_option_ids\":[\"A\",\"B\"],\"awarded_points\":0}]", List.of(question(options)));
+        assertFalse(result.invalid());
+        assertEquals("First\nSecond",result.items().get(0).selectedOption());
+        assertEquals(List.of(new TeacherSubmissionView.Choice("A","First",true,true),
+                new TeacherSubmissionView.Choice("B","Second",true,false),
+                new TeacherSubmissionView.Choice("C","Third",false,true)),result.items().get(0).choices());
+        var duplicate=TeacherSubmissionView.answers("[{\"question_id\":1,\"selected_option_ids\":[\"A\",\"A\"]}]",List.of(question(options)));
+        assertTrue(duplicate.invalid());
     }
 
     @Test void answerAndChoiceListsAreImmutable() {

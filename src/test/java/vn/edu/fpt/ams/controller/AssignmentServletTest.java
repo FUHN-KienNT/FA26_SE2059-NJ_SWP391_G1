@@ -17,10 +17,10 @@ import vn.edu.fpt.ams.service.AssignmentService;
 
 class AssignmentServletTest {
     private static class Exchange {
-        Map<String,String> params = new HashMap<>();
+        Map<String,String> params = new HashMap<>(Map.of("classId","10"));
         Map<String,Object> session = new HashMap<>(Map.<String,Object>of("userId",1L,"role",UserRole.TEACHER,"accountStatus",AccountStatus.ACTIVE));
         Map<String,Object> attributes = new HashMap<>();
-        String forward;
+        String forward, redirect;
         int status = 200;
         boolean noSession;
         boolean localPreview;
@@ -29,6 +29,7 @@ class AssignmentServletTest {
         RequestDispatcher dispatcher = proxy(RequestDispatcher.class, (method,args) -> null);
         HttpServletRequest request = proxy(HttpServletRequest.class, (method,args) -> switch(method) {
             case "getMethod" -> "GET";
+            case "getContextPath" -> "/ams";
             case "getServletPath" -> "/teacher/assignments";
             case "getRemoteAddr" -> localPreview ? "127.0.0.1" : "192.168.1.20";
             case "getSession" -> noSession ? null : httpSession;
@@ -38,6 +39,7 @@ class AssignmentServletTest {
             default -> null;
         });
         HttpServletResponse response = proxy(HttpServletResponse.class, (method,args) -> {
+            if (method.equals("sendRedirect")) { status=302;redirect=(String)args[0]; }
             if (method.equals("sendError") || method.equals("setStatus")) status=(Integer)args[0];
             if (method.equals("setHeader") && args[0].equals("Cache-Control")) cacheControl=(String)args[1];
             return null;
@@ -71,6 +73,15 @@ class AssignmentServletTest {
                 return proxy(ServletContext.class,(method,args)->null);
             }
         };
+    }
+    @Test void missingClassRedirectsToDashboardInsteadOfSelectingAnArbitraryClass() throws Exception {
+        for (String classId : new String[]{null, "", "  "}) {
+            var e=new Exchange();
+            if(classId==null)e.params.remove("classId");else e.params.put("classId",classId);
+            servlet(new IllegalStateException("List must not load without a class")).doGet(e.request,e.response);
+            assertEquals(302,e.status);assertEquals("/ams/teacher/dashboard",e.redirect);
+            assertNull(e.forward);assertFalse(e.attributes.containsKey("assignmentPage"));
+        }
     }
     @Test void passesFiltersAndClassToListAndDisablesCaching() throws Exception {
         var e=new Exchange(); e.params.putAll(Map.of("classId","10","search","Quiz","purpose","PRACTICE"));

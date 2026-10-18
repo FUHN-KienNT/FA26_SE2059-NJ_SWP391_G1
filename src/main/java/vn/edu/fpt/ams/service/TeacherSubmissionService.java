@@ -12,8 +12,10 @@ import vn.edu.fpt.ams.dto.TeacherSubmissionFilter;
 import vn.edu.fpt.ams.dto.TeacherSubmissionListPage;
 import vn.edu.fpt.ams.model.ResponseType;
 import vn.edu.fpt.ams.util.DBConnection;
+import vn.edu.fpt.ams.util.AssignmentSubmissionAccess;
+import vn.edu.fpt.ams.util.SubmissionContentSnapshot;
 
-/** Loads a consistent read-only snapshot of one owned assignment's saved attempts. */
+/** Loads a consistent read-only snapshot of an owned assignment's class roster and saved attempts. */
 public class TeacherSubmissionService {
     private final TeacherSubmissionDAO dao;
     private final AssignmentDAO assignments;
@@ -36,42 +38,51 @@ public class TeacherSubmissionService {
     public TeacherSubmissionListPage listPage(long teacherId, long assignmentId,
             TeacherSubmissionFilter filter) {
         validateActorAndAssignment(teacherId, assignmentId);
-        Objects.requireNonNull(filter, "Submission filters are required.");
+        Objects.requireNonNull(filter, "Cần có bộ lọc bài nộp.");
         return readPage(connection -> {
             AssignmentDetailPage assignment = ownedAssignment(connection, teacherId, assignmentId);
-            return new TeacherSubmissionListPage(assignment, filter,
-                    dao.findForTeacher(connection, teacherId, assignmentId, filter));
+            long count = dao.countForTeacher(connection, teacherId, assignmentId, filter);
+            long lastPage = Math.max(1, (count + TeacherSubmissionFilter.PAGE_SIZE - 1) / TeacherSubmissionFilter.PAGE_SIZE);
+            TeacherSubmissionFilter effective = filter.withPage((int) Math.min(filter.page(), lastPage));
+            return new TeacherSubmissionListPage(assignment, effective,
+                    dao.findForTeacher(connection, teacherId, assignmentId, effective), count);
         });
     }
 
     public TeacherSubmissionDetailPage detailPage(long teacherId, long assignmentId, long submissionId) {
         validateActorAndAssignment(teacherId, assignmentId);
-        if (submissionId <= 0) throw new IllegalArgumentException("Submission ID must be a positive number.");
+        if (submissionId <= 0) throw new IllegalArgumentException("Mã bài nộp phải là số nguyên dương.");
         return readPage(connection -> {
             AssignmentDetailPage assignment = ownedAssignment(connection, teacherId, assignmentId);
             var row = dao.findDetailForTeacher(connection, teacherId, assignmentId, submissionId)
-                    .orElseThrow(() -> new NoSuchElementException("Submission not found or unavailable."));
-            if (assignment.assignment().responseType() == ResponseType.OBJECTIVE) {
+                    .orElseThrow(() -> new NoSuchElementException("Không tìm thấy bài nộp hoặc bạn không có quyền xem."));
+            if (row.assignmentSnapshot() == null && assignment.assignment().responseType() == ResponseType.OBJECTIVE) {
                 assignment = new AssignmentDetailPage(assignment.assignment(), assignment.classCode(),
                         assignment.className(), assignment.subjectCode(), assignment.subjectName(),
                         assignment.termCode(), assignment.templateTitle(),
-                        assignments.findQuestionsForTeacher(connection, teacherId, assignmentId));
+                        assignments.findQuestionsForTeacher(connection, teacherId, assignmentId),
+                        assignment.canViewSubmissions());
             }
-            return new TeacherSubmissionDetailPage(assignment, row);
+            return new TeacherSubmissionDetailPage(SubmissionContentSnapshot.displayPage(assignment, row), row);
         });
     }
 
     private AssignmentDetailPage ownedAssignment(Connection connection, long teacherId,
             long assignmentId) throws SQLException {
         if (!assignments.isActiveTeacher(connection, teacherId))
-            throw new SecurityException("An active Teacher account is required.");
-        return assignments.findDetailForTeacher(connection, teacherId, assignmentId)
-                .orElseThrow(() -> new NoSuchElementException("Assignment not found or unavailable."));
+            throw new SecurityException("Cần đăng nhập bằng tài khoản giảng viên đang hoạt động.");
+        AssignmentDetailPage page = assignments.findDetailForTeacher(connection, teacherId, assignmentId)
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy bài tập hoặc bạn không có quyền xem."));
+        boolean hasWork = page.assignment().publishedAt() != null
+                && dao.hasSubmittedWork(connection, teacherId, assignmentId);
+        if (!AssignmentSubmissionAccess.canView(page.assignment(), hasWork))
+            throw new NoSuchElementException("Không tìm thấy bài tập hoặc bạn không có quyền xem.");
+        return page;
     }
 
     private static void validateActorAndAssignment(long teacherId, long assignmentId) {
-        if (teacherId <= 0) throw new SecurityException("An active Teacher account is required.");
-        if (assignmentId <= 0) throw new IllegalArgumentException("Assignment ID must be a positive number.");
+        if (teacherId <= 0) throw new SecurityException("Cần đăng nhập bằng tài khoản giảng viên đang hoạt động.");
+        if (assignmentId <= 0) throw new IllegalArgumentException("Mã bài tập phải là số nguyên dương.");
     }
 
     @FunctionalInterface
@@ -91,7 +102,7 @@ public class TeacherSubmissionService {
                 throw ex;
             }
         } catch (SQLException ex) {
-            throw new IllegalStateException("Submissions could not be loaded.", ex);
+            throw new IllegalStateException("Không thể tải danh sách bài nộp.", ex);
         }
     }
 }

@@ -10,6 +10,8 @@
 .assignment-create fieldset{border:0;margin:0;padding:0;min-width:0}
 .assignment-create .field-error{display:block;color:#a32626;margin:6px 0;scroll-margin-top:100px}
 .assignment-create .field-error:empty{display:none}
+.assignment-create .character-count{display:block;text-align:right;color:#627183;font-size:12px;margin-top:6px}
+.assignment-create .character-count.over-limit{color:#a32626;font-weight:600}
 .assignment-create .editor-card{border:1px solid #dce2e8;border-radius:7px;padding:16px;margin:14px 0;background:#f8fafc}
 .assignment-create .editor-heading,.assignment-create .editor-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .assignment-create .editor-actions{display:flex;gap:7px;flex-wrap:wrap}

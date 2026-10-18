@@ -55,7 +55,7 @@ class AssignmentCreateDatabaseTest {
                 "instructions","Teacher edited instructions","maximumScore","20","purpose","REGULAR","responseType","OBJECTIVE",
                 "scopeText","Inactive Essay scope",
                 "tasksJson","[{\"title\":\"Task\",\"description\":\"Details\"}]",
-                "questionsJson","[{\"question_text\":\"Question\",\"maximum_points\":\"2\",\"options\":[{\"option_text\":\"A\",\"is_correct\":true}]}]"));
+                "questionsJson","[{\"question_text\":\"Question\",\"maximum_points\":\"20\",\"options\":[{\"option_text\":\"A\",\"is_correct\":true}]}]"));
     }
     int count(String table) throws Exception {
         try(var s=connection.createStatement();var r=s.executeQuery("SELECT count(*) FROM "+table)){r.next();return r.getInt(1);}
@@ -74,7 +74,7 @@ class AssignmentCreateDatabaseTest {
     }
     @Test void savesObjectiveDraftWithMalformedInactiveEssayTasks() throws Exception {
         var values=new HashMap<>(form("1").values());
-        values.put("purpose","PRACTICE"); values.put("tasksJson","{broken");
+        values.put("purpose","PRACTICE"); values.put("attemptLimit","1"); values.put("tasksJson","{broken");
         long id=service(new AssignmentDAO()).createAssignment(1,new AssignmentForm(values));
         try(var s=connection.createStatement();var r=s.executeQuery("SELECT scope_text,task_checklist,status,assignment_purpose FROM assignments WHERE assignment_id="+id)) {
             assertTrue(r.next()); assertEquals("",r.getString("scope_text"));
@@ -88,39 +88,37 @@ class AssignmentCreateDatabaseTest {
             var values=new HashMap<>(form("1").values());
             values.put("responseType","ESSAY"); values.put("scopeText","UML & Java");
             values.put("tasksJson","""
-                    [{"title":"Task one","description":"Full description","task_order":99},
-                     {"title":"Task two","description":"Second description","task_order":7}]
+                    [{"title":"Task one","description":"Full description","task_order":99,"maximum_points":"10"},
+                     {"title":"Task two","description":"Second description","task_order":7,"maximum_points":"10"}]
                     """);
             values.put("questionsJson",questions);
             long id=service(new AssignmentDAO()).createAssignment(1,new AssignmentForm(values));
             try(var s=connection.createStatement();var r=s.executeQuery("SELECT scope_text,task_checklist,status,response_type FROM assignments WHERE assignment_id="+id)) {
-                assertTrue(r.next()); assertEquals("UML & Java",r.getString("scope_text"));
+                assertTrue(r.next()); assertEquals("",r.getString("scope_text"));
                 assertEquals("DRAFT",r.getString("status")); assertEquals("ESSAY",r.getString("response_type"));
                 var tasks=JsonParser.parseString(r.getString("task_checklist")).getAsJsonArray();
                 assertEquals(2,tasks.size());
                 assertEquals(1,tasks.get(0).getAsJsonObject().get("task_order").getAsInt());
-                assertEquals("Task one",tasks.get(0).getAsJsonObject().get("title").getAsString());
-                assertEquals("Full description",tasks.get(0).getAsJsonObject().get("description").getAsString());
+                assertEquals("Task one\nFull description",tasks.get(0).getAsJsonObject().get("title").getAsString());
+                assertEquals("",tasks.get(0).getAsJsonObject().get("description").getAsString());
                 assertEquals(2,tasks.get(1).getAsJsonObject().get("task_order").getAsInt());
-                assertEquals("Second description",tasks.get(1).getAsJsonObject().get("description").getAsString());
+                assertEquals("Task two\nSecond description",tasks.get(1).getAsJsonObject().get("title").getAsString());
+                assertEquals("",tasks.get(1).getAsJsonObject().get("description").getAsString());
                 assertFalse(r.next());
             }
         }
         assertEquals(2,count("assignments")); assertEquals(0,count("questions"));
     }
-    @Test void savesEssayAndObjectiveDraftsWithoutPublicationContent() throws Exception {
+    @Test void rejectsEssayAndObjectiveDraftsWithoutAnyTaskOrQuestion() throws Exception {
         for(String response:List.of("ESSAY","OBJECTIVE")) {
             var values=new HashMap<>(form("1").values());
             values.put("responseType",response); values.put("instructions",""); values.put("scopeText","");
             values.put("tasksJson","[]"); values.put("questionsJson","[]");
-            long id=service(new AssignmentDAO()).createAssignment(1,new AssignmentForm(values));
-            try(var s=connection.createStatement();var r=s.executeQuery("SELECT scope_text,task_checklist,status,response_type,due_at,published_at FROM assignments WHERE assignment_id="+id)) {
-                assertTrue(r.next()); assertEquals("",r.getString("scope_text")); assertEquals("[]",r.getString("task_checklist"));
-                assertEquals("DRAFT",r.getString("status")); assertEquals(response,r.getString("response_type"));
-                assertNull(r.getObject("due_at")); assertNull(r.getObject("published_at")); assertFalse(r.next());
-            }
+            var error=assertThrows(ValidationException.class,
+                    ()->service(new AssignmentDAO()).createAssignment(1,new AssignmentForm(values)));
+            assertTrue(error.errors().containsKey(response.equals("ESSAY")?"tasksJson":"questionsJson"));
         }
-        assertEquals(2,count("assignments")); assertEquals(0,count("questions"));
+        assertEquals(0,count("assignments")); assertEquals(0,count("questions"));
     }
     @Test void rejectsForeignClassInactiveOrWrongRoleTeacherAndInvalidTemplates() throws Exception {
         var service=service(new AssignmentDAO());
