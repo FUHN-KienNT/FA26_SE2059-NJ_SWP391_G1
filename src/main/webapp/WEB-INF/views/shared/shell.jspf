@@ -1,85 +1,25 @@
 <%@ page pageEncoding="UTF-8" %>
 <%
-    Object uiRole = session.getAttribute("role");
-    String uiArea = uiRole == null ? "admin" : uiRole.toString().toLowerCase(java.util.Locale.ROOT);
-    Object uiForward = request.getAttribute("jakarta.servlet.forward.servlet_path");
-    String uiPath = uiForward instanceof String ? (String)uiForward : request.getServletPath();
-    String uiRoleLabel = vn.edu.fpt.ams.util.Vietnamese.label(uiRole);
-    String[][] uiLinks;
-    if("admin".equals(uiArea)) uiLinks = new String[][]{
-        {
-            "/admin/dashboard","Bảng điều khiển"
-        }
-        ,{
-            "/admin/users","Tài khoản"
-        }
-        ,{
-            "/admin/subjects","Môn học"
-        }
-        ,{
-            "/admin/settings","Cài đặt"
-        }
-    }
-    ;
-    else if("expert".equals(uiArea)) uiLinks = new String[][]{
-        {
-            "/expert/dashboard","Bảng điều khiển"
-        }
-        ,{
-            "/expert/classes","Môn học và lớp"
-        }
-        ,{
-            "/expert/templates","Mẫu bài tập"
-        }
-    }
-    ;
-    else if("teacher".equals(uiArea)) uiLinks = new String[][]{
-        {
-            "/teacher/dashboard","Bảng điều khiển"
-        }
-        ,{
-            "/teacher/enrollments","Lớp phụ trách"
-        }
-    }
-    ;
-    else uiLinks = new String[][]{
-        {
-            "/student/dashboard","Bảng điều khiển"
-        }
-        ,{
-            "/student/assignments","Bài tập"
-        }
-    }
-    ;
+Object uiRole = session.getAttribute("role");
+String uiArea = uiRole == null ? "admin" : uiRole.toString().toLowerCase(java.util.Locale.ROOT);
+Object uiForward = request.getAttribute("jakarta.servlet.forward.servlet_path");
+String uiPath = uiForward instanceof String ? (String)uiForward : request.getServletPath();
+String uiRoleLabel = vn.edu.fpt.ams.util.Vietnamese.label(uiRole);
+String[][] uiLinks;
+if("admin".equals(uiArea)) uiLinks = new String[][]{{"/admin/dashboard","Bảng điều khiển"},{"/admin/users","Tài khoản"},{"/admin/terms","Học kỳ"},{"/admin/subjects","Môn học"},{"/admin/settings","Cài đặt hệ thống"}};
+else if("expert".equals(uiArea)) uiLinks = new String[][]{{"/expert/dashboard","Bảng điều khiển"},{"/expert/classes","Môn học và lớp"},{"/expert/templates","Mẫu bài tập"}};
+else if("teacher".equals(uiArea)) uiLinks = new String[][]{{"/teacher/dashboard","Bảng điều khiển"},{"/teacher/enrollments","Lớp phụ trách"}};
+else uiLinks = new String[][]{{"/student/dashboard","Bảng điều khiển"},{"/student/assignments","Bài tập"}};
 %>
 <a class="ams-skip" href="#page-content">Đến nội dung chính</a>
 <header class="ams-header">
-    <button class="ams-menu-toggle" type="button" aria-controls="ams-navigation" aria-expanded="true" aria-label="Ẩn hoặc hiện menu">
-        ☰
-    </button>
-    <a class="ams-brand" href="${pageContext.request.contextPath}/home"><span class="ams-logo" aria-hidden="true">A</span><strong>AMS</strong>
-    <span>Hệ thống quản lý bài tập</span></a>
-    <form class="ams-account" method="post" action="${pageContext.request.contextPath}/auth/signout">
-        <span><%=vn.edu.fpt.ams.util.WebSupport.html(uiRoleLabel)%></span>
-        <input type="hidden" name="csrf" value="<%=vn.edu.fpt.ams.util.WebSupport.csrf(request)%>">
-        <button type="submit">
-            Đăng xuất
-        </button>
-    </form>
+<button class="ams-menu-toggle" type="button" aria-controls="ams-navigation" aria-expanded="true" aria-label="Ẩn hoặc hiện menu">☰</button>
+<a class="ams-brand" href="${pageContext.request.contextPath}/home"><span class="ams-logo" aria-hidden="true">A</span><strong>AMS</strong><span>Hệ thống quản lý bài tập</span></a>
+<form class="ams-account" method="post" action="${pageContext.request.contextPath}/auth/signout"><span><%=vn.edu.fpt.ams.util.WebSupport.html(uiRoleLabel)%></span><input type="hidden" name="csrf" value="<%=vn.edu.fpt.ams.util.WebSupport.csrf(request)%>"><button type="submit">Đăng xuất</button></form>
 </header>
 <div class="ams-layout">
-    <aside class="ams-sidebar" id="ams-navigation">
-        <nav aria-label="Điều hướng chính">
-            <%
-                for(String[] uiLink:uiLinks){
-                    boolean uiActive=uiLink[0].equals(uiPath) || ("/admin/settings".equals(uiLink[0]) && "/admin/master-data".equals(uiPath));
-                %>
-                <a href="${pageContext.request.contextPath}<%=uiLink[0]%>" <%=uiActive?"aria-current=\"page\"":""%>><%=uiLink[1]%></a>
-                <%
-                }
-            %>
-        </nav>
-        <p class="ams-sidebar-note">
-            <%=vn.edu.fpt.ams.util.WebSupport.html(uiRoleLabel)%>
-        </p>
-    </aside>
+<aside class="ams-sidebar" id="ams-navigation"><nav aria-label="Điều hướng chính">
+<% for(String[] uiLink:uiLinks){ boolean uiActive=uiLink[0].equals(uiPath) || ("/admin/terms".equals(uiLink[0]) && "/admin/master-data".equals(uiPath)); %>
+<a href="${pageContext.request.contextPath}<%=uiLink[0]%>" <%=uiActive?"aria-current=\"page\"":""%>><%=uiLink[1]%></a>
+<% } %>
+</nav><p class="ams-sidebar-note"><%=vn.edu.fpt.ams.util.WebSupport.html(uiRoleLabel)%></p></aside>

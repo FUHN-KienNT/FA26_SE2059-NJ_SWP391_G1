@@ -4,6 +4,7 @@ import vn.edu.fpt.ams.dao.*;
 import java.sql.*;
 import java.util.*;
 import vn.edu.fpt.ams.dao.UserDAO;
+import vn.edu.fpt.ams.dao.SystemSettingDAO;
 import vn.edu.fpt.ams.dto.UserCreateRequest;
 import vn.edu.fpt.ams.dto.ExpertSubjectDTO;
 import vn.edu.fpt.ams.integration.EmailService;
@@ -15,6 +16,7 @@ public class UserService {
   private final Jdbc.Connections connections;
   private final EmailService mail;
   private final UserDAO users = new UserDAO();
+  private final SystemSettingDAO settings = new SystemSettingDAO();
 
   public UserService() {
     this(DBConnection::getConnection, new EmailService());
@@ -34,6 +36,16 @@ public class UserService {
       UserAccount account = id == 0 ? null : users.findById(c, id).orElseThrow();
       return UserAdministrationDAO.findExpertSubjects(c,
           account != null && account.role() == UserRole.EXPERT ? id : 0);
+    });
+  }
+
+  /** Available choices for new staff accounts, ordered by configured priority. */
+  public List<SystemSetting> roleOptions(long actor) {
+    return Jdbc.transaction(connections, c -> {
+      Access.admin(c, actor);
+      return settings.activeOptions(c, SettingType.USER_ROLE).stream()
+          .filter(s -> !"STUDENT".equals(s.value()))
+          .toList();
     });
   }
 
@@ -99,6 +111,7 @@ public class UserService {
             c -> {
               lockUsers(c);
               Access.admin(c, actor);
+              settings.requireActiveForNew(c, SettingType.USER_ROLE, request.role().name());
               long key =
                   users.insert(
                       c,
@@ -146,6 +159,8 @@ public class UserService {
                 "Resolve active responsibilities before changing role");
           if (role != old.role() && old.accountStatus() == AccountStatus.INACTIVE)
             throw new IllegalArgumentException("Reactivate before changing staff role");
+          if (role != old.role())
+            settings.requireActiveForNew(c, SettingType.USER_ROLE, role.name());
           UserAdministrationDAO.updateIdentity(c, n, e, role.name(), id);
           setEligibility(c, id, role, eligible);
           if (target != null) changeStatus(c, actor, id, target);

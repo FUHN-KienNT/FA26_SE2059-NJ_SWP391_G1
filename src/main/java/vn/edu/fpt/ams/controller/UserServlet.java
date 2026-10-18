@@ -30,6 +30,7 @@ public class UserServlet extends HttpServlet {
         long actor = WebSupport.actor(req);
         req.setAttribute("subjects", service.subjects(actor));
         req.setAttribute("expertSubjects", service.expertSubjects(actor, 0));
+        req.setAttribute("roleOptions", service.roleOptions(actor));
         if (!"create".equals(mode)) {
           long id = WebSupport.id(req.getParameter("id"));
           req.setAttribute("user", service.detail(actor, id));
@@ -118,6 +119,7 @@ public class UserServlet extends HttpServlet {
         req.setAttribute("mode", create ? "create" : "edit");
         req.setAttribute("subjects", service.subjects(actor));
         req.setAttribute("expertSubjects", service.expertSubjects(actor, 0));
+        req.setAttribute("roleOptions", service.roleOptions(actor));
         if (!create) {
           long id = WebSupport.id(req.getParameter("id"));
           req.setAttribute("user", service.detail(actor, id));

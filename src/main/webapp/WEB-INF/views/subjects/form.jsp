@@ -21,9 +21,7 @@
     <body class="admin-users admin-app admin-subjects ams-ui">
         <%@ include file="/WEB-INF/views/admin/shell.jspf" %>
         <main class="users-main subject-form ams-content bao-mode-page" id="page-content">
-            <nav class="bao-context" aria-label="Ngữ cảnh">
-                <span>Cài đặt</span><span aria-hidden="true">›</span><span>Môn học</span><span aria-hidden="true">›</span><span><%=create?"Thêm môn học":"Chỉnh sửa"%></span>
-            </nav>
+            <nav class="bao-context" aria-label="Ngữ cảnh"><a href="${pageContext.request.contextPath}/admin/subjects">Môn học</a><span aria-hidden="true">›</span><span><%=create?"Thêm môn học":"Chỉnh sửa"%></span></nav>
             <div class="subject-heading">
                 <div>
                     <h1>

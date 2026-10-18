@@ -6,13 +6,16 @@ import jakarta.servlet.http.*;
 import java.io.IOException;
 import java.util.NoSuchElementException;
 import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.List;
 import java.math.BigDecimal;
 import vn.edu.fpt.ams.service.AssignmentService;
+import vn.edu.fpt.ams.service.AssignmentSettingRules;
 import vn.edu.fpt.ams.dto.AssignmentListFilter;
 import vn.edu.fpt.ams.model.AccountStatus;
 import vn.edu.fpt.ams.model.UserRole;
+import vn.edu.fpt.ams.model.SettingType;
 import vn.edu.fpt.ams.dto.AssignmentForm;
 import vn.edu.fpt.ams.dto.AssignmentCreatePage;
 import vn.edu.fpt.ams.dto.AssignmentEditPage;
@@ -57,6 +60,7 @@ public class AssignmentServlet extends HttpServlet {
                 long classId = WebSupport.id(req.getParameter("classId"));
                 req.setAttribute("createPage", service.createPage(teacherId, classId));
                 req.setAttribute("assignmentForm", AssignmentForm.empty(classId));
+                settingOptions(req, teacherId);
                 WebSupport.csrf(req);
             } else if ("edit".equals(mode)) {
                 view="/WEB-INF/views/assignments/form.jsp";
@@ -65,6 +69,7 @@ public class AssignmentServlet extends HttpServlet {
                 var page=service.editPage(teacherId,assignmentId);
                 editContext(req,page);
                 req.setAttribute("assignmentForm",page.form());
+                settingOptions(req, teacherId);
                 WebSupport.csrf(req);
             } else if ("publish".equals(mode) || "cancel".equals(mode)) {
                 view = "/WEB-INF/views/assignments/lifecycle.jsp";
@@ -153,6 +158,7 @@ public class AssignmentServlet extends HttpServlet {
                 classId=WebSupport.id(form.value("classId"));
                 req.setAttribute("createPage",service.createPage(teacherId,classId));
             }
+            settingOptions(req, teacherId);
             if (!validToken) {
                 // Never save this POST. Redisplay with the current session token for an explicit retry.
                 res.setStatus(HttpServletResponse.SC_FORBIDDEN);
@@ -269,6 +275,16 @@ public class AssignmentServlet extends HttpServlet {
         req.setAttribute("savedResponseType",page.form().value("responseType"));
         req.setAttribute("savedEssayContent",!page.form().value("scopeText").isBlank() || !"[]".equals(page.form().value("tasksJson")));
         req.setAttribute("savedObjectiveContent",!"[]".equals(page.form().value("questionsJson")));
+    }
+
+    private void settingOptions(HttpServletRequest req, long teacherId) {
+        var purposes = service.activeOptions(teacherId, SettingType.ASSIGNMENT_TYPE);
+        var responses = service.activeOptions(teacherId, SettingType.RESPONSE_TYPE);
+        req.setAttribute("purposeOptions", purposes);
+        req.setAttribute("responseOptions", responses);
+        var choices = new ArrayList<>(purposes);
+        choices.addAll(responses);
+        req.setAttribute("assignmentConfigAvailable", AssignmentSettingRules.hasAvailableCombination(choices));
     }
 
     /** Display submitted values during an outage; this context never grants write access. */

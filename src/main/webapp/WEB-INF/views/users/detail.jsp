@@ -4,13 +4,16 @@
     boolean create=u==null;
     boolean read="view".equals(request.getAttribute("mode"));
     var subjects=(Map<Long,String>)request.getAttribute("subjects");
+    var roleOptions=(List<SystemSetting>)request.getAttribute("roleOptions");
+    if(roleOptions==null) roleOptions=List.of();
+    boolean noStaffRoles=create&&roleOptions.isEmpty();
     var eligible=(Set<Long>)request.getAttribute("eligibility");
     if(eligible==null)eligible=Set.of();
     String token=WebSupport.csrf(request);
     boolean submitted=Boolean.TRUE.equals(request.getAttribute("submitted"));
     String name=submitted?request.getParameter("fullName"):create?"":u.fullName();
     String email=submitted?request.getParameter("email"):create?"":u.email();
-    String role=submitted?request.getParameter("role"):create?"TEACHER":u.role().name();
+    String role=submitted?request.getParameter("role"):create?"":u.role().name();
     String selectedStatus=submitted?request.getParameter("status"):create?"ACTIVE":u.accountStatus().name();
     if(submitted)eligible=WebSupport.ids(request.getParameterValues("subjects"));
 %>
@@ -34,6 +37,9 @@
             <h1>
                 <%=create?"Tạo tài khoản nội bộ":"Chi tiết tài khoản"%>
             </h1>
+            <% if(noStaffRoles){ %>
+            <p role="alert">Không có vai trò nhân sự đang hoạt động. Vui lòng kích hoạt một vai trò trong Cài đặt hệ thống trước khi tạo tài khoản.</p>
+            <% } %>
             <%
                 if(session.getAttribute("notice")!=null){
                 %>
@@ -88,24 +94,7 @@
                     </label>
                     <label>
                         Vai trò
-                        <select name="role" id="user-role" <%=read?"disabled":""%>>
-                            <%
-                                if(!create&&u.role()==UserRole.STUDENT){
-                                %>
-                                <option value="STUDENT">
-                                    Sinh viên
-                                </option>
-                                <%
-                                }
-                                else for(var r:List.of(UserRole.ADMIN,UserRole.EXPERT,UserRole.TEACHER)){
-                                %>
-                                <option value="<%=r.name()%>" <%=r.name().equals(role)?"selected":""%>>
-                                    <%=vn.edu.fpt.ams.util.Vietnamese.label(r)%>
-                                </option>
-                                <%
-                                }
-                            %>
-                        </select>
+                        <select name="role" required <%=read?"disabled":""%>><% if(create){ %><option value="" <%=role==null||role.isBlank()?"selected":""%>>Chọn vai trò</option><% } if(!create&&u.role()==UserRole.STUDENT){ %><option value="STUDENT">Sinh viên</option><% } else { if(!create&&roleOptions.stream().noneMatch(s->s.value().equals(u.role().name()))){ %><option value="<%=u.role().name()%>" <%=u.role().name().equals(role)?"selected":""%>><%=vn.edu.fpt.ams.util.Vietnamese.label(u.role())%> (vai trò hiện tại)</option><% } for(var option:roleOptions){ %><option value="<%=option.value()%>" <%=option.value().equals(role)?"selected":""%>><%=WebSupport.html(option.name())%></option><% } } %></select>
                     </label>
                     <div class="user-status" role="group" aria-labelledby="user-status-label">
                         <span id="user-status-label">Trạng thái</span>
@@ -298,7 +287,7 @@
                 %>
                 <div class="user-detail-footer">
                     <a class="ams-button" href="${pageContext.request.contextPath}/admin/users">Hủy</a>
-                    <button type="submit" class="ams-button ams-button-primary" form="user-detail-form">
+                    <button type="submit" class="ams-button ams-button-primary" form="user-detail-form" <%=noStaffRoles?"disabled":""%>>
                         <%=create?"Tạo và gửi thông tin đăng nhập":"Lưu thay đổi"%>
                     </button>
                 </div>

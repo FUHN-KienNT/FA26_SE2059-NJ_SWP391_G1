@@ -79,6 +79,95 @@ class AdminScreensWorkflowsTest {
     assertThrows(SecurityException.class, () -> auth.signIn(null, "Password"));
   }
 
+  @Test
+  void systemSettingsUseDatabaseFiltersPriorityAndPreserveExistingAccounts() {
+    var settings = new SystemSettingService(db);
+    assertEquals(8, settings.list(1, null, null, null).size());
+    assertEquals(4, settings.list(1, null, SettingType.USER_ROLE, true).size());
+    assertEquals(1, settings.list(1, "practice", SettingType.ASSIGNMENT_TYPE, null).size());
+    assertThrows(SecurityException.class, () -> settings.list(2, null, null, null));
+
+    SystemSetting expert = settings.list(1, "EXPERT", SettingType.USER_ROLE, null).get(0);
+    assertThrows(SecurityException.class,
+        () -> settings.update(2, expert.settingId(), "Unauthorized", 9));
+    assertThrows(SecurityException.class,
+        () -> settings.setActive(2, expert.settingId(), false));
+    assertEquals("Expert", settings.detail(1, expert.settingId()).name());
+    settings.update(1, expert.settingId(), "Chuyên gia", 4);
+    SystemSetting renamed = settings.detail(1, expert.settingId());
+    assertEquals("EXPERT", renamed.value());
+    assertEquals(SettingType.USER_ROLE, renamed.type());
+    assertEquals("Chuyên gia", renamed.name());
+    assertEquals("EXPERT", users.roleOptions(1).get(2).value());
+    assertThrows(IllegalArgumentException.class,
+        () -> settings.update(1, expert.settingId(), " ", 0));
+
+    settings.setActive(1, expert.settingId(), false);
+    assertFalse(settings.detail(1, expert.settingId()).active());
+    assertEquals(1, scalar("SELECT COUNT(*) FROM system_settings WHERE setting_id=? AND is_active=FALSE", expert.settingId()));
+    assertEquals(1, settings.list(1, "EXPERT", SettingType.USER_ROLE, false).size());
+    assertTrue(settings.activeOptions(1, SettingType.USER_ROLE).stream()
+        .noneMatch(s -> "EXPERT".equals(s.value())));
+    assertThrows(IllegalArgumentException.class,
+        () -> settings.setActive(1, expert.settingId(), false));
+    assertEquals(1, scalar("SELECT COUNT(*) FROM system_settings WHERE setting_id=? AND is_active=FALSE", expert.settingId()));
+    assertTrue(users.roleOptions(1).stream().noneMatch(s -> "EXPERT".equals(s.value())));
+    assertEquals(AccountStatus.ACTIVE, users.detail(1, 2).accountStatus());
+    assertEquals(UserRole.EXPERT, users.detail(1, 2).role());
+    assertThrows(IllegalArgumentException.class,
+        () -> users.create(1, new UserCreateRequest("New Expert", "new-expert@test.edu",
+            UserRole.EXPERT), Set.of()));
+    assertEquals(0, scalar("SELECT COUNT(*) FROM users WHERE email='new-expert@test.edu'"));
+    settings.setActive(1, expert.settingId(), true);
+    assertEquals(1, scalar("SELECT COUNT(*) FROM system_settings WHERE setting_id=? AND is_active=TRUE", expert.settingId()));
+    assertTrue(users.roleOptions(1).stream().anyMatch(s -> "EXPERT".equals(s.value())));
+    assertThrows(IllegalArgumentException.class,
+        () -> settings.setActive(1, expert.settingId(), true));
+  }
+
+  @Test
+  void noActiveStaffRolePreventsCreationWithoutChangingExistingUsers() {
+    var settings = new SystemSettingService(db);
+    for (String role : List.of("ADMIN", "EXPERT", "TEACHER")) {
+      long id = settings.list(1, role, SettingType.USER_ROLE, null).get(0).settingId();
+      settings.setActive(1, id, false);
+    }
+    assertTrue(users.roleOptions(1).isEmpty());
+    assertThrows(IllegalArgumentException.class,
+        () -> users.create(1, new UserCreateRequest("New Staff", "new-staff@test.edu",
+            UserRole.TEACHER), Set.of()));
+    assertEquals(0, scalar("SELECT COUNT(*) FROM users WHERE email='new-staff@test.edu'"));
+    assertEquals(UserRole.EXPERT, users.detail(1, 2).role());
+    assertEquals(AccountStatus.ACTIVE, users.detail(1, 2).accountStatus());
+  }
+
+  @Test
+  void creatingTermNeverMarksItCurrentAutomatically() {
+    sql("UPDATE academic_terms SET is_current=FALSE,is_active=FALSE WHERE term_id=1");
+    long id = masterData.createTerm(1, requestedTerm(0, "NEXTTERM", false, true));
+    assertTrue(masterData.getTerm(1, id).active());
+    assertFalse(masterData.getTerm(1, id).current());
+    assertThrows(IllegalArgumentException.class,
+        () -> masterData.createTerm(1, requestedTerm(0, "FORGED", true, true)));
+    assertEquals(0, scalar("SELECT COUNT(*) FROM academic_terms WHERE term_code='FORGED'"));
+  }
+
+  @Test
+  void creatingTermDoesNotReplaceAnExistingCurrentTerm() {
+    AcademicTerm existing = masterData.getTerm(1, 1);
+    long id = masterData.createTerm(1, requestedTerm(0, "LATERTERM", false, false));
+
+    assertEquals(existing, masterData.getTerm(1, 1));
+    assertFalse(masterData.getTerm(1, id).current());
+    assertFalse(masterData.getTerm(1, id).active());
+    assertEquals(1, scalar("SELECT COUNT(*) FROM academic_terms WHERE is_current=TRUE"));
+
+    assertThrows(IllegalArgumentException.class,
+        () -> masterData.createTerm(1, requestedTerm(0, "FORGEDCURRENT", true, true)));
+    assertEquals(existing, masterData.getTerm(1, 1));
+    assertEquals(0, scalar("SELECT COUNT(*) FROM academic_terms WHERE term_code='FORGEDCURRENT'"));
+  }
+
   void initializeServicesAndSeed() {
     users =
         new UserService(
@@ -897,6 +986,30 @@ class AdminScreensWorkflowsTest {
     assertEquals("Spring Updated",masterData.getTerm(1,id).termName());
     assertThrows(IllegalArgumentException.class,()->masterData.updateTerm(1,
         new AcademicTerm(1,"FA26","Fall",start,end,true,true)));
+  }
+
+  @Test
+  void savingUnchangedTermDatesAfterSubjectSetupKeepsStoredTimestamps() {
+    AcademicTerm old = masterData.getTerm(1, 1);
+    Instant formStart = old.startsAt().atZone(ZoneOffset.UTC).toLocalDate()
+        .atStartOfDay(ZoneOffset.UTC).toInstant();
+    Instant formEnd = old.endsAt().atZone(ZoneOffset.UTC).toLocalDate()
+        .plusDays(1).atStartOfDay(ZoneOffset.UTC).minusNanos(1).toInstant();
+
+    masterData.updateTerm(1, new AcademicTerm(1, old.termCode(), "Fall renamed",
+        formStart, formEnd, true, true));
+
+    AcademicTerm saved = masterData.getTerm(1, 1);
+    assertEquals("Fall renamed", saved.termName());
+    assertEquals(old.startsAt(), saved.startsAt());
+    assertEquals(old.endsAt(), saved.endsAt());
+    Instant changedEnd = old.endsAt().atZone(ZoneOffset.UTC).toLocalDate()
+        .plusDays(2).atStartOfDay(ZoneOffset.UTC).minusNanos(1).toInstant();
+    var error = assertThrows(IllegalArgumentException.class, () -> masterData.updateTerm(1,
+        new AcademicTerm(1, old.termCode(), "Should not save", formStart, changedEnd, true, true)));
+    assertEquals("Không thể thay đổi ngày học kỳ khi đã có cấu hình môn học cho học kỳ này.",
+        error.getMessage());
+    assertEquals(saved, masterData.getTerm(1, 1));
   }
 
   @Test

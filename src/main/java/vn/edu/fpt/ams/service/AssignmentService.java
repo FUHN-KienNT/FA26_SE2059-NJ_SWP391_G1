@@ -19,6 +19,7 @@ import vn.edu.fpt.ams.util.AssignmentSubmissionAccess;
 /** Workflow boundary; unfinished writes fail closed instead of claiming success. */
 public class AssignmentService {
     private final AssignmentDAO dao;
+    private final SystemSettingDAO settings = new SystemSettingDAO();
     private final ConnectionProvider connections;
 
     @FunctionalInterface
@@ -43,6 +44,19 @@ public class AssignmentService {
         }
     }
 
+    public List<SystemSetting> activeOptions(long teacherId, SettingType type) {
+        if (type != SettingType.ASSIGNMENT_TYPE && type != SettingType.RESPONSE_TYPE)
+            throw new IllegalArgumentException("Loại thiết lập bài tập không hợp lệ.");
+        try (Connection connection = connections.open()) {
+            connection.setReadOnly(true);
+            if (!dao.isActiveTeacher(connection, teacherId))
+                throw new SecurityException("Cần tài khoản giảng viên đang hoạt động.");
+            return settings.activeOptions(connection, type);
+        } catch (SQLException ex) {
+            throw new IllegalStateException("Không thể tải lựa chọn bài tập.", ex);
+        }
+    }
+
     public long createAssignment(long teacherId, AssignmentForm form) {
         var draft = AssignmentDraftValidator.validate(form);
         Assignment assignment = draft.assignment();
@@ -52,6 +66,10 @@ public class AssignmentService {
                 // Keep authorization valid until both parent and nested content are saved.
                 if (!dao.lockActiveTeacher(connection, teacherId))
                     throw new SecurityException("Cần tài khoản giảng viên đang hoạt động.");
+                requireSelectable(connection, SettingType.ASSIGNMENT_TYPE,
+                        assignment.assignmentPurpose().name(), "purpose");
+                requireSelectable(connection, SettingType.RESPONSE_TYPE,
+                        assignment.responseType().name(), "responseType");
                 var context = dao.findCreatePage(connection, teacherId, assignment.classId(), true);
                 if (!dao.lockActiveTemplate(connection, assignment.templateId(), context.subjectId()))
                     throw new AssignmentDraftValidator.ValidationException(Map.of("templateId",
@@ -116,6 +134,12 @@ public class AssignmentService {
                 if(!AssignmentEditSupport.revision(stored,existing).equals(form.value("revision")))
                     throw new AssignmentEditConflictException("Bản nháp đã thay đổi sau khi bạn mở trang chỉnh sửa. Hãy tải phiên bản mới nhất trước khi lưu.");
                 var draft=AssignmentEditSupport.validate(form,existing);
+                if (draft.assignment().assignmentPurpose() != stored.assignmentPurpose())
+                    requireSelectable(connection, SettingType.ASSIGNMENT_TYPE,
+                            draft.assignment().assignmentPurpose().name(), "purpose");
+                if (draft.assignment().responseType() != stored.responseType())
+                    requireSelectable(connection, SettingType.RESPONSE_TYPE,
+                            draft.assignment().responseType().name(), "responseType");
                 if(draft.assignment().classId()!=stored.classId())
                     throw new AssignmentDraftValidator.ValidationException(Map.of("classId","Không thể chuyển bài tập sang lớp khác."));
                 if(draft.assignment().templateId()!=stored.templateId()
@@ -133,6 +157,15 @@ public class AssignmentService {
     private static void requireDraft(Assignment a) {
         if(a.status()!=AssignmentStatus.DRAFT)
             throw new AssignmentEditConflictException("Chỉ có thể sửa bài tập ở trạng thái bản nháp. Trạng thái hiện tại: "+vn.edu.fpt.ams.util.AssignmentListView.label(a.status())+".");
+    }
+
+    private void requireSelectable(Connection connection, SettingType type, String value, String field)
+            throws SQLException {
+        try {
+            settings.requireActiveForNew(connection, type, value);
+        } catch (IllegalArgumentException ex) {
+            throw new AssignmentDraftValidator.ValidationException(Map.of(field, ex.getMessage()));
+        }
     }
 
     public long previewTeacherId() {

@@ -49,6 +49,7 @@ class AssignmentEditDatabaseTest {
                     """);
             statement.execute("CREATE TEMP TABLE assignments (LIKE public.assignments INCLUDING ALL)");
             statement.execute("CREATE TEMP TABLE questions (LIKE public.questions INCLUDING ALL)");
+            statement.execute("CREATE TEMP TABLE system_settings(setting_id BIGINT PRIMARY KEY,setting_type TEXT,setting_value TEXT,display_name TEXT,priority INTEGER,is_active BOOLEAN)");
             // Replace both identity and serial defaults, so no application sequence is advanced.
             statement.execute("ALTER TABLE assignments ALTER COLUMN assignment_id DROP IDENTITY IF EXISTS");
             statement.execute("CREATE TEMP SEQUENCE edit_assignment_test_ids START WITH 10000");
@@ -57,6 +58,7 @@ class AssignmentEditDatabaseTest {
             statement.execute("CREATE TEMP SEQUENCE edit_question_test_ids START WITH 10000");
             statement.execute("ALTER TABLE questions ALTER COLUMN question_id SET DEFAULT nextval('edit_question_test_ids')");
             statement.execute("SET search_path TO pg_temp");
+            statement.execute("INSERT INTO system_settings VALUES (1,'ASSIGNMENT_TYPE','REGULAR','Regular',1,TRUE),(2,'ASSIGNMENT_TYPE','PRACTICE','Practice',2,TRUE),(3,'RESPONSE_TYPE','ESSAY','Essay',1,TRUE),(4,'RESPONSE_TYPE','OBJECTIVE','Objective',2,TRUE)");
             statement.execute("""
                     INSERT INTO users VALUES (1,'TEACHER','ACTIVE'), (2,'TEACHER','ACTIVE'),
                         (3,'TEACHER','INACTIVE'), (4,'STUDENT','ACTIVE'), (5,'EXPERT','ACTIVE'),
@@ -255,6 +257,29 @@ class AssignmentEditDatabaseTest {
         var reloaded = service.editPage(1, 101).form();
         assertEquals("2", reloaded.value("templateId"));
         assertNotEquals(original.value("revision"), reloaded.value("revision"));
+    }
+
+    @Test void inactiveHistoricalSettingsRemainEditableButCannotBeNewSelections() throws SQLException {
+        try (var statement = connection.createStatement()) {
+            statement.executeUpdate("UPDATE system_settings SET is_active=FALSE WHERE setting_value IN ('PRACTICE','OBJECTIVE','REGULAR')");
+        }
+        var service = service();
+        var original = service.editPage(1, 101).form();
+        service.updateAssignment(1, 101, with(original, "title", "Historical settings kept"));
+        try (var statement = connection.createStatement();
+             var rows = statement.executeQuery("SELECT assignment_purpose,response_type,title FROM assignments WHERE assignment_id=101")) {
+            assertTrue(rows.next());
+            assertEquals("PRACTICE", rows.getString("assignment_purpose"));
+            assertEquals("OBJECTIVE", rows.getString("response_type"));
+            assertEquals("Historical settings kept", rows.getString("title"));
+        }
+        assertEquals(2, savedQuestions(101).size());
+        var revised = service.editPage(1, 101).form();
+        var error = assertThrows(ValidationException.class,
+                () -> service.updateAssignment(1, 101,
+                        with(revised, "purpose", "REGULAR", "attemptLimit", "")));
+        assertTrue(error.errors().containsKey("purpose"));
+        assertEquals("PRACTICE", service.editPage(1, 101).form().value("purpose"));
     }
 
     @Test void updatesFieldsAndReordersQuestionsAndOptionsWithoutReplacingTheirIds() throws SQLException {

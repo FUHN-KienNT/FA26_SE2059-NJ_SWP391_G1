@@ -106,7 +106,7 @@ public class MasterDataDAO {
                 "UPDATE academic_terms SET term_code=?,term_name=?,starts_at=?,ends_at=?,is_active=?,is_current=? WHERE term_id=?",
                 term.termCode(), term.termName(), term.startsAt(), term.endsAt(),
                 term.active(), term.current(), term.termId()) != 1)
-            throw new NoSuchElementException("Academic Term not found");
+            throw new NoSuchElementException("Không tìm thấy học kỳ.");
     }
     public void updateTermStatus(long termId, boolean active) {
         Jdbc.transaction(DBConnection::getConnection, c -> { updateTermStatus(c, termId, active); return null; });
@@ -115,7 +115,7 @@ public class MasterDataDAO {
         if (Jdbc.update(c,
                 "UPDATE academic_terms SET is_active=?,is_current=CASE WHEN ? THEN is_current ELSE FALSE END WHERE term_id=?",
                 active, active, termId) != 1)
-            throw new NoSuchElementException("Academic Term not found");
+            throw new NoSuchElementException("Không tìm thấy học kỳ.");
     }
     public void markCurrentTerm(long termId) {
         Jdbc.transaction(DBConnection::getConnection, c -> { markCurrentTerm(c, termId); return null; });
@@ -123,7 +123,7 @@ public class MasterDataDAO {
     public void markCurrentTerm(Connection c, long termId) throws SQLException {
         if (Jdbc.update(c,
                 "UPDATE academic_terms SET is_current=TRUE WHERE term_id=? AND is_active=TRUE", termId) != 1)
-            throw new IllegalArgumentException("Current Academic Term must be active");
+            throw new IllegalArgumentException("Học kỳ hiện tại phải ở trạng thái hoạt động.");
     }
 
     static AcademicTerm mapTerm(ResultSet rs) throws SQLException {

@@ -17,6 +17,7 @@
             <p>
                 Học kỳ hiện tại: <%=WebSupport.html(vn.edu.fpt.ams.util.Vietnamese.label(request.getAttribute("currentTerm")))%>
             </p>
+            <nav aria-label="Truy cập nhanh"><a href="${pageContext.request.contextPath}/admin/users">Tài khoản</a> · <a href="${pageContext.request.contextPath}/admin/terms">Học kỳ</a> · <a href="${pageContext.request.contextPath}/admin/subjects">Môn học</a> · <a href="${pageContext.request.contextPath}/admin/settings">Cài đặt hệ thống</a></nav>
             <div class="ams-metrics">
                 <%
                     for(var entry:((Map<String,Long>)request.getAttribute("summary")).entrySet()){

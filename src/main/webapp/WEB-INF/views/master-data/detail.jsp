@@ -6,7 +6,7 @@
     AcademicTerm shown=submitted!=null?submitted:term;
     boolean view="view".equals(mode),create="create".equals(mode);
     ZoneId zone=ZoneOffset.UTC;
-    String token=WebSupport.csrf(request),base=request.getContextPath()+"/admin/master-data",list=request.getContextPath()+"/admin/settings",detail=create?list:base+"?mode=view&id="+shown.termId();
+    String token=WebSupport.csrf(request),base=request.getContextPath()+"/admin/master-data",list=request.getContextPath()+"/admin/terms",detail=create?list:base+"?mode=view&id="+shown.termId();
 %>
 <!doctype html>
 <html lang="vi">
@@ -17,12 +17,10 @@
         <link rel="stylesheet" href="${pageContext.request.contextPath}/css/app.css">
         <%@ include file="/WEB-INF/views/shared/assets.jspf" %>
     </head>
-    <body class="admin-users admin-app admin-settings ams-ui">
+    <body class="admin-users admin-app admin-terms ams-ui">
         <%@ include file="/WEB-INF/views/admin/shell.jspf" %>
         <main class="users-main subject-form ams-content bao-mode-page" id="page-content">
-            <nav class="bao-context" aria-label="Ngữ cảnh">
-                <span>Cài đặt</span><span aria-hidden="true">›</span><span>Học kỳ</span><span aria-hidden="true">›</span><span><%=create?"Thêm học kỳ":view?"Chi tiết":"Chỉnh sửa"%></span>
-            </nav>
+            <nav class="bao-context" aria-label="Ngữ cảnh"><a href="<%=list%>">Học kỳ</a><span aria-hidden="true">›</span><span><%=create?"Thêm học kỳ":view?"Chi tiết":"Chỉnh sửa"%></span></nav>
             <div class="subject-heading">
                 <div>
                     <h1>
@@ -216,10 +214,6 @@
                                 <label class="check">
                                     <input type="checkbox" name="active" <%=shown==null||shown.active()?"checked":""%>>
                                     Hoạt động
-                                </label>
-                                <label class="check">
-                                    <input type="checkbox" name="current" <%=shown!=null&&shown.current()?"checked":""%>>
-                                    Đặt làm học kỳ hiện tại
                                 </label>
                             </div>
                             <%

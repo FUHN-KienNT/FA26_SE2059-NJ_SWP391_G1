@@ -238,8 +238,11 @@
     });
     function updateType() {
         const practice = byId('purpose').value === 'PRACTICE';
-        if (practice) byId('responseType').value = 'OBJECTIVE';
-        byId('responseType').querySelector('option[value="ESSAY"]').disabled = practice;
+        const responseSelect = byId('responseType');
+        const objectiveOption = responseSelect.querySelector('option[value="OBJECTIVE"]');
+        if (practice) responseSelect.value = objectiveOption && !objectiveOption.disabled ? 'OBJECTIVE' : '';
+        const essayOption = responseSelect.querySelector('option[value="ESSAY"]');
+        if (essayOption) essayOption.disabled = practice;
         byId('attempt-field').hidden = !practice;
         byId('attemptLimit').disabled = !practice;
         byId('attemptLimit').required = practice;
