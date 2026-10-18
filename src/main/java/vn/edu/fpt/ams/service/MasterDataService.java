@@ -1,6 +1,8 @@
 package vn.edu.fpt.ams.service;
 
 import java.sql.*;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.*;
 import vn.edu.fpt.ams.dao.MasterDataDAO;
 import vn.edu.fpt.ams.model.AcademicTerm;
@@ -45,13 +47,14 @@ public class MasterDataService {
         connections,
         c -> {
           Access.admin(c, actor);
+          if (term.current())
+            throw new IllegalArgumentException("Tạo học kỳ không tự đặt học kỳ hiện tại. Vui lòng dùng thao tác Đặt hiện tại sau khi tạo.");
           dao.lockTermWrites(c);
           validateFlags(c, term, 0);
           if (dao.findTermByCode(c, term.termCode(), false).isPresent())
-            throw new IllegalArgumentException("Academic Term code already exists");
+            throw new IllegalArgumentException("Mã học kỳ đã tồn tại.");
           long id = dao.insertTerm(c, new AcademicTerm(0, term.termCode(), term.termName(),
               term.startsAt(), term.endsAt(), false, term.active()));
-          if (term.current()) dao.markCurrentTerm(c, id);
           return id;
         });
   }
@@ -64,25 +67,35 @@ public class MasterDataService {
           Access.admin(c, actor);
           dao.lockTermWrites(c);
           AcademicTerm old = requireTerm(c, term.termId(), true);
+          if (old.current() != term.current() || old.active() != term.active())
+            throw new IllegalArgumentException("Chỉ thay đổi trạng thái học kỳ bằng thao tác riêng.");
           validateFlags(c, term, term.termId());
           if (old.current() && !term.active())
             throw new IllegalArgumentException("Học kỳ hiện tại phải ở trạng thái hoạt động.");
           Optional<AcademicTerm> duplicate = dao.findTermByCode(c, term.termCode(), false);
           if (duplicate.isPresent() && duplicate.get().termId() != term.termId())
-            throw new IllegalArgumentException("Academic Term code already exists");
-          boolean datesChanged =
-              !old.startsAt().equals(term.startsAt()) || !old.endsAt().equals(term.endsAt());
+            throw new IllegalArgumentException("Mã học kỳ đã tồn tại.");
+          boolean startDateChanged = !sameUtcDate(old.startsAt(), term.startsAt());
+          boolean endDateChanged = !sameUtcDate(old.endsAt(), term.endsAt());
+          boolean datesChanged = startDateChanged || endDateChanged;
           if (datesChanged
               && Jdbc.scalar(c, "SELECT COUNT(*) FROM subject_terms WHERE term_id=?", term.termId()) > 0)
             throw new IllegalArgumentException(
-                "Academic Term dates cannot change after Subject Term data exists");
+                "Không thể thay đổi ngày học kỳ khi đã có cấu hình môn học cho học kỳ này.");
           dao.updateTerm(
               c,
               new AcademicTerm(
-                  term.termId(), term.termCode(), term.termName(), term.startsAt(), term.endsAt(),
+                  term.termId(), term.termCode(), term.termName(),
+                  startDateChanged ? term.startsAt() : old.startsAt(),
+                  endDateChanged ? term.endsAt() : old.endsAt(),
                   term.current(), term.active()));
           return null;
         });
+  }
+
+  private static boolean sameUtcDate(Instant first, Instant second) {
+    return first.atZone(ZoneOffset.UTC).toLocalDate()
+        .equals(second.atZone(ZoneOffset.UTC).toLocalDate());
   }
 
   public void markCurrent(long actor, long termId) {
@@ -110,7 +123,7 @@ public class MasterDataService {
           dao.lockTermWrites(c);
           AcademicTerm term = requireTerm(c, termId, true);
           if (term.active() == active)
-            throw new IllegalArgumentException("Academic Term already has this status");
+            throw new IllegalArgumentException("Học kỳ đã ở trạng thái này.");
           if (!active && term.current())
             throw new IllegalArgumentException("Học kỳ hiện tại phải ở trạng thái hoạt động.");
           if (active && dao.existsActiveTermExcluding(c, termId))
@@ -153,29 +166,36 @@ public class MasterDataService {
 
   private AcademicTerm requireTerm(Connection c, long id, boolean lock) throws SQLException {
     return dao.findTermById(c, id, lock)
-        .orElseThrow(() -> new NoSuchElementException("Academic Term not found"));
+        .orElseThrow(() -> new NoSuchElementException("Không tìm thấy học kỳ."));
   }
 
   private static AcademicTerm validated(AcademicTerm value, long id, boolean current) {
-    if (value == null) throw new IllegalArgumentException("Academic Term is required");
-    String code = ValidationUtil.required(value.termCode(), "Term code").toUpperCase(Locale.ROOT);
-    String name = ValidationUtil.required(value.termName(), "Term name");
-    if (code.length() > 20) throw new IllegalArgumentException("Term code maximum is 20 characters");
+    if (value == null) throw new IllegalArgumentException("Vui lòng nhập thông tin học kỳ.");
+    if (value.termCode() == null || value.termCode().isBlank())
+      throw new IllegalArgumentException("Vui lòng nhập mã học kỳ.");
+    if (value.termName() == null || value.termName().isBlank())
+      throw new IllegalArgumentException("Vui lòng nhập tên học kỳ.");
+    String code = value.termCode().trim().toUpperCase(Locale.ROOT);
+    String name = value.termName().trim();
+    if (code.length() > 20) throw new IllegalArgumentException("Mã học kỳ không được quá 20 ký tự.");
     if (code.chars().allMatch(Character::isDigit))
-      throw new IllegalArgumentException("Term code must contain a non-digit character");
-    if (name.length() > 100) throw new IllegalArgumentException("Term name maximum is 100 characters");
+      throw new IllegalArgumentException("Mã học kỳ phải chứa ít nhất một ký tự không phải số.");
+    if (name.length() > 100) throw new IllegalArgumentException("Tên học kỳ không được quá 100 ký tự.");
     if (current && !value.active())
       throw new IllegalArgumentException("Học kỳ hiện tại phải ở trạng thái hoạt động.");
-    ValidationUtil.laterThan(value.endsAt(), value.startsAt(), "Term end");
+    if (value.startsAt() == null || value.endsAt() == null)
+      throw new IllegalArgumentException("Vui lòng nhập ngày bắt đầu và ngày kết thúc hợp lệ.");
+    if (!value.endsAt().isAfter(value.startsAt()))
+      throw new IllegalArgumentException("Ngày kết thúc phải sau ngày bắt đầu.");
     return new AcademicTerm(id, code, name, value.startsAt(), value.endsAt(), current, value.active());
   }
 
   private static void validateSearch(String keyword) {
     if (keyword != null && keyword.length() > 50)
-      throw new IllegalArgumentException("Search maximum is 50 characters");
+      throw new IllegalArgumentException("Từ khóa tìm kiếm không được quá 50 ký tự.");
   }
 
   private static void requirePositive(long id) {
-    if (id <= 0) throw new IllegalArgumentException("A positive Academic Term ID is required");
+    if (id <= 0) throw new IllegalArgumentException("Mã học kỳ không hợp lệ.");
   }
 }

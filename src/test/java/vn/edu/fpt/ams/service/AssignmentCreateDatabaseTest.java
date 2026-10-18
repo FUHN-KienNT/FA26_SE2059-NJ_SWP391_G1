@@ -24,6 +24,7 @@ class AssignmentCreateDatabaseTest {
             s.execute("CREATE TEMP TABLE subject_terms(subject_term_id BIGINT PRIMARY KEY,subject_id BIGINT)");
             s.execute("CREATE TEMP TABLE subject_classes(class_id BIGINT PRIMARY KEY,subject_term_id BIGINT,teacher_id BIGINT,class_code TEXT,class_name TEXT)");
             s.execute("CREATE TEMP TABLE assignment_templates(template_id BIGINT PRIMARY KEY,subject_id BIGINT,title TEXT,instructions TEXT,maximum_score NUMERIC,status TEXT)");
+            s.execute("CREATE TEMP TABLE system_settings(setting_id BIGINT PRIMARY KEY,setting_type TEXT,setting_value TEXT,display_name TEXT,priority INTEGER,is_active BOOLEAN)");
             s.execute("CREATE TEMP TABLE assignments(LIKE public.assignments INCLUDING ALL)");
             s.execute("CREATE TEMP TABLE questions(LIKE public.questions INCLUDING ALL)");
             // Explicit local identity sequences also isolate schemas using serial defaults.
@@ -34,6 +35,7 @@ class AssignmentCreateDatabaseTest {
             s.execute("CREATE TEMP SEQUENCE create_question_test_ids");
             s.execute("ALTER TABLE questions ALTER COLUMN question_id SET DEFAULT nextval('create_question_test_ids')");
             s.execute("SET search_path TO pg_temp");
+            s.execute("INSERT INTO system_settings VALUES (1,'ASSIGNMENT_TYPE','REGULAR','Regular',1,TRUE),(2,'ASSIGNMENT_TYPE','PRACTICE','Practice',2,TRUE),(3,'RESPONSE_TYPE','ESSAY','Essay',1,TRUE),(4,'RESPONSE_TYPE','OBJECTIVE','Objective',2,TRUE)");
             s.execute("INSERT INTO users VALUES(1,'TEACHER','ACTIVE'),(2,'TEACHER','ACTIVE'),(3,'TEACHER','INACTIVE'),(4,'STUDENT','ACTIVE')");
             s.execute("INSERT INTO subjects VALUES(100,'SWP391','Project'),(200,'PRJ301','Java')");
             s.execute("INSERT INTO subject_terms VALUES(1000,100),(2000,200)");
@@ -59,6 +61,36 @@ class AssignmentCreateDatabaseTest {
     }
     int count(String table) throws Exception {
         try(var s=connection.createStatement();var r=s.executeQuery("SELECT count(*) FROM "+table)){r.next();return r.getInt(1);}
+    }
+    @Test void inactiveAssignmentTypeCannotBeUsedForNewAssignment() throws Exception {
+        try (var s = connection.createStatement()) {
+            s.executeUpdate("UPDATE system_settings SET is_active=FALSE WHERE setting_type='ASSIGNMENT_TYPE' AND setting_value='PRACTICE'");
+        }
+        var values = new HashMap<>(form("1").values());
+        values.put("purpose", "PRACTICE");
+        values.put("attemptLimit", "1");
+        var error = assertThrows(ValidationException.class,
+                () -> service(new AssignmentDAO()).createAssignment(1, new AssignmentForm(values)));
+        assertTrue(error.errors().containsKey("purpose"));
+        assertEquals(0, count("assignments"));
+    }
+    @Test void inactiveResponseTypeCannotBeUsedForNewAssignment() throws Exception {
+        try (var s = connection.createStatement()) {
+            s.executeUpdate("UPDATE system_settings SET is_active=FALSE WHERE setting_type='RESPONSE_TYPE' AND setting_value='OBJECTIVE'");
+        }
+        var error = assertThrows(ValidationException.class,
+                () -> service(new AssignmentDAO()).createAssignment(1, form("1")));
+        assertTrue(error.errors().containsKey("responseType"));
+        assertEquals(0, count("assignments"));
+        assertEquals(0, count("questions"));
+    }
+    @Test void abnormalConfigurationWithoutAnyPairRejectsDirectCreate() throws Exception {
+        try (var s = connection.createStatement()) {
+            s.executeUpdate("UPDATE system_settings SET is_active=FALSE WHERE setting_type='RESPONSE_TYPE'");
+        }
+        assertThrows(ValidationException.class,
+                () -> service(new AssignmentDAO()).createAssignment(1, form("1")));
+        assertEquals(0, count("assignments"));
     }
     @Test void savesEditedTemplateContentAndNestedQuestionsAsObjectiveDraft() throws Exception {
         long id=service(new AssignmentDAO()).createAssignment(1,form("1"));

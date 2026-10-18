@@ -22,6 +22,7 @@ class BaonvgRoutingAndViewContractTest {
   void settingsAndMasterDataKeepTheirRoutes() {
     assertRoute(SettingsServlet.class, "/admin/settings");
     assertRoute(MasterDataServlet.class, "/admin/master-data");
+    assertRoute(AcademicTermServlet.class, "/admin/terms");
   }
 
   @Test
@@ -37,43 +38,66 @@ class BaonvgRoutingAndViewContractTest {
   }
 
   @Test
-  void settingsExplainAcademicTermFilterScope() throws Exception {
+  void academicTermsAndSettingsHaveSeparateLists() throws Exception {
     String view = Files.readString(VIEWS.resolve("settings/list.jsp"));
-    assertTrue(view.contains("Trạng thái học kỳ"));
-    assertTrue(view.contains("Bộ lọc này chỉ áp dụng cho học kỳ"));
-    assertTrue(view.contains("Không có học kỳ phù hợp."));
+    String terms = Files.readString(VIEWS.resolve("master-data/list.jsp"));
+    assertTrue(view.contains("Danh sách thiết lập"));
+    assertTrue(view.contains("Tất cả loại"));
+    assertFalse(view.contains("Học kỳ"));
+    assertTrue(terms.contains("Trạng thái học kỳ"));
+    assertTrue(terms.contains("Không có học kỳ phù hợp."));
+  }
+
+  @Test
+  void settingsListOffersStatusActionsWithoutDuplicatingEditStatus() throws Exception {
+    String list = Files.readString(VIEWS.resolve("settings/list.jsp"));
+    String detail = Files.readString(VIEWS.resolve("settings/detail.jsp"));
+    assertTrue(list.contains("name=\"action\" value=\"status\""));
+    assertTrue(list.contains("setting.active()?\"Vô hiệu hóa\":\"Kích hoạt\""));
+    assertTrue(list.contains("data-confirm=\"Xác nhận vô hiệu hóa thiết lập này?"));
+    assertTrue(list.contains("name=\"csrf\""));
+    assertTrue(detail.contains("name=\"action\" value=\"update\""));
+    assertFalse(detail.contains("name=\"status\""));
   }
 
   @Test
   void allBaonvgAdminViewsUseTheSharedShell() throws Exception {
     for (String relative : List.of(
-        "settings/list.jsp", "master-data/detail.jsp", "master-data/switch.jsp", "subjects/list.jsp",
+        "settings/list.jsp", "settings/detail.jsp", "master-data/list.jsp", "master-data/detail.jsp", "master-data/switch.jsp", "subjects/list.jsp",
         "subjects/detail.jsp", "subjects/form.jsp", "subjects/experts.jsp",
         "subjects/status.jsp", "subjects/term.jsp")) {
       String view = Files.readString(VIEWS.resolve(relative));
       assertTrue(view.contains("/WEB-INF/views/admin/shell.jspf"), relative);
     }
-    assertFalse(Files.exists(VIEWS.resolve("master-data/list.jsp")));
+    assertTrue(Files.exists(VIEWS.resolve("master-data/list.jsp")));
   }
 
   @Test
-  void baoSettingsNavigationKeepsDomainsSeparateWithoutDuplicateTabs() throws Exception {
+  void adminNavigationHighlightsIndependentModules() throws Exception {
     String shell = Files.readString(VIEWS.resolve("admin/shell.jspf"));
-    assertTrue(shell.contains("bao-settings-children"));
     assertTrue(shell.contains("boolean baoSubjects"));
     assertTrue(shell.contains("boolean baoTerms"));
-    assertTrue(shell.contains("bao-settings-label"));
+    assertTrue(shell.contains("boolean baoSettings"));
+    assertTrue(shell.contains("/admin/terms"));
+    assertTrue(shell.contains("/admin/subjects"));
+    assertTrue(shell.contains("/admin/settings"));
+    assertFalse(shell.contains("bao-settings-children"));
     assertFalse(shell.contains("<details"));
     assertFalse(shell.contains("<summary"));
     assertFalse(shell.contains("⌄"));
     assertFalse(shell.contains("ams-sidebar-note"));
     assertTrue(shell.contains("<span>Quản trị viên</span>"));
-    for (String relative : List.of("settings/list.jsp", "master-data/detail.jsp",
+    for (String relative : List.of("settings/list.jsp", "settings/detail.jsp", "master-data/list.jsp", "master-data/detail.jsp",
         "master-data/switch.jsp", "subjects/list.jsp", "subjects/detail.jsp", "subjects/form.jsp", "subjects/experts.jsp",
         "subjects/status.jsp", "subjects/term.jsp")) {
       String view = Files.readString(VIEWS.resolve(relative));
       assertFalse(view.contains("aria-label=\"Loại thiết lập\""), relative);
       assertTrue(view.contains("class=\"bao-context\""), relative);
+    }
+    for (String relative : List.of("master-data/list.jsp", "master-data/detail.jsp",
+        "master-data/switch.jsp", "subjects/list.jsp", "subjects/detail.jsp", "subjects/form.jsp",
+        "subjects/experts.jsp", "subjects/status.jsp", "subjects/term.jsp")) {
+      assertFalse(Files.readString(VIEWS.resolve(relative)).contains("<span>Cài đặt</span>"), relative);
     }
   }
 
@@ -96,8 +120,18 @@ class BaonvgRoutingAndViewContractTest {
   }
 
   @Test
+  void academicTermCreateOffersStatusButNotSetCurrent() throws Exception {
+    String view = Files.readString(VIEWS.resolve("master-data/detail.jsp"));
+    String createFields = view.substring(view.indexOf("if(create){"), view.indexOf("else{", view.indexOf("if(create){")));
+    assertTrue(createFields.contains("name=\"active\""));
+    assertFalse(createFields.contains("name=\"current\""));
+    assertFalse(createFields.contains("Đặt làm học kỳ hiện tại"));
+    assertTrue(view.contains("name=\"current\" value=\"true\""), "Edit retains its current flag without offering a toggle");
+  }
+
+  @Test
   void academicTermSwitchRequiresAnExplicitReviewedPost() throws Exception {
-    String list = Files.readString(VIEWS.resolve("settings/list.jsp"));
+    String list = Files.readString(VIEWS.resolve("master-data/list.jsp"));
     String confirmation = Files.readString(VIEWS.resolve("master-data/switch.jsp"));
     assertTrue(list.contains("mode=switch"));
     assertTrue(list.contains("Chuyển học kỳ để ngừng"));
@@ -112,7 +146,7 @@ class BaonvgRoutingAndViewContractTest {
   @Test
   void allAdminEntryScreensShareTheSameNavigationComponent() throws Exception {
     for (String relative : List.of("admin/dashboard.jsp", "users/list.jsp", "users/detail.jsp",
-        "settings/list.jsp", "master-data/detail.jsp", "subjects/list.jsp")) {
+        "settings/list.jsp", "settings/detail.jsp", "master-data/list.jsp", "master-data/detail.jsp", "subjects/list.jsp")) {
       String view = Files.readString(VIEWS.resolve(relative));
       assertTrue(view.contains("/WEB-INF/views/admin/shell.jspf"), relative);
       assertFalse(view.contains("<aside"), relative);

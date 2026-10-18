@@ -13,13 +13,10 @@
         <link rel="stylesheet" href="${pageContext.request.contextPath}/css/app.css">
         <%@ include file="/WEB-INF/views/shared/assets.jspf" %>
     </head>
-    <body class="admin-users admin-app admin-settings ams-ui">
+    <body class="admin-users admin-app admin-terms ams-ui">
         <%@ include file="/WEB-INF/views/admin/shell.jspf" %>
         <main class="users-main subject-form ams-content bao-mode-page" id="page-content">
-            <nav class="bao-context" aria-label="Ngữ cảnh">
-                <span>Cài đặt</span><span aria-hidden="true">›</span><a href="${pageContext.request.contextPath}/admin/settings">Học kỳ</a>
-                <span aria-hidden="true">›</span><span>Chuyển học kỳ</span>
-            </nav>
+            <nav class="bao-context" aria-label="Ngữ cảnh"><a href="${pageContext.request.contextPath}/admin/terms">Học kỳ</a><span aria-hidden="true">›</span><span>Chuyển học kỳ</span></nav>
             <div class="subject-heading">
                 <div>
                     <h1>
@@ -29,7 +26,7 @@
                         Xem lại học kỳ cũ và học kỳ thay thế trước khi xác nhận.
                     </p>
                 </div>
-                <a class="secondary-button" href="${pageContext.request.contextPath}/admin/settings">← Quay lại danh sách</a>
+                <a class="secondary-button" href="${pageContext.request.contextPath}/admin/terms">← Quay lại danh sách</a>
             </div>
             <div class="bao-term-layout">
                 <section class="bao-card">
@@ -66,7 +63,7 @@
                 <input type="hidden" name="action" value="switch">
                 <input type="hidden" name="termId" value="<%=newTerm.termId()%>">
                 <input type="hidden" name="previousTermId" value="<%=oldTerm.termId()%>">
-                <a class="secondary-button" href="${pageContext.request.contextPath}/admin/settings">Hủy</a>
+                <a class="secondary-button" href="${pageContext.request.contextPath}/admin/terms">Hủy</a>
                 <button type="submit" class="primary-button">
                     Xác nhận chuyển học kỳ
                 </button>

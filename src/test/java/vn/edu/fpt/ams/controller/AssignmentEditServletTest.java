@@ -19,6 +19,8 @@ import vn.edu.fpt.ams.dto.AssignmentCreatePage;
 import vn.edu.fpt.ams.dto.AssignmentEditPage;
 import vn.edu.fpt.ams.dto.AssignmentForm;
 import vn.edu.fpt.ams.model.AccountStatus;
+import vn.edu.fpt.ams.model.SettingType;
+import vn.edu.fpt.ams.model.SystemSetting;
 import vn.edu.fpt.ams.model.UserRole;
 import vn.edu.fpt.ams.service.AssignmentService;
 import vn.edu.fpt.ams.util.AssignmentDraftValidator.ValidationException;
@@ -86,6 +88,15 @@ class AssignmentEditServletTest {
         RuntimeException loadFailure, updateFailure;
         AssignmentForm submitted;
         AssignmentEditPage page;
+
+        @Override public List<SystemSetting> activeOptions(long actor, SettingType type) {
+            assertEquals(1, actor);
+            return type == SettingType.ASSIGNMENT_TYPE
+                    ? List.of(new SystemSetting(1,type,"REGULAR","Regular",1,true),
+                            new SystemSetting(2,type,"PRACTICE","Practice",2,true))
+                    : List.of(new SystemSetting(3,type,"ESSAY","Essay",1,true),
+                            new SystemSetting(4,type,"OBJECTIVE","Objective",2,true));
+        }
 
         Service() {
             super(new AssignmentDAO(), () -> {

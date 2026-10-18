@@ -1,5 +1,5 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
-<%@ page import="java.util.*,com.google.gson.Gson,vn.edu.fpt.ams.dto.*,vn.edu.fpt.ams.util.WebSupport" %>
+<%@ page import="java.util.*,com.google.gson.Gson,vn.edu.fpt.ams.dto.*,vn.edu.fpt.ams.model.SystemSetting,vn.edu.fpt.ams.util.WebSupport" %>
 <%@ page import="static vn.edu.fpt.ams.util.WebSupport.html" %>
 <%
     AssignmentCreatePage context = (AssignmentCreatePage) request.getAttribute("createPage");
@@ -10,6 +10,14 @@
     String createError = (String) request.getAttribute("createError");
     boolean editing = Boolean.TRUE.equals(request.getAttribute("assignmentEdit"));
     boolean editConflict = Boolean.TRUE.equals(request.getAttribute("editConflict"));
+    List<SystemSetting> purposeOptions = (List<SystemSetting>) request.getAttribute("purposeOptions");
+    List<SystemSetting> responseOptions = (List<SystemSetting>) request.getAttribute("responseOptions");
+    if (purposeOptions == null) purposeOptions = List.of();
+    if (responseOptions == null) responseOptions = List.of();
+    boolean assignmentConfigAvailable = Boolean.TRUE.equals(request.getAttribute("assignmentConfigAvailable"));
+    boolean objectiveAvailable = responseOptions.stream().anyMatch(option -> "OBJECTIVE".equals(option.value()));
+    boolean practiceUnavailable = purposeOptions.stream().anyMatch(option -> "PRACTICE".equals(option.value()))
+        && !objectiveAvailable;
     String pageTitle = editing ? "Chỉnh sửa bài tập" : "Tạo bài tập";
     String savedResponseType = (String) request.getAttribute("savedResponseType");
     if (savedResponseType == null) savedResponseType = form.value("responseType");
@@ -130,6 +138,15 @@
                     </div>
                     <%
                     }
+                    if (!editing && !assignmentConfigAvailable) {
+                    %>
+                    <div class="notice error" role="alert">Cấu hình loại bài tập và hình thức trả lời hiện không có tổ hợp hợp lệ. Vui lòng liên hệ quản trị viên trước khi tạo bài tập.</div>
+                    <%
+                    } else if (!editing && practiceUnavailable) {
+                    %>
+                    <p class="form-hint" role="status">Không thể tạo bài luyện tập vì hình thức Trắc nghiệm đang ngừng hoạt động.</p>
+                    <%
+                    }
                 %>
                 <form method="post" action="<%= html(base) %>/teacher/assignments" id="assignment-form"
           data-edit="<%= editing %>" data-edit-conflict="<%= editConflict %>"
@@ -190,28 +207,14 @@
                                 <label for="purpose">
                                     Mục đích *
                                 </label>
-                                <select id="purpose" name="purpose" required>
-                                    <option value="REGULAR" <%= "REGULAR".equals(form.value("purpose")) ? "selected" : "" %>>
-                                        Bài tập chính thức
-                                    </option>
-                                    <option value="PRACTICE" <%= "PRACTICE".equals(form.value("purpose")) ? "selected" : "" %>>
-                                        Luyện tập
-                                    </option>
-                                </select>
+                                <select id="purpose" name="purpose" required><% boolean purposeExists=false; for(var option:purposeOptions) if(option.value().equals(form.value("purpose"))) purposeExists=true; if(!editing&&!purposeExists){ %><option value="" selected disabled>Chọn mục đích</option><% } for(var option:purposeOptions){ boolean unavailable="PRACTICE".equals(option.value()) && !objectiveAvailable && !(editing && "PRACTICE".equals(form.value("purpose"))); %><option value="<%=html(option.value())%>" <%=option.value().equals(form.value("purpose"))?"selected":""%> <%=unavailable?"disabled":""%>><%=html(option.name())%><%=unavailable?" (cần bật Trắc nghiệm)":""%></option><% } if(editing&&!form.value("purpose").isBlank()&&!purposeExists){ %><option value="<%=html(form.value("purpose"))%>" selected><%=html(form.value("purpose"))%> (giá trị hiện tại)</option><% } %></select>
                                 <small class="field-error" id="purpose-error"><%= html(errors.get("purpose")) %></small>
                             </div>
                             <div>
                                 <label for="responseType">
                                     Hình thức trả lời *
                                 </label>
-                                <select id="responseType" name="responseType" required>
-                                    <option value="ESSAY" <%= "ESSAY".equals(form.value("responseType")) ? "selected" : "" %>>
-                                        Tự luận
-                                    </option>
-                                    <option value="OBJECTIVE" <%= "OBJECTIVE".equals(form.value("responseType")) ? "selected" : "" %>>
-                                        Trắc nghiệm
-                                    </option>
-                                </select>
+                                <select id="responseType" name="responseType" required><% boolean responseExists=false; for(var option:responseOptions) if(option.value().equals(form.value("responseType"))) responseExists=true; if(!editing&&!responseExists){ %><option value="" selected disabled>Chọn hình thức</option><% } for(var option:responseOptions){ %><option value="<%=html(option.value())%>" <%=option.value().equals(form.value("responseType"))?"selected":""%>><%=html(option.name())%></option><% } if(editing&&!form.value("responseType").isBlank()&&!responseExists){ %><option value="<%=html(form.value("responseType"))%>" selected><%=html(form.value("responseType"))%> (giá trị hiện tại)</option><% } %></select>
                                 <small class="field-error" id="responseType-error"><%= html(errors.get("responseType")) %></small>
                             </div>
                         </div>
@@ -371,7 +374,7 @@
                             id="save-draft"
                             class="button primary"
                             disabled
-                            data-can-save="<%= !context.templates().isEmpty() && !editConflict %>">
+                            data-can-save="<%= !context.templates().isEmpty() && !editConflict && (editing || assignmentConfigAvailable) %>">
                             <%= editing ? "Lưu thay đổi" : "Lưu bản nháp" %>
                         </button>
                         <a class="button leave-form" href="<%= html(back) %>">Về danh sách bài tập</a>

@@ -40,6 +40,14 @@ class AssignmentCreateServletTest {
     }
     static class Service extends AssignmentService {
         boolean called; RuntimeException failure, loadFailure;
+        @Override public List<SystemSetting> activeOptions(long actor, SettingType type) {
+            assertEquals(1, actor);
+            return type == SettingType.ASSIGNMENT_TYPE
+                    ? List.of(new SystemSetting(1,type,"REGULAR","Regular",1,true),
+                            new SystemSetting(2,type,"PRACTICE","Practice",2,true))
+                    : List.of(new SystemSetting(3,type,"ESSAY","Essay",1,true),
+                            new SystemSetting(4,type,"OBJECTIVE","Objective",2,true));
+        }
         @Override public AssignmentCreatePage createPage(long actor,long classId){
             if(loadFailure!=null)throw loadFailure;
             assertEquals(1,actor);assertEquals(10,classId);
