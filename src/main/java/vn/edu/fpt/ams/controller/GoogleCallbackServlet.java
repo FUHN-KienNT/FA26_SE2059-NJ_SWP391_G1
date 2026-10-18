@@ -25,7 +25,7 @@ public class GoogleCallbackServlet extends HttpServlet {
         s.setAttribute("googleState", state);
         s.setAttribute("googleNonce", nonce);
         s.setAttribute("googleStartedAt", System.currentTimeMillis());
-        s.setAttribute("googleInvitation", req.getParameter("invitation"));
+        s.setAttribute("googleInvitation", req.getParameter("invitation") != null ? req.getParameter("invitation") : s.getAttribute("pendingStudentInvitation"));
         res.sendRedirect(
             "https://accounts.google.com/o/oauth2/v2/auth?response_type=code&scope=openid%20email%20profile&client_id="
                 + enc(AppConfig.required("GOOGLE_CLIENT_ID", "google.clientId"))
@@ -62,6 +62,15 @@ public class GoogleCallbackServlet extends HttpServlet {
       if (req.getParameter("error") != null || req.getParameter("code") == null)
         throw new SecurityException("Chưa hoàn tất xác thực Google");
       var account = accounts.signIn(google.exchange(req.getParameter("code"), nonce), invitation);
+      var verification = new vn.edu.fpt.ams.service.StudentVerificationService();
+      if (verification.pending(account.userId())) {
+        req.getSession().removeAttribute("userId"); req.getSession().removeAttribute("role"); req.getSession().removeAttribute("accountStatus");
+        req.getSession().setAttribute("pendingStudentId", account.userId());
+        req.getSession().setAttribute("pendingStudentInvitation", invitation);
+        try { verification.send(account.userId()); } catch (IllegalArgumentException cooldown) { /* Existing email can still be used. */ }
+        res.sendRedirect(req.getContextPath() + "/auth/student-verification"); return;
+      }
+      req.getSession().removeAttribute("pendingStudentInvitation");
       AuthSession.establish(req, account);
       res.sendRedirect(req.getContextPath() + AuthSession.landing(account.role()));
     } catch (SecurityException e) {

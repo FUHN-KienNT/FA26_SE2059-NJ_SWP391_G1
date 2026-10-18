@@ -36,7 +36,8 @@ public class AuthFilter implements Filter {
       var current = new vn.edu.fpt.ams.dao.UserDAO().findById((Long) id);
       if (current.isEmpty()
           || current.get().accountStatus() != AccountStatus.ACTIVE
-          || current.get().role() != role) {
+          || current.get().role() != role
+          || (role == UserRole.STUDENT && new vn.edu.fpt.ams.service.StudentVerificationService().pending((Long) id))) {
         session.invalidate();
         if ("GET".equals(req.getMethod())) res.sendRedirect(req.getContextPath() + "/auth/signin");
         else

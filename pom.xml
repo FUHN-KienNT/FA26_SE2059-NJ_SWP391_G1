@@ -4,7 +4,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>vn.edu.fpt</groupId><artifactId>ams</artifactId><version>0.1.0-SNAPSHOT</version><packaging>war</packaging>
   <name>AMS Assignment Management System</name>
-  <properties><maven.compiler.release>17</maven.compiler.release><project.build.sourceEncoding>UTF-8</project.build.sourceEncoding></properties>
+  <properties><ams.build.directory>${project.basedir}/target</ams.build.directory><maven.compiler.release>17</maven.compiler.release><project.build.sourceEncoding>UTF-8</project.build.sourceEncoding></properties>
   <dependencies>
     <dependency><groupId>org.apache.tomcat.embed</groupId><artifactId>tomcat-embed-jasper</artifactId><version>10.1.60</version><scope>test</scope></dependency>
     <dependency><groupId>org.apache.ant</groupId><artifactId>ant</artifactId><version>1.10.15</version><scope>test</scope></dependency>
@@ -16,7 +16,7 @@
     <dependency><groupId>org.postgresql</groupId><artifactId>postgresql</artifactId><version>42.7.7</version></dependency>
     <dependency><groupId>org.junit.jupiter</groupId><artifactId>junit-jupiter</artifactId><version>5.11.4</version><scope>test</scope></dependency>
   </dependencies>
-  <build><finalName>ams</finalName><plugins>
+  <build><directory>${ams.build.directory}</directory><finalName>ams</finalName><plugins>
     <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-compiler-plugin</artifactId><version>3.13.0</version><configuration><release>17</release></configuration></plugin>
     <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-surefire-plugin</artifactId><version>3.2.5</version></plugin>
     <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-war-plugin</artifactId><version>3.4.0</version></plugin>

@@ -1,4 +1,5 @@
 package vn.edu.fpt.ams.service;
+import vn.edu.fpt.ams.dao.*;
 
 import java.sql.*;
 import vn.edu.fpt.ams.model.*;
@@ -8,14 +9,10 @@ public final class Access {
   private Access() {}
 
   public static UserRole active(Connection c, long actor) throws SQLException {
-    try (var p =
-            Jdbc.statement(
-                c, "SELECT role,account_status FROM users WHERE user_id=? FOR UPDATE", actor);
-        var r = p.executeQuery()) {
-      if (!r.next() || !"ACTIVE".equals(r.getString(2)))
-        throw new SecurityException("An active account is required");
-      return UserRole.valueOf(r.getString(1));
-    }
+    var account = AccessDAO.findAccountForUpdate(c, actor);
+    if (account == null || account.accountStatus() != AccountStatus.ACTIVE)
+      throw new SecurityException("An active account is required");
+    return account.role();
   }
 
   public static void admin(Connection c, long actor) throws SQLException {
@@ -27,16 +24,8 @@ public final class Access {
       throws SQLException {
     if (active(c, actor) != UserRole.EXPERT)
       throw new SecurityException("Expert access is required");
-    try (var p =
-            Jdbc.statement(
-                c,
-                "SELECT responsibility_type FROM subject_experts WHERE subject_id=? AND expert_id=?"
-                    + " AND is_active=TRUE FOR UPDATE",
-                subject,
-                actor);
-        var r = p.executeQuery()) {
-      if (!r.next()) throw new SecurityException("No active Subject responsibility");
-      return ResponsibilityType.valueOf(r.getString(1));
-    }
+    var responsibility = AccessDAO.findResponsibilityForUpdate(c, subject, actor);
+    if (responsibility == null) throw new SecurityException("No active Subject responsibility");
+    return responsibility;
   }
 }

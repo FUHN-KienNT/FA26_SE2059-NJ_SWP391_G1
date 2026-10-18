@@ -1,9 +1,11 @@
 package vn.edu.fpt.ams.service;
+import vn.edu.fpt.ams.dao.*;
 
 import java.sql.*;
 import java.util.*;
 import vn.edu.fpt.ams.dao.UserDAO;
 import vn.edu.fpt.ams.dto.UserCreateRequest;
+import vn.edu.fpt.ams.dto.ExpertSubjectDTO;
 import vn.edu.fpt.ams.integration.EmailService;
 import vn.edu.fpt.ams.model.*;
 import vn.edu.fpt.ams.util.*;
@@ -25,6 +27,16 @@ public class UserService {
 
   public record Delivery(long userId, boolean delivered) {}
 
+  public List<ExpertSubjectDTO> expertSubjects(long actor, long id) {
+    return Jdbc.transaction(connections, c -> {
+      Access.admin(c, actor);
+      if (id < 0) throw new IllegalArgumentException("Invalid user ID");
+      UserAccount account = id == 0 ? null : users.findById(c, id).orElseThrow();
+      return UserAdministrationDAO.findExpertSubjects(c,
+          account != null && account.role() == UserRole.EXPERT ? id : 0);
+    });
+  }
+
   public List<UserAccount> list(
       long actor, String keyword, UserRole role, AccountStatus status, int page) {
     if (keyword != null && keyword.length() > 50)
@@ -41,13 +53,7 @@ public class UserService {
     if (keyword != null && keyword.length() > 50) throw new IllegalArgumentException("Search maximum is 50 characters");
     return Jdbc.transaction(connections, c -> {
       Access.admin(c, actor);
-      String sql="SELECT COUNT(*) FROM users WHERE (lower(full_name) LIKE ? OR lower(email) LIKE ?)";
-      var args=new ArrayList<Object>();
-      String term="%"+(keyword==null?"":keyword.toLowerCase(Locale.ROOT))+"%";
-      args.add(term); args.add(term);
-      if(role!=null){sql+=" AND role=?";args.add(role.name());}
-      if(status!=null){sql+=" AND account_status=?";args.add(status.name());}
-      try(var ps=Jdbc.statement(c,sql,args.toArray());var rs=ps.executeQuery()){rs.next();return rs.getLong(1);}
+      return UserAdministrationDAO.countSearch(c, keyword, role, status);
     });
   }
 
@@ -67,16 +73,7 @@ public class UserService {
         connections,
         c -> {
           Access.admin(c, actor);
-          var out = new LinkedHashMap<Long, String>();
-          try (var p =
-                  Jdbc.statement(
-                      c,
-                      "SELECT subject_id,subject_code,subject_name FROM subjects WHERE"
-                          + " status='ACTIVE' ORDER BY subject_code");
-              var r = p.executeQuery()) {
-            while (r.next()) out.put(r.getLong(1), r.getString(2) + " â€” " + r.getString(3));
-          }
-          return out;
+          return UserAdministrationDAO.findActiveSubjectLabels(c);
         });
   }
 
@@ -85,17 +82,7 @@ public class UserService {
         connections,
         c -> {
           Access.admin(c, actor);
-          var out = new HashSet<Long>();
-          try (var p =
-                  Jdbc.statement(
-                      c,
-                      "SELECT subject_id FROM teacher_subjects WHERE teacher_id=? AND"
-                          + " is_active=TRUE",
-                      user);
-              var r = p.executeQuery()) {
-            while (r.next()) out.add(r.getLong(1));
-          }
-          return out;
+          return UserAdministrationDAO.findEligibility(c, user);
         });
   }
 
@@ -135,6 +122,9 @@ public class UserService {
 
   public void update(
       long actor, long id, String name, String email, UserRole role, Set<Long> eligible) {
+    update(actor, id, name, email, role, eligible, null);
+  }
+  public void update(long actor, long id, String name, String email, UserRole role, Set<Long> eligible, AccountStatus target) {
     String n = AccountValidation.name(name), e = AccountValidation.email(email);
     Jdbc.transaction(
         connections,
@@ -156,15 +146,9 @@ public class UserService {
                 "Resolve active responsibilities before changing role");
           if (role != old.role() && old.accountStatus() == AccountStatus.INACTIVE)
             throw new IllegalArgumentException("Reactivate before changing staff role");
-          Jdbc.update(
-              c,
-              "UPDATE users SET full_name=?,email=?,role=?,updated_at=CURRENT_TIMESTAMP WHERE"
-                  + " user_id=?",
-              n,
-              e,
-              role.name(),
-              id);
+          UserAdministrationDAO.updateIdentity(c, n, e, role.name(), id);
           setEligibility(c, id, role, eligible);
+          if (target != null) changeStatus(c, actor, id, target);
           audit(c, actor, id, "UPDATE_ACCOUNT");
           return null;
         });
@@ -172,9 +156,9 @@ public class UserService {
 
   public void status(long actor, long id, AccountStatus target) {
     if (target == null) throw new IllegalArgumentException("Status required");
-    Jdbc.transaction(
-        connections,
-        c -> {
+    Jdbc.transaction(connections, c -> changeStatus(c, actor, id, target));
+  }
+  private Void changeStatus(Connection c, long actor, long id, AccountStatus target) throws SQLException {
           lockUsers(c);
           Access.admin(c, actor);
           UserAccount u = users.findById(c, id).orElseThrow();
@@ -183,87 +167,25 @@ public class UserService {
             if (actor == id) throw new IllegalArgumentException("Cannot deactivate yourself");
             // Parent locks serialize responsibility coverage with cooperating class/subject
             // workflows.
-            try (var p =
-                    Jdbc.statement(
-                        c, "SELECT subject_id FROM subjects ORDER BY subject_id FOR UPDATE");
-                var r = p.executeQuery()) {
-              while (r.next()) {}
-            }
-            try (var p =
-                    Jdbc.statement(
-                        c, "SELECT class_id FROM subject_classes ORDER BY class_id FOR UPDATE");
-                var r = p.executeQuery()) {
-              while (r.next()) {}
-            }
-            if (Jdbc.scalar(
-                    c,
-                    "SELECT COUNT(*) FROM subject_classes WHERE teacher_id=? AND status='ACTIVE'",
-                    id)
+            UserAdministrationDAO.lockResponsibilityParents(c);
+            if (UserAdministrationDAO.countActiveClasses(c, id)
                 > 0)
               throw new IllegalArgumentException("Replace the Teacher of active Classes first");
-            if (Jdbc.scalar(
-                    c,
-                    "SELECT COUNT(*) FROM subjects s JOIN subject_experts e ON"
-                        + " e.subject_id=s.subject_id WHERE s.status='ACTIVE' AND e.expert_id=? AND"
-                        + " e.is_active=TRUE AND e.responsibility_type='PRIMARY' AND NOT"
-                        + " EXISTS(SELECT 1 FROM subject_experts x JOIN users u ON"
-                        + " u.user_id=x.expert_id WHERE x.subject_id=s.subject_id AND"
-                        + " x.expert_id<>? AND x.is_active=TRUE AND x.responsibility_type='PRIMARY'"
-                        + " AND u.account_status='ACTIVE')",
-                    id,
-                    id)
+            if (UserAdministrationDAO.countUncoveredPrimarySubjects(c, id, id)
                 > 0)
               throw new IllegalArgumentException("An active Subject would lose its Primary Expert");
-            if (Jdbc.scalar(
-                    c,
-                    "SELECT COUNT(*) FROM subject_classes sc JOIN class_experts e ON"
-                        + " e.class_id=sc.class_id WHERE sc.status='ACTIVE' AND e.expert_id=? AND"
-                        + " e.is_active=TRUE AND NOT EXISTS(SELECT 1 FROM class_experts x JOIN"
-                        + " users u ON u.user_id=x.expert_id JOIN subject_experts se ON"
-                        + " se.subject_id=x.subject_id AND se.expert_id=x.expert_id WHERE"
-                        + " x.class_id=sc.class_id AND x.expert_id<>? AND x.is_active=TRUE AND"
-                        + " u.account_status='ACTIVE' AND se.is_active=TRUE)",
-                    id,
-                    id)
+            if (UserAdministrationDAO.countUncoveredExpertClasses(c, id, id)
                 > 0)
               throw new IllegalArgumentException("An active Class would lose its Class Expert");
-            Jdbc.update(
-                c,
-                "UPDATE class_experts SET is_active=FALSE,deactivated_at=CURRENT_TIMESTAMP WHERE"
-                    + " expert_id=? AND is_active=TRUE",
-                id);
-            Jdbc.update(
-                c,
-                "UPDATE subject_experts SET is_active=FALSE,deactivated_at=CURRENT_TIMESTAMP WHERE"
-                    + " expert_id=? AND is_active=TRUE",
-                id);
-            Jdbc.update(
-                c,
-                "UPDATE teacher_subjects SET is_active=FALSE,deactivated_at=CURRENT_TIMESTAMP WHERE"
-                    + " teacher_id=? AND is_active=TRUE",
-                id);
-            Jdbc.update(
-                c,
-                "UPDATE additional_class_assignment_offers SET status=CASE WHEN"
-                    + " expires_at<=CURRENT_TIMESTAMP THEN 'EXPIRED' ELSE 'CANCELLED' END WHERE"
-                    + " teacher_id=? AND status='PENDING'",
-                id);
-            Jdbc.update(
-                c,
-                "UPDATE submissions SET status='VOID' WHERE status='IN_PROGRESS' AND enrollment_id"
-                    + " IN(SELECT e.enrollment_id FROM class_enrollments e JOIN"
-                    + " subject_registrations r ON r.registration_id=e.registration_id WHERE"
-                    + " r.student_id=?)",
-                id);
+            UserAdministrationDAO.endClassExpertAssignments(c, id);
+            UserAdministrationDAO.endSubjectExpertAssignments(c, id);
+            UserAdministrationDAO.endTeachingEligibility(c, id);
+            UserAdministrationDAO.cancelPendingOffers(c, id);
+            UserAdministrationDAO.voidStudentAttempts(c, id);
           }
-          Jdbc.update(
-              c,
-              "UPDATE users SET account_status=?,updated_at=CURRENT_TIMESTAMP WHERE user_id=?",
-              target.name(),
-              id);
+          UserAdministrationDAO.updateAccountStatus(c, target.name(), id);
           audit(c, actor, id, "STATUS_" + target);
           return null;
-        });
   }
 
   public Delivery resendCredential(long actor, long id) {
@@ -277,11 +199,7 @@ public class UserService {
               UserAccount u = users.findById(c, id).orElseThrow();
               if (u.role() == UserRole.STUDENT || u.accountStatus() != AccountStatus.ACTIVE)
                 throw new IllegalArgumentException("Active staff account required");
-              Jdbc.update(
-                  c,
-                  "UPDATE users SET password_hash=?,updated_at=CURRENT_TIMESTAMP WHERE user_id=?",
-                  hash,
-                  id);
+              UserAdministrationDAO.updatePassword(c, hash, id);
               audit(c, actor, id, "REISSUE_STAFF_CREDENTIAL");
               return u.email();
             });
@@ -305,39 +223,19 @@ public class UserService {
   }
 
   private static void lockUsers(Connection c) throws SQLException {
-    try (var p = Jdbc.statement(c, "SELECT user_id FROM users ORDER BY user_id FOR UPDATE");
-        var r = p.executeQuery()) {
-      while (r.next()) {}
-    }
+    UserAdministrationDAO.lockUsers(c);
   }
 
   private static void audit(Connection c, long actor, long id, String event) throws SQLException {
-    Jdbc.update(
-        c,
-        "INSERT INTO account_audit_events(actor_id,user_id,event_type) VALUES(?,?,?)",
-        actor,
-        id,
-        event);
+    UserAdministrationDAO.recordAudit(c, actor, id, event);
   }
 
   private static boolean hasResponsibilities(Connection c, long id) throws SQLException {
-    return Jdbc.scalar(
-                c, "SELECT COUNT(*) FROM subject_experts WHERE expert_id=? AND is_active=TRUE", id)
-            + Jdbc.scalar(
-                c, "SELECT COUNT(*) FROM class_experts WHERE expert_id=? AND is_active=TRUE", id)
-            + Jdbc.scalar(
-                c,
-                "SELECT COUNT(*) FROM teacher_subjects WHERE teacher_id=? AND is_active=TRUE",
-                id)
-            + Jdbc.scalar(
-                c,
-                "SELECT COUNT(*) FROM subject_classes WHERE teacher_id=? AND status='ACTIVE'",
-                id)
-            + Jdbc.scalar(
-                c,
-                "SELECT COUNT(*) FROM additional_class_assignment_offers WHERE teacher_id=? AND"
-                    + " status='PENDING' AND expires_at>CURRENT_TIMESTAMP",
-                id)
+    return UserAdministrationDAO.countSubjectResponsibilities(c, id)
+            + UserAdministrationDAO.countClassResponsibilities(c, id)
+            + UserAdministrationDAO.countTeachingEligibility(c, id)
+            + UserAdministrationDAO.countActiveClasses(c, id)
+            + UserAdministrationDAO.countPendingOffers(c, id)
         > 0;
   }
 
@@ -347,51 +245,24 @@ public class UserService {
     if (role != UserRole.TEACHER && !desired.isEmpty())
       throw new IllegalArgumentException("Eligibility belongs only to Teachers");
     if (!desired.isEmpty()
-        && Jdbc.scalar(
-                c, "SELECT COUNT(*) FROM users WHERE user_id=? AND account_status='ACTIVE'", id)
+        && UserAdministrationDAO.countActiveAccount(c, id)
             == 0) throw new IllegalArgumentException("Eligibility requires an active Teacher");
-    var existing = new HashMap<Long, Boolean>();
-    try (var p =
-            Jdbc.statement(
-                c,
-                "SELECT subject_id,is_active FROM teacher_subjects WHERE teacher_id=? FOR UPDATE",
-                id);
-        var r = p.executeQuery()) {
-      while (r.next()) existing.put(r.getLong(1), r.getBoolean(2));
-    }
+    var existing = UserAdministrationDAO.findEligibilityForUpdate(c, id);
     for (var entry : existing.entrySet())
       if (entry.getValue() && !desired.contains(entry.getKey())) {
-        if (Jdbc.scalar(
-                c,
-                "SELECT COUNT(*) FROM subject_classes sc JOIN subject_terms st ON"
-                    + " st.subject_term_id=sc.subject_term_id WHERE sc.teacher_id=? AND"
-                    + " sc.status='ACTIVE' AND st.subject_id=?",
-                id,
-                entry.getKey())
+        if (UserAdministrationDAO.countActiveTeachingClasses(c, id, entry.getKey())
             > 0)
           throw new IllegalArgumentException(
               "Cannot remove eligibility while teaching an active Class");
-        Jdbc.update(
-            c,
-            "UPDATE teacher_subjects SET is_active=FALSE,deactivated_at=CURRENT_TIMESTAMP WHERE"
-                + " teacher_id=? AND subject_id=?",
-            id,
-            entry.getKey());
+        UserAdministrationDAO.endSubjectEligibility(c, id, entry.getKey());
       }
     for (long subject : desired) {
-      if (Jdbc.scalar(
-              c, "SELECT COUNT(*) FROM subjects WHERE subject_id=? AND status='ACTIVE'", subject)
+      if (UserAdministrationDAO.countActiveSubject(c, subject)
           == 0) throw new IllegalArgumentException("Select an active Subject");
       if (!existing.containsKey(subject))
-        Jdbc.update(
-            c, "INSERT INTO teacher_subjects(teacher_id,subject_id) VALUES(?,?)", id, subject);
+        UserAdministrationDAO.insertEligibility(c, id, subject);
       else if (!existing.get(subject))
-        Jdbc.update(
-            c,
-            "UPDATE teacher_subjects SET is_active=TRUE,deactivated_at=NULL WHERE teacher_id=? AND"
-                + " subject_id=?",
-            id,
-            subject);
+        UserAdministrationDAO.reactivateEligibility(c, id, subject);
     }
   }
 }

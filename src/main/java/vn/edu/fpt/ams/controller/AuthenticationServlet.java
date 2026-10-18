@@ -32,7 +32,9 @@ public class AuthenticationServlet extends HttpServlet {
     try {
       WebSupport.checkCsrf(req);
     } catch (SecurityException e) {
-      res.sendError(403, "Biểu mẫu đã hết hạn. Vui lòng tải lại trang và thử lại.");
+      res.setStatus(403);
+      req.setAttribute("error", "Biểu mẫu đã hết hạn. Vui lòng tải lại trang và thử lại.");
+      req.getRequestDispatcher("/WEB-INF/views/auth/signin.jsp").forward(req, res);
       return;
     }
     if (req.getServletPath().endsWith("/signout")) {
