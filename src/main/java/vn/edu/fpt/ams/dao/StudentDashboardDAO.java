@@ -39,7 +39,7 @@ public final class StudentDashboardDAO {
             JOIN subject_classes c ON c.class_id=e.class_id
             JOIN subject_registrations r ON r.registration_id=e.registration_id
                 AND r.subject_term_id=c.subject_term_id
-            WHERE r.student_id=?
+            WHERE r.student_id=? AND a.assignment_purpose='REGULAR'
             """;
 
     public Optional<Student> activeStudent(Connection c, long studentId) throws SQLException {
@@ -68,7 +68,7 @@ public final class StudentDashboardDAO {
     }
 
     public long assignmentCount(Connection c, long student) throws SQLException {
-        return Jdbc.scalar(c, "SELECT COUNT(*) FROM assignments a WHERE a.status='PUBLISHED' AND "
+        return Jdbc.scalar(c, "SELECT COUNT(*) FROM assignments a WHERE a.status='PUBLISHED' AND a.assignment_purpose='REGULAR' AND "
                 + ASSIGNMENT_ACCESS, student);
     }
 
@@ -110,7 +110,7 @@ public final class StudentDashboardDAO {
     public List<OpenAssignment> openAssignments(Connection c, long student, Instant now) throws SQLException {
         String sql = "SELECT a.assignment_id,a.title,c.class_code,a.response_type,a.due_at"
                 + " FROM assignments a JOIN subject_classes c ON c.class_id=a.class_id"
-                + " WHERE a.status='PUBLISHED' AND " + ASSIGNMENT_ACCESS
+                + " WHERE a.status='PUBLISHED' AND a.assignment_purpose='REGULAR' AND " + ASSIGNMENT_ACCESS
                 + " AND a.available_from<=? AND a.due_at>? ORDER BY a.due_at,a.assignment_id";
         try (var p = Jdbc.statement(c, sql, student, now, now)) {
             p.setMaxRows(PREVIEW_LIMIT);

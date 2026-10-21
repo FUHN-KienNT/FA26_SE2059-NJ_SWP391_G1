@@ -13,6 +13,12 @@ public class StudentSubjectService {
     public StudentSubjectService(){this(DBConnection::getConnection);}
     public StudentSubjectService(Jdbc.Connections source){connections=source;}
 
+    public java.util.List<vn.edu.fpt.ams.model.AcademicTerm> termOptions(long student) {
+        return Jdbc.transaction(connections,c->{
+            c.setReadOnly(true);requireStudent(c,student);
+            return new MasterDataDAO().findTerms(c,null,null);
+        });
+    }
     public Page list(long student,String view,String search){
         String mode=view==null||view.isBlank()?"available":view;
         if(!mode.equals("available")&&!mode.equals("enrolled"))throw new IllegalArgumentException("Danh sách môn học không hợp lệ.");
@@ -36,7 +42,7 @@ public class StudentSubjectService {
             var context=dao.context(c,offering);dao.lockOffering(c,offering,context);
             var classes=dao.lockClasses(c,offering);
             var row=dao.detail(c,student,offering);
-            if(!row.open())throw new IllegalArgumentException("Môn học không còn mở đăng ký trong học kỳ hiện tại.");
+            if(!row.open())throw new IllegalArgumentException("Môn học không còn mở đăng ký trong học kỳ này.");
             if(row.enrolled())throw new IllegalArgumentException("Bạn đã đăng ký môn học này.");
             if(dao.hasPendingInvitation(c,student,offering))
                 throw new IllegalArgumentException("Bạn đang có lời mời vào lớp của môn học này. Vui lòng sử dụng lời mời đã nhận.");

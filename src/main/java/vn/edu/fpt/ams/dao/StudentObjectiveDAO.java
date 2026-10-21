@@ -22,7 +22,7 @@ public class StudentObjectiveDAO {
 
     public List<Owned> list(Connection connection, long studentId) throws SQLException {
         try (var s=connection.prepareStatement("SELECT a.*,e.enrollment_id,c.class_code " + MEMBERSHIP
-                + " ORDER BY a.due_at,a.assignment_id")) {
+                + " AND a.assignment_purpose='REGULAR' ORDER BY a.due_at,a.assignment_id")) {
             s.setLong(1,studentId);
             try(var rows=s.executeQuery()) {
                 List<Owned> result=new ArrayList<>();

@@ -1,0 +1,40 @@
+.admin-app.ams-ui.admin-terms .bao-card { min-width: 0; margin-bottom: 20px; }
+.admin-app.ams-ui.admin-terms .term-calendar-summary { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 20px; }
+.admin-app.ams-ui.admin-terms .term-calendar-summary strong { display: block; margin-top: 8px; overflow-wrap: anywhere; }
+.admin-app.ams-ui.admin-terms .term-toolbar { display: flex; align-items: end; gap: 16px; margin-bottom: 24px; }
+.admin-app.ams-ui.admin-terms .term-toolbar form { display: grid; grid-template-columns: minmax(200px,1fr) minmax(160px,220px) auto; align-items: end; gap: 16px; flex: 1; margin: 0; }
+.admin-app.ams-ui.admin-terms .term-toolbar label { display: grid; gap: 8px; min-width: 0; }
+.admin-app.ams-ui.admin-terms input:not([type=checkbox]),
+.admin-app.ams-ui.admin-terms select { box-sizing: border-box; width: 100% !important; min-width: 0; max-width: 100%; margin: 0; }
+.admin-app.ams-ui.admin-terms .term-toolbar input,
+.admin-app.ams-ui.admin-terms .term-toolbar select,
+.admin-app.ams-ui.admin-terms .term-toolbar .primary-button { min-height: 46px; }
+.admin-app.ams-ui.admin-terms .term-records { min-width: 950px; width: 100%; }
+.admin-app.ams-ui.admin-terms .term-records th,
+.admin-app.ams-ui.admin-terms .term-records td { padding: 16px; text-align: left; vertical-align: middle; }
+.admin-app.ams-ui.admin-terms .row-actions { display: flex; gap: 8px; min-width: 0; flex-wrap: wrap; }
+.admin-app.ams-ui.admin-terms .term-phase { display: inline-flex; width: fit-content; padding: 6px 10px; border-radius: 16px; background: #edf2fa; color: #536681; font-size: .875rem; white-space: nowrap; }
+.admin-app.ams-ui.admin-terms .term-phase.current { background: #e2f7ed; color: #08734f; }
+.admin-app.ams-ui.admin-terms .bao-term-layout { display: grid; grid-template-columns: minmax(0,2fr) minmax(0,1fr); gap: 24px; align-items: start; }
+.admin-app.ams-ui.admin-terms .bao-detail-rows > div,
+.admin-app.ams-ui.admin-terms .bao-state-list > div { display: grid; grid-template-columns: minmax(120px,35%) minmax(0,1fr); align-items: start; gap: 16px; padding: 16px 0; }
+.admin-app.ams-ui.admin-terms dt,
+.admin-app.ams-ui.admin-terms dd { margin: 0; padding: 0; min-width: 0; white-space: normal; text-align: left; overflow-wrap: anywhere; }
+.admin-app.ams-ui.admin-terms .form-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 24px; }
+.admin-app.ams-ui.admin-terms .form-grid label { display: block; min-width: 0; }
+.admin-app.ams-ui.admin-terms .form-grid input { display: block; margin-top: 8px; }
+.admin-app.ams-ui.admin-terms label.term-enabled { display: flex; align-items: start; gap: 12px; padding: 20px; border-radius: 12px; background: #f3f7ff; }
+.admin-app.ams-ui.admin-terms .term-enabled input { width: 18px; height: 18px; flex: 0 0 18px; margin: 3px 0 0; }
+.admin-app.ams-ui.admin-terms .term-enabled small { display: block; margin-top: 6px; font-weight: normal; color: #64799a; }
+.admin-app.ams-ui.admin-terms .form-actions { display: flex; flex-wrap: wrap; justify-content: end; gap: 12px; margin-top: 20px; }
+@media(max-width:1100px) {
+ .admin-app.ams-ui.admin-terms .term-toolbar { flex-direction: column; align-items: stretch; }
+ .admin-app.ams-ui.admin-terms .bao-term-layout { grid-template-columns: minmax(0,1fr); }
+}
+@media(max-width:700px) {
+ .admin-app.ams-ui.admin-terms .term-calendar-summary,
+ .admin-app.ams-ui.admin-terms .form-grid,
+ .admin-app.ams-ui.admin-terms .term-toolbar form { grid-template-columns: minmax(0,1fr); }
+ .admin-app.ams-ui.admin-terms .bao-detail-rows > div,
+ .admin-app.ams-ui.admin-terms .bao-state-list > div { grid-template-columns: minmax(0,1fr); gap: 8px; }
+}

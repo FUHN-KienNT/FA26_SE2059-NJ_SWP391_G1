@@ -48,6 +48,8 @@ final class StudentDashboardFixture {
         assignment(c, 200, 20, "Foreign Work", "PUBLISHED", "OBJECTIVE", now.minusSeconds(86400), now.plusSeconds(86400));
         assignment(c, 300, 30, "Historical Released", "CANCELLED", "ESSAY", now.minusSeconds(86400 * 80), now.minusSeconds(86400 * 70));
         assignment(c, 400, 40, "Inactive Enrollment Work", "PUBLISHED", "OBJECTIVE", now.minusSeconds(86400), now.plusSeconds(86400));
+        assignment(c, 600, 10, "Iter3 Practice", "PUBLISHED", "OBJECTIVE", now.minusSeconds(3600), now.plusSeconds(3600));
+        Jdbc.update(c, "UPDATE assignments SET assignment_purpose='PRACTICE' WHERE assignment_id=600");
         Jdbc.update(c, "INSERT INTO submissions VALUES (1,100,11,1,'SUBMITTED',NULL,NULL),(2,101,11,1,'GRADED',8,NULL),"
                 + "(3,103,11,1,'RELEASED',7,?),(4,300,33,1,'RELEASED',9,?),"
                 + "(5,100,11,2,'IN_PROGRESS',NULL,NULL),(6,100,11,3,'VOID',NULL,NULL),"
@@ -55,6 +57,7 @@ final class StudentDashboardFixture {
                 + "(9,200,55,1,'RELEASED',88,?),(10,200,11,1,'RELEASED',77,?)",
                 now.minusSeconds(600), now.minusSeconds(300), now.minusSeconds(60),
                 now.plusSeconds(86400), now.minusSeconds(60), now.minusSeconds(60));
+        Jdbc.update(c, "INSERT INTO submissions VALUES (11,600,11,1,'RELEASED',100,?)", now.minusSeconds(60));
     }
 
     static void assignment(Connection c, long id, long classId, String title, String status,

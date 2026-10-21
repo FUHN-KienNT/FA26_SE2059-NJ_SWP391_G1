@@ -10,4 +10,6 @@ public record SubjectTermViewDTO(
     boolean registrationEnabled,
     Instant registrationOpensAt,
     Instant registrationClosesAt,
-    String registrationStatus) {}
+    String registrationStatus,
+    boolean termActive,
+    boolean currentTerm) {}

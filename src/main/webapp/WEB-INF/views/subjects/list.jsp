@@ -4,6 +4,9 @@
     int number=(Integer)request.getAttribute("page");
     long total=(Long)request.getAttribute("total"),pages=Math.max(1,(total+19)/20);
     String base=request.getContextPath()+"/admin/subjects",token=WebSupport.csrf(request);
+    var terms=(List<AcademicTerm>)request.getAttribute("termOptions");
+    Long selectedTerm=(Long)request.getAttribute("selectedTermId");
+    boolean readOnlyTerm=Boolean.TRUE.equals(request.getAttribute("selectedTermReadOnly"));
 %>
 <!doctype html>
 <html lang="vi">
@@ -13,6 +16,7 @@
         <title>Danh sách môn học | AMS</title>
         <link rel="stylesheet" href="${pageContext.request.contextPath}/css/app.css">
         <%@ include file="/WEB-INF/views/shared/assets.jspf" %>
+        <%@ include file="/WEB-INF/views/subjects/assets.jspf" %>
     </head>
     <body class="admin-users admin-app admin-subjects ams-ui">
         <%@ include file="/WEB-INF/views/admin/shell.jspf" %>
@@ -23,11 +27,14 @@
                     QUẢN TRỊ HỌC THUẬT
                 </p>
                 <h1>
-                    Danh sách môn học
+                    Quản lý môn học
                 </h1>
                 <p class="muted">
-                    Tra cứu, cập nhật và quản lý môn học.
+                    Danh mục môn học và các học kỳ đã mở.
                 </p>
+                <% for(var term:terms) if(term.current()){ %>
+                <p class="subject-current-term">Học kỳ hiện tại: <strong><%=WebSupport.html(term.termCode()+" · "+term.termName())%></strong></p>
+                <% } %>
             </div>
             <section class="setting-list-card">
                 <%
@@ -41,9 +48,9 @@
                     }
                 %>
                 <div class="users-toolbar">
-                    <form method="get" id="subject-filters">
+                    <form method="get" id="subject-filters" class="subject-catalog-filters" data-live-search>
                         <label>
-                            <span class="sr-only">Mã hoặc tên môn học</span>
+                            <span>Tìm môn học</span>
                             <input
                                 name="keyword"
                                 maxlength="80"
@@ -51,7 +58,16 @@
                                 value="<%=WebSupport.html(request.getParameter("keyword"))%>">
                         </label>
                         <label>
-                            <span class="sr-only">Trạng thái</span>
+                            <span>Học kỳ</span>
+                            <select name="termId">
+                                <option value="">Tất cả học kỳ</option>
+                                <% for(var term:terms){ %>
+                                <option value="<%=term.termId()%>" <%=Objects.equals(selectedTerm,term.termId())?"selected":""%>><%=WebSupport.html(term.termCode()+" · "+term.termName())%><%=term.current()?" (Hiện tại)":""%></option>
+                                <% } %>
+                            </select>
+                        </label>
+                        <label>
+                            <span>Trạng thái môn</span>
                             <select name="status">
                                 <option value="">
                                     Tất cả trạng thái
@@ -71,28 +87,34 @@
                             Tìm kiếm
                         </button>
                     </form>
-                    <a class="primary-button" href="<%=base%>?mode=create">+ Thêm môn học</a>
+                    <a class="primary-button" href="<%=base%>?mode=create<%=selectedTerm==null?"":"&amp;termId="+selectedTerm%>">+ Thêm môn học</a>
                 </div>
-                <div class="users-table-wrap">
-                    <table class="setting-records">
+                <% if(readOnlyTerm){ %><p class="muted">Học kỳ này chỉ dùng để tra cứu.</p><% } %>
+                <div class="users-table-wrap" role="region" aria-label="Danh sách môn học" tabindex="0">
+                    <table class="setting-records subject-catalog-table">
+                        <caption class="sr-only">Danh sách môn học, học kỳ, chuyên gia và trạng thái</caption>
+                        <colgroup><col class="subject-col-code"><col class="subject-col-name"><col class="subject-col-term"><col class="subject-col-expert"><col class="subject-col-expert"><col class="subject-col-status"><col class="subject-col-actions"></colgroup>
                         <thead>
                             <tr>
-                                <th>
+                                <th scope="col">
                                     Mã
                                 </th>
-                                <th>
+                                <th scope="col">
                                     Tên môn học
                                 </th>
-                                <th>
+                                <th scope="col">
+                                    Học kỳ đã thiết lập
+                                </th>
+                                <th scope="col">
                                     Chuyên gia chính
                                 </th>
-                                <th>
+                                <th scope="col">
                                     Chuyên gia hỗ trợ
                                 </th>
-                                <th>
-                                    Trạng thái
+                                <th scope="col" title="Trạng thái chung của môn, áp dụng cho tất cả học kỳ">
+                                    Trạng thái môn
                                 </th>
-                                <th>
+                                <th scope="col">
                                     Thao tác
                                 </th>
                             </tr>
@@ -108,6 +130,15 @@
                                     </td>
                                     <td>
                                         <%=WebSupport.html(s.subjectName())%>
+                                    </td>
+                                    <td class="subject-term-cell">
+                                        <% if(s.subjectTerms().isEmpty()){ %><span class="muted">Chưa thiết lập học kỳ</span><% } %>
+                                        <% for(var term:s.subjectTerms()) if(selectedTerm==null || selectedTerm.longValue()==term.termId()){ %>
+                                        <div class="subject-term-entry">
+                                            <span class="subject-term-code"><%=WebSupport.html(term.termCode())%></span>
+                                            <small><%=WebSupport.html(term.termName())%></small>
+                                        </div>
+                                        <% } %>
                                     </td>
                                     <td>
                                         <%
@@ -146,9 +177,8 @@
                                     </td>
                                     <td>
                                         <div class="row-actions">
-                                            <a href="<%=base%>?mode=view&amp;id=<%=s.subjectId()%>">Xem</a><a href="<%=base%>?mode=edit&amp;id=<%=s.subjectId()%>">Sửa</a>
-                                            <a href="<%=base%>?mode=experts&amp;id=<%=s.subjectId()%>">Chuyên gia</a><a href="<%=base%>?mode=term&amp;id=<%=s.subjectId()%>">Học kỳ</a>
-                                            <a class="<%=active?"destructive-link":""%>" href="<%=base%>?mode=status&amp;id=<%=s.subjectId()%>"><%=active?"Ngừng hoạt động":"Kích hoạt"%></a>
+                                            <a href="<%=base%>?mode=view&amp;id=<%=s.subjectId()%>">Xem</a>
+                                            <% if(!readOnlyTerm){ %><a href="<%=base%>?mode=edit&amp;id=<%=s.subjectId()%><%=selectedTerm==null?"":"&amp;termId="+selectedTerm%>">Sửa</a><% } %>
                                         </div>
                                     </td>
                                 </tr>
@@ -159,7 +189,7 @@
                                 if(subjects.isEmpty()){
                                 %>
                                 <tr>
-                                    <td colspan="6" class="empty-state">
+                                    <td colspan="7" class="empty-state">
                                         Không có môn học phù hợp.
                                     </td>
                                 </tr>
@@ -176,6 +206,7 @@
                     <form method="get" class="pagination">
                         <input type="hidden" name="keyword" value="<%=WebSupport.html(request.getParameter("keyword"))%>">
                         <input type="hidden" name="status" value="<%=WebSupport.html(request.getParameter("status"))%>">
+                        <input type="hidden" name="termId" value="<%=selectedTerm==null?"":selectedTerm%>">
                         <%
                             if(number>1){
                             %>
@@ -204,6 +235,5 @@
             </section>
         </main>
     </div>
-    <script>const f=document.getElementById('subject-filters');let timer;f.elements.keyword.addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(()=>f.requestSubmit(),650)});f.elements.status.addEventListener('change',()=>f.requestSubmit());</script>
 </body>
 </html>

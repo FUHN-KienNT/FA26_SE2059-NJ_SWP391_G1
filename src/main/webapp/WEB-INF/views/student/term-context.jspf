@@ -1,0 +1,10 @@
+<%@ page pageEncoding="UTF-8" import="java.util.*,java.time.Instant,vn.edu.fpt.ams.model.AcademicTerm,vn.edu.fpt.ams.util.TermTimeline" %>
+<%
+    var studentTermOptions=(List<AcademicTerm>)request.getAttribute("termOptions");
+    if(studentTermOptions==null) studentTermOptions=List.of();
+    var studentCurrentTerm=studentTermOptions.stream().filter(AcademicTerm::current).findFirst().orElse(null);
+    var studentTermsByCode=new HashMap<String,AcademicTerm>();
+    for(var calendarTerm:studentTermOptions) studentTermsByCode.put(calendarTerm.termCode(),calendarTerm);
+    Instant calendarNow=Instant.now();
+%>
+<p class="student-calendar-context">Học kỳ hiện tại: <strong><%=studentCurrentTerm==null?"Chưa có học kỳ hiện tại":WebSupport.html(studentCurrentTerm.termCode()+" · "+studentCurrentTerm.termName())%></strong></p>

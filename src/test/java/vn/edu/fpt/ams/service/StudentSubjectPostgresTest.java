@@ -20,7 +20,7 @@ class StudentSubjectPostgresTest {
             for(String ddl:List.of(
                 "users(user_id BIGINT PRIMARY KEY,full_name TEXT,email TEXT,role TEXT,account_status TEXT)",
                 "subjects(subject_id BIGINT PRIMARY KEY,subject_code TEXT,subject_name TEXT,description TEXT,status TEXT)",
-                "academic_terms(term_id BIGINT PRIMARY KEY,term_code TEXT,term_name TEXT,starts_at TIMESTAMPTZ,is_active BOOLEAN,is_current BOOLEAN)",
+                "academic_terms(term_id BIGINT PRIMARY KEY,term_code TEXT,term_name TEXT,starts_at TIMESTAMPTZ,ends_at TIMESTAMPTZ,is_active BOOLEAN,is_current BOOLEAN)",
                 "subject_terms(subject_term_id BIGINT PRIMARY KEY,subject_id BIGINT REFERENCES subjects,term_id BIGINT REFERENCES academic_terms,registration_enabled BOOLEAN,registration_opens_at TIMESTAMPTZ,registration_closes_at TIMESTAMPTZ)",
                 "subject_classes(class_id BIGINT PRIMARY KEY,subject_term_id BIGINT REFERENCES subject_terms,teacher_id BIGINT REFERENCES users,class_code TEXT,class_name TEXT,capacity INT CHECK(capacity BETWEEN 10 AND 40),registration_enabled BOOLEAN,status TEXT)",
                 "teacher_subjects(teacher_id BIGINT REFERENCES users,subject_id BIGINT REFERENCES subjects,is_active BOOLEAN)",
@@ -31,7 +31,7 @@ class StudentSubjectPostgresTest {
         }
         Jdbc.update(connection,"INSERT INTO users VALUES (1,'Student One','one@test.edu','STUDENT','ACTIVE'),(2,'Student Two','two@test.edu','STUDENT','ACTIVE'),(3,'Teacher','teacher@test.edu','TEACHER','ACTIVE'),(4,'Inactive','inactive@test.edu','STUDENT','INACTIVE'),(5,'Admin','admin@test.edu','ADMIN','ACTIVE')");
         Jdbc.update(connection,"INSERT INTO subjects VALUES(1,'SWP391','Software Project','Project description','ACTIVE'),(2,'DBI202','Databases','Database description','ACTIVE')");
-        Jdbc.update(connection,"INSERT INTO academic_terms VALUES(1,'CURRENT','Current',?,TRUE,TRUE),(2,'PAST','Past',?,FALSE,FALSE)",Instant.now().minusSeconds(3600),Instant.now().minusSeconds(90000));
+        Jdbc.update(connection,"INSERT INTO academic_terms VALUES(1,'CURRENT','Current',?,statement_timestamp()+INTERVAL '2 days',TRUE,TRUE),(2,'PAST','Past',?,statement_timestamp()-INTERVAL '1 day',FALSE,FALSE)",Instant.now().minusSeconds(3600),Instant.now().minusSeconds(90000));
         Jdbc.update(connection,"INSERT INTO subject_terms VALUES(1,1,1,TRUE,?,?),(2,2,1,TRUE,?,?),(3,1,2,FALSE,?,?)",Instant.now().minusSeconds(3600),Instant.now().plusSeconds(3600),Instant.now().minusSeconds(7200),Instant.now().minusSeconds(3600),Instant.now().minusSeconds(90000),Instant.now().minusSeconds(80000));
         Jdbc.update(connection,"INSERT INTO subject_classes VALUES(10,1,3,'SWP-01','Group 1',10,TRUE,'ACTIVE'),(20,2,3,'DBI-01','Group 2',10,TRUE,'ACTIVE'),(30,3,3,'OLD-01','Old Group',10,FALSE,'INACTIVE')");
         Jdbc.update(connection,"INSERT INTO teacher_subjects VALUES(3,1,TRUE),(3,2,TRUE)");
@@ -53,6 +53,69 @@ class StudentSubjectPostgresTest {
         assertEquals("INACTIVE",service.detail(2,3).registrationStatus());
         assertThrows(java.util.NoSuchElementException.class,()->service.detail(1,3));
         assertTrue(id>0);
+    }
+    @Test void upcomingOfferingIsVisibleWithScheduleButEarlyRegistrationCannotWrite() throws Exception {
+        Instant opens=Instant.now().plusSeconds(86400),closes=opens.plusSeconds(3600);
+        Jdbc.update(connection,"UPDATE subject_terms SET registration_opens_at=?,registration_closes_at=? WHERE subject_term_id=1",opens,closes);
+        var page=service.list(1,"available","");
+        assertEquals(1,page.offerings().size());
+        var detail=service.detail(1,1);
+        assertEquals(opens.getEpochSecond(),detail.opensAt().getEpochSecond());
+        assertEquals("Chưa mở đăng ký",detail.stateLabel());
+        assertFalse(detail.canRegister());
+        assertThrows(IllegalArgumentException.class,()->service.register(1,1));
+        assertEquals(0,count("subject_registrations"));assertEquals(0,count("class_enrollments"));
+        Jdbc.update(connection,"UPDATE subject_terms SET registration_opens_at=statement_timestamp() WHERE subject_term_id=1");
+        assertTrue(service.detail(1,1).canRegister());
+        assertTrue(service.register(1,1)>0);
+    }
+    @Test void upcomingOfferingWithoutClassesRemainsVisibleButCannotRegister() throws Exception {
+        Jdbc.update(connection,"UPDATE subject_terms SET registration_opens_at=statement_timestamp()+INTERVAL '1 day' WHERE subject_term_id=1");
+        Jdbc.update(connection,"DELETE FROM subject_classes WHERE class_id=10");
+        assertEquals(1,service.list(1,"available","").offerings().size());
+        assertEquals(0,service.detail(1,1).availableSeats());
+        assertEquals("Chưa mở đăng ký",service.detail(1,1).stateLabel());
+        assertThrows(IllegalArgumentException.class,()->service.register(1,1));
+        assertEquals(0,count("subject_registrations"));
+    }
+    @Test void hiddenDisabledClosedAndEndedOfferingsStayInaccessibleWithoutOwnHistory() throws Exception {
+        for(String update:List.of("UPDATE subject_terms SET registration_enabled=FALSE WHERE subject_term_id=1",
+                "UPDATE subject_terms SET registration_closes_at=statement_timestamp() WHERE subject_term_id=1",
+                "UPDATE academic_terms SET is_active=FALSE WHERE term_id=1",
+                "UPDATE academic_terms SET ends_at=statement_timestamp() WHERE term_id=1",
+                "UPDATE subjects SET status='INACTIVE' WHERE subject_id=1")) {
+            Jdbc.update(connection,update);
+            assertTrue(service.list(1,"available","").offerings().isEmpty());
+            assertThrows(java.util.NoSuchElementException.class,()->service.detail(1,1));
+            Jdbc.update(connection,"UPDATE subject_terms SET registration_enabled=TRUE,registration_opens_at=statement_timestamp()+INTERVAL '1 hour',registration_closes_at=statement_timestamp()+INTERVAL '1 day' WHERE subject_term_id=1");
+            Jdbc.update(connection,"UPDATE academic_terms SET is_active=TRUE,ends_at=statement_timestamp()+INTERVAL '2 days' WHERE term_id=1");
+            Jdbc.update(connection,"UPDATE subjects SET status='ACTIVE' WHERE subject_id=1");
+        }
+    }
+    @Test void upcomingTermAllowsPretermRegistrationWithoutManualCurrentFlag() throws Exception {
+        Jdbc.update(connection,"UPDATE academic_terms SET starts_at=statement_timestamp()+INTERVAL '1 day',is_current=FALSE WHERE term_id=1");
+        assertEquals(1,service.list(1,"available","").offerings().size());
+        assertFalse(service.detail(1,1).currentTerm());
+        assertTrue(service.register(1,1)>0);
+    }
+    @Test void endedTermCannotAcceptRegistrationEvenWithStaleCurrentFlag() throws Exception {
+        Jdbc.update(connection,"UPDATE academic_terms SET ends_at=statement_timestamp() WHERE term_id=1");
+        assertTrue(service.list(1,"available","").offerings().isEmpty());
+        assertThrows(java.util.NoSuchElementException.class,()->service.register(1,1));
+        assertEquals(0,count("subject_registrations"));
+    }
+    @Test void currentCalendarContextKeepsHistoricalOfferingAndOwnership() throws Exception {
+        Jdbc.insert(connection,"INSERT INTO subject_registrations(student_id,subject_term_id) VALUES(1,3)");
+        assertEquals("CURRENT",service.termOptions(1).stream().filter(vn.edu.fpt.ams.model.AcademicTerm::current).findFirst().orElseThrow().termCode());
+        assertEquals("PAST",service.detail(1,3).termCode());
+        assertEquals("PAST",service.list(1,"enrolled","").offerings().get(0).termCode());
+        assertFalse(service.detail(1,3).canRegister());
+        var past=service.termOptions(1).stream().filter(t->t.termCode().equals("PAST")).findFirst().orElseThrow();
+        assertEquals("Đã kết thúc",TermTimeline.label(past,Instant.now()));
+        assertThrows(java.util.NoSuchElementException.class,()->service.detail(2,3));
+        assertEquals(1,count("subject_registrations"));
+        assertEquals(0,count("class_enrollments"));
+        for(long staff:List.of(3L,4L,5L)) assertThrows(SecurityException.class,()->service.termOptions(staff));
     }
     @Test void successfulRegistrationPersistsBothRecordsAndRejectsDuplicate()throws Exception{
         long id=service.register(1,1);
@@ -78,7 +141,7 @@ class StudentSubjectPostgresTest {
     }
     @Test void rejectsLifecycleTeacherEligibilityAndDirectClosedOfferingRequests()throws Exception{
         assertThrows(java.util.NoSuchElementException.class,()->service.register(1,2));
-        for(String update:List.of("UPDATE academic_terms SET is_current=FALSE WHERE term_id=1",
+        for(String update:List.of("UPDATE academic_terms SET ends_at=statement_timestamp() WHERE term_id=1",
                 "UPDATE academic_terms SET is_active=FALSE WHERE term_id=1","UPDATE subjects SET status='INACTIVE' WHERE subject_id=1",
                 "UPDATE subject_terms SET registration_enabled=FALSE WHERE subject_term_id=1",
                 "UPDATE subject_terms SET registration_opens_at=statement_timestamp()+INTERVAL '1 day' WHERE subject_term_id=1",
@@ -89,7 +152,7 @@ class StudentSubjectPostgresTest {
             try(var s=connection.createStatement()){s.execute(update);}
             assertThrows(RuntimeException.class,()->service.register(1,1),update);
             assertEquals(0,count("subject_registrations"));assertEquals(0,count("class_enrollments"));
-            Jdbc.update(connection,"UPDATE academic_terms SET is_current=TRUE,is_active=TRUE WHERE term_id=1");
+            Jdbc.update(connection,"UPDATE academic_terms SET is_current=TRUE,is_active=TRUE,ends_at=statement_timestamp()+INTERVAL '2 days' WHERE term_id=1");
             Jdbc.update(connection,"UPDATE subjects SET status='ACTIVE' WHERE subject_id=1");
             Jdbc.update(connection,"UPDATE subject_terms SET registration_enabled=TRUE,registration_opens_at=?,registration_closes_at=? WHERE subject_term_id=1",Instant.now().minusSeconds(3600),Instant.now().plusSeconds(3600));
             Jdbc.update(connection,"UPDATE subject_classes SET registration_enabled=TRUE,status='ACTIVE' WHERE class_id=10");

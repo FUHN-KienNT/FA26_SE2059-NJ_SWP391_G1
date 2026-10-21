@@ -47,7 +47,7 @@ public final class GoogleEnrollmentDAO {
     return Jdbc.scalar(c, "SELECT COUNT(*) FROM subject_terms st JOIN subjects s ON s.subject_id=st.subject_id"
                 + " JOIN academic_terms a ON a.term_id=st.term_id JOIN teacher_subjects t ON"
                 + " t.subject_id=s.subject_id JOIN users u ON u.user_id=t.teacher_id WHERE"
-                + " st.subject_term_id=? AND s.status='ACTIVE' AND a.is_active=TRUE AND"
+                + " st.subject_term_id=? AND s.status='ACTIVE' AND a.is_active=TRUE AND a.ends_at>CURRENT_TIMESTAMP AND"
                 + " t.teacher_id=? AND t.is_active=TRUE AND u.role='TEACHER' AND"
                 + " u.account_status='ACTIVE'", termId, teacherId);
   }

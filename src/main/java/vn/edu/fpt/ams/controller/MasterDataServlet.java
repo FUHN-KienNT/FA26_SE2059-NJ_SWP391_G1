@@ -33,23 +33,22 @@ public class MasterDataServlet extends HttpServlet {
                 throw new IllegalArgumentException("Màn hình học kỳ không hợp lệ.");
             long actor = WebSupport.actor(req);
             req.setAttribute("mode", mode);
-            if ("create".equals(mode))
-                req.setAttribute("hasActiveTerm", !service.listTerms(actor, null, true).isEmpty());
+            if ("create".equals(mode)) service.listTerms(actor, null, null);
             if (!"create".equals(mode))
                 req.setAttribute("term", service.getTerm(actor, WebSupport.id(req.getParameter("id"))));
             if ("switch".equals(mode)) {
-                AcademicTerm target = (AcademicTerm) req.getAttribute("term");
-                if (target.active())
-                    throw new IllegalArgumentException("Chọn một học kỳ chưa hoạt động để chuyển.");
-                var activeTerms = service.listTerms(actor, null, true);
-                if (activeTerms.size() != 1)
-                    throw new IllegalArgumentException("Cần có đúng một học kỳ hoạt động để chuyển.");
-                req.setAttribute("activeTerm", activeTerms.get(0));
+                res.sendRedirect(req.getContextPath() + "/admin/terms");
+                return;
+            }
+            if ("edit".equals(mode)) {
+                AcademicTerm selected = (AcademicTerm) req.getAttribute("term");
+                if (!selected.endsAt().isAfter(Instant.now())) {
+                    res.sendRedirect(req.getContextPath() + "/admin/master-data?mode=view&id=" + selected.termId());
+                    return;
+                }
             }
             WebSupport.csrf(req);
-            req.getRequestDispatcher("switch".equals(mode)
-                    ? "/WEB-INF/views/master-data/switch.jsp"
-                    : "/WEB-INF/views/master-data/detail.jsp").forward(req, res);
+            req.getRequestDispatcher("/WEB-INF/views/master-data/detail.jsp").forward(req, res);
         } catch (RuntimeException ex) {
             WebSupport.failure(req, res, ex);
         }
@@ -107,7 +106,7 @@ public class MasterDataServlet extends HttpServlet {
         } else if ("status".equals(action) || "current".equals(action) || "switch".equals(action)) {
             long actor = WebSupport.actor(req);
             req.setAttribute("terms", service.listTerms(actor, null, null));
-            req.setAttribute("hasActiveTerm", !service.listTerms(actor, null, true).isEmpty());
+            req.setAttribute("calendarTerms", service.listTerms(actor, null, null));
             req.setAttribute("error", Vietnamese.label(error.getMessage()));
             res.setStatus(HttpServletResponse.SC_BAD_REQUEST);
             req.getRequestDispatcher("/WEB-INF/views/master-data/list.jsp").forward(req, res);
@@ -139,15 +138,15 @@ public class MasterDataServlet extends HttpServlet {
         Instant start = date(req.getParameter("startsAt"), false);
         Instant end = date(req.getParameter("endsAt"), true);
         return new AcademicTerm(id, req.getParameter("termCode"), req.getParameter("termName"),
-                start, end, req.getParameter("current") != null, req.getParameter("active") != null);
+                start, end, false, req.getParameter("active") != null);
     }
 
     private static Instant date(String raw, boolean endOfDay) {
         try {
             if (raw == null || raw.isBlank()) return null;
             LocalDate date = LocalDate.parse(raw);
-            ZoneId zone = ZoneOffset.UTC;
-            return (endOfDay ? date.plusDays(1).atStartOfDay(zone).minusNanos(1)
+            ZoneId zone = vn.edu.fpt.ams.util.TermTimeline.ZONE;
+            return (endOfDay ? date.plusDays(1).atStartOfDay(zone).minusNanos(1000)
                     : date.atStartOfDay(zone)).toInstant();
         } catch (RuntimeException e) {
             return null;

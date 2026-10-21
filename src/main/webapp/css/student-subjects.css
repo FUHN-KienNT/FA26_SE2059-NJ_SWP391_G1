@@ -26,3 +26,13 @@
 .student-subjects .student-table-wrap th,.student-subjects .student-table-wrap td{vertical-align:middle;overflow-wrap:anywhere}
 .student-subjects .student-table-wrap .student-outline-button{min-height:40px;padding:8px 12px}
 @media(max-width:700px){.student-subjects .student-subject-filter{grid-template-columns:1fr;justify-content:stretch}.student-subjects .student-subject-filter button{justify-self:start}.student-subjects .student-subject-info>div{grid-template-columns:1fr;gap:8px}.student-subjects .student-heading .student-outline-button{align-self:flex-start}}
+
+.student-subjects .student-subject-actions { display:flex; flex-wrap:wrap; gap:8px; }
+.student-subjects button:disabled { cursor:not-allowed; opacity:.55; }
+.student-subjects .student-table-wrap table.student-available-table { min-width:1120px; }
+.student-subjects .student-available-table th:nth-child(1) { width:20%; }
+.student-subjects .student-available-table th:nth-child(2) { width:12%; }
+.student-subjects .student-available-table th:nth-child(3) { width:10%; }
+.student-subjects .student-available-table th:nth-child(4) { width:22%; }
+.student-subjects .student-available-table th:nth-child(5) { width:17%; }
+.student-subjects .student-available-table th:nth-child(6) { width:19%; }

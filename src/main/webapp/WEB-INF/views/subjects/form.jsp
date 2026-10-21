@@ -1,22 +1,28 @@
 <%@ page contentType="text/html;charset=UTF-8" import="java.util.*,vn.edu.fpt.ams.dto.*,vn.edu.fpt.ams.model.*,vn.edu.fpt.ams.util.WebSupport" %>
 <%
     String mode=(String)request.getAttribute("mode"),base=request.getContextPath()+"/admin/subjects",token=WebSupport.csrf(request);
-    boolean create="create".equals(mode),submitted=Boolean.TRUE.equals(request.getAttribute("submitted"));
+    boolean create="create".equals(mode),submitted=Boolean.TRUE.equals(request.getAttribute("submitted")) && (create || "update".equals(request.getParameter("action")));
     SubjectDetailsDTO details=(SubjectDetailsDTO)request.getAttribute("details");
     SubjectDTO s=create?null:details.subject();
     var eligible=(List<ExpertOptionDTO>)request.getAttribute("eligibleExperts");
     if(eligible==null)eligible=List.of();
     Set<Long> primary=submitted?WebSupport.ids(request.getParameterValues("primaryExperts")):Set.of(),supporting=submitted?WebSupport.ids(request.getParameterValues("supportingExperts")):Set.of();
     String code=submitted?request.getParameter("subjectCode"):(create?"":s.subjectCode()),name=submitted?request.getParameter("subjectName"):(create?"":s.subjectName()),description=submitted?request.getParameter("description"):(create?"":s.description());
+    String feedbackAction=request.getAttribute("error")!=null?request.getParameter("action"):(String)session.getAttribute("subjectEditNoticeAction");
+    Object feedbackNotice=session.getAttribute("notice");
+    session.removeAttribute("notice");
+    session.removeAttribute("subjectEditNoticeAction");
+    boolean localFeedback=!create && feedbackAction!=null && Set.of("experts","status","term").contains(feedbackAction);
 %>
 <!doctype html>
 <html lang="vi">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width,initial-scale=1">
-        <title><%=create?"Thêm":"Cập nhật"%> môn học | AMS</title>
+        <title><%=create?"Thêm":"Sửa"%> môn học | AMS</title>
         <link rel="stylesheet" href="${pageContext.request.contextPath}/css/app.css">
         <%@ include file="/WEB-INF/views/shared/assets.jspf" %>
+        <%@ include file="/WEB-INF/views/subjects/assets.jspf" %>
     </head>
     <body class="admin-users admin-app admin-subjects ams-ui">
         <%@ include file="/WEB-INF/views/admin/shell.jspf" %>
@@ -25,10 +31,10 @@
             <div class="subject-heading">
                 <div>
                     <h1>
-                        <%=create?"Thêm môn học":"Cập nhật môn học"%>
+                        <%=create?"Thêm môn học":"Sửa môn học"%>
                     </h1>
                     <p class="muted">
-                        <%=create?"Tạo mới môn học trong hệ thống.":"Chỉnh sửa thông tin môn học."%>
+                        <%=create?"Thông tin môn, chuyên gia và học kỳ.":"Thông tin môn và đăng ký theo kỳ."%>
                     </p>
                 </div>
                 <a class="secondary-button" href="<%=create?base:base+"?mode=view&id="+s.subjectId()%>">← <%=create?"Quay lại danh sách":"Quay lại chi tiết"%></a>
@@ -43,17 +49,29 @@
                 }
             %>
             <%
-                if(request.getAttribute("error")!=null){
+                if(request.getAttribute("error")!=null && !localFeedback){
                 %>
-                <p role="alert">
+                <p role="alert" tabindex="-1" data-subject-feedback>
                     <%=WebSupport.html(request.getAttribute("error"))%>
                 </p>
                 <%
                 }
             %>
+            <% if(feedbackNotice!=null && !localFeedback){ %>
+            <p role="status" tabindex="-1" data-subject-feedback><%=WebSupport.html(feedbackNotice)%></p>
+            <% } %>
+            <% if(!create){ %>
+            <nav class="subject-edit-nav" aria-label="Các phần chỉnh sửa">
+                <a href="#subject-information">Thông tin môn</a><a href="#subject-experts">Chuyên gia</a><a href="#subject-status">Trạng thái môn</a><a href="#subject-registration">Đăng ký theo kỳ</a>
+            </nav>
+            <% } %>
             <form class="bao-focused-form" method="post" action="<%=base%>">
                 <input type="hidden" name="csrf" value="<%=token%>">
                 <input type="hidden" name="action" value="<%=create?"create":"update"%>">
+                <% if(!create){ %>
+                <input type="hidden" name="returnTo" value="edit">
+                <input type="hidden" name="termId" value="<%=request.getAttribute("editTermId")==null?"":request.getAttribute("editTermId")%>">
+                <% } %>
                 <%
                     if(!create){
                     %>
@@ -61,7 +79,7 @@
                     <%
                     }
                 %>
-                <section class="bao-card">
+                <section class="bao-card" id="subject-information">
                     <h2>
                         Thông tin môn học
                     </h2>
@@ -105,6 +123,7 @@
                                 <legend>
                                     Chuyên gia chính (bắt buộc 1–2)
                                 </legend>
+                                <% if(eligible.isEmpty()){ %><p class="muted">Chưa có chuyên gia đang hoạt động.</p><% } %>
                                 <%
                                     for(var e:eligible){
                                     %>
@@ -126,6 +145,7 @@
                                 <legend>
                                     Chuyên gia hỗ trợ (tối đa 2)
                                 </legend>
+                                <% if(eligible.isEmpty()){ %><p class="muted">Chưa có chuyên gia đang hoạt động.</p><% } %>
                                 <%
                                     for(var e:eligible){
                                     %>
@@ -147,61 +167,23 @@
                     </section>
                     <%
                     }
-                    else{
-                    %>
-                    <section class="bao-card bao-edit-experts">
-                        <h2>
-                            Phân công hiện tại
-                        </h2>
-                        <p>
-                            Chuyên gia chính:
-                            <%
-                                if(details.primaryExperts().isEmpty()){
-                                %>
-                                Chưa có
-                                <%
-                                }
-                                for(var e:details.primaryExperts()){
-                                %>
-                                <strong><%=WebSupport.html(e.fullName())%></strong>
-                                <%
-                                }
-                            %>
-                        </p>
-                        <p>
-                            Chuyên gia hỗ trợ:
-                            <%
-                                if(details.supportingExperts().isEmpty()){
-                                %>
-                                Không có
-                                <%
-                                }
-                                for(var e:details.supportingExperts()){
-                                %>
-                                <strong><%=WebSupport.html(e.fullName())%></strong>
-                                <%
-                                }
-                            %>
-                        </p>
-                        <p>
-                            <a href="<%=base%>?mode=experts&amp;id=<%=s.subjectId()%>">Mở chức năng phân công chuyên gia</a>
-                        </p>
-                    </section>
-                    <p class="muted">
-                        Trạng thái được thay đổi trong chức năng UC16 riêng.
-                    </p>
-                    <%
-                    }
                 %>
+                <% if(create){ %>
+                    <%@ include file="/WEB-INF/views/subjects/create-term.jspf" %>
+                <% } %>
                 <div class="form-actions">
                     <button class="primary-button">
-                        <%=create?"Tạo môn học":"Lưu thay đổi"%>
+                        <%=create?"Tạo môn học":"Lưu thông tin môn"%>
                     </button>
                     <a class="secondary-button" href="<%=create?base:base+"?mode=view&id="+s.subjectId()%>">Hủy</a>
                 </div>
             </form>
+            <% if(!create){ %>
+                <%@ include file="/WEB-INF/views/subjects/edit-controls.jspf" %>
+            <% } %>
         </main>
     </div>
+    <script src="${pageContext.request.contextPath}/js/subject-edit.js?v=20261021-review1" defer></script>
     <script>document.querySelectorAll('[name=primaryExperts]').forEach(p=>p.addEventListener('change',()=>{if(p.checked){const s=document.querySelector('[name=supportingExperts][value="'+p.value+'"]');if(s)s.checked=false}}));document.querySelectorAll('[name=supportingExperts]').forEach(s=>s.addEventListener('change',()=>{if(s.checked){const p=document.querySelector('[name=primaryExperts][value="'+s.value+'"]');if(p)p.checked=false}}));</script>
 </body>
 </html>

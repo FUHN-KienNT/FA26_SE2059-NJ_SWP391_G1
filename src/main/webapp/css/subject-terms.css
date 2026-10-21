@@ -1,0 +1,162 @@
+/* Admin Subject UI. Keep these rules isolated from other modules. */
+.admin-app.ams-ui.admin-subjects {
+  --subject-border: #dce6f3;
+  --subject-muted: #64748b;
+}
+.admin-app.ams-ui.admin-subjects .bao-context { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.admin-app.ams-ui.admin-subjects .subject-heading { gap:16px; flex-wrap:wrap; align-items:flex-start; }
+.admin-app.ams-ui.admin-subjects .subject-heading>div { min-width:0; flex:1 1 260px; }
+.admin-app.ams-ui.admin-subjects .subject-heading h1 { overflow-wrap:anywhere; }
+.admin-app.ams-ui.admin-subjects .subject-heading>.secondary-button { flex:0 0 auto; }
+.admin-app.ams-ui.admin-subjects .muted { color:var(--subject-muted); line-height:1.6; }
+.admin-app.ams-ui.admin-subjects .subject-current-term { margin:10px 0 0; color:#536781; font-size:13px; }
+.admin-app.ams-ui.admin-subjects .bao-card { padding:24px; }
+.admin-app.ams-ui.admin-subjects .bao-card h2 { margin:0 0 16px; }
+.admin-app.ams-ui.admin-subjects .bao-card>p { margin:8px 0 16px; font-size:13px; }
+.admin-app.ams-ui.admin-subjects [role=alert],
+.admin-app.ams-ui.admin-subjects [role=status] { margin:16px 0; padding:12px 16px; line-height:1.6; overflow-wrap:anywhere; scroll-margin-top:100px; }
+.admin-app.ams-ui.admin-subjects [hidden] { display:none !important; }
+.admin-app.ams-ui.admin-subjects .primary-button,
+.admin-app.ams-ui.admin-subjects .secondary-button,
+.admin-app.ams-ui.admin-subjects .destructive-button { min-height:44px; padding:10px 16px; line-height:1.5; }
+
+/* List: aligned controls, one scrollable table and compact row actions. */
+.admin-app.ams-ui.admin-subjects .users-toolbar { display:flex; align-items:flex-end; flex-wrap:wrap; gap:16px; margin-bottom:20px; }
+.admin-app.ams-ui.admin-subjects form.subject-catalog-filters { display:grid; grid-template-columns:minmax(180px,1.5fr) minmax(170px,1fr) minmax(150px,1fr) auto; align-items:end; gap:12px; flex:1 1 680px; width:auto; margin:0; }
+.admin-app.ams-ui.admin-subjects form.subject-catalog-filters label { display:grid; gap:7px; min-width:0; margin:0; color:#536781; font-size:12px; font-weight:600; }
+.admin-app.ams-ui.admin-subjects form.subject-catalog-filters input,
+.admin-app.ams-ui.admin-subjects form.subject-catalog-filters select { width:100% !important; min-width:0; max-width:100%; height:44px; margin:0; }
+.admin-app.ams-ui.admin-subjects form.subject-catalog-filters button { height:44px; margin:0; white-space:nowrap; }
+.admin-app.ams-ui.admin-subjects .users-table-wrap { max-width:100%; min-width:0; overflow-x:auto; }
+.admin-app.ams-ui.admin-subjects table.subject-catalog-table { width:100%; min-width:1060px; table-layout:fixed; }
+.admin-app.ams-ui.admin-subjects .subject-col-code { width:9%; }
+.admin-app.ams-ui.admin-subjects .subject-col-name { width:21%; }
+.admin-app.ams-ui.admin-subjects .subject-col-term { width:18%; }
+.admin-app.ams-ui.admin-subjects .subject-col-expert { width:13%; }
+.admin-app.ams-ui.admin-subjects .subject-col-status { width:14%; }
+.admin-app.ams-ui.admin-subjects .subject-col-actions { width:12%; }
+.admin-app.ams-ui.admin-subjects .subject-catalog-table th,
+.admin-app.ams-ui.admin-subjects .subject-catalog-table td { padding:12px; vertical-align:middle; overflow-wrap:anywhere; white-space:normal; }
+.admin-app.ams-ui.admin-subjects .subject-catalog-table td:first-child { white-space:normal; }
+.admin-app.ams-ui.admin-subjects .subject-term-entry { display:grid; justify-items:start; gap:4px; padding:7px 0; }
+.admin-app.ams-ui.admin-subjects .subject-term-entry+.subject-term-entry { border-top:1px solid #e5edf8; }
+.admin-app.ams-ui.admin-subjects .subject-term-entry small { color:var(--subject-muted); font-size:12px; }
+.admin-app.ams-ui.admin-subjects .subject-term-code,
+.admin-app.ams-ui.admin-subjects .subject-current-badge { display:inline-flex; align-items:center; width:fit-content; max-width:100%; border-radius:14px; padding:3px 8px; background:#eaf1ff; color:#245bd8; font-size:11px; font-weight:650; line-height:1.5; overflow-wrap:anywhere; }
+.admin-app.ams-ui.admin-subjects .subject-current-badge { background:#e4f7ed; color:#16754b; margin-left:6px; white-space:nowrap; }
+.admin-app.ams-ui.admin-subjects .subject-catalog-table .row-actions { min-width:0; gap:6px; flex-wrap:wrap; }
+.admin-app.ams-ui.admin-subjects .subject-catalog-table .row-actions a { min-height:34px; padding:5px 10px; justify-content:center; }
+.admin-app.ams-ui.admin-subjects .status-badge { display:inline-flex; align-items:center; justify-content:center; width:fit-content; max-width:100%; white-space:nowrap; vertical-align:middle; }
+.admin-app.ams-ui.admin-subjects .users-footer { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.admin-app.ams-ui.admin-subjects .users-footer p { margin:0; }
+.admin-app.ams-ui.admin-subjects .pagination { display:flex; flex-wrap:wrap; gap:6px; margin:0; }
+.admin-app.ams-ui.admin-subjects .pagination button { min-width:36px; min-height:36px; }
+
+/* Create/Edit: consistent field widths and card spacing. */
+.admin-app.ams-ui.admin-subjects .subject-form .form-grid,
+.admin-app.ams-ui.admin-subjects .subject-form .expert-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; }
+.admin-app.ams-ui.admin-subjects .subject-form label { min-width:0; margin:0 0 16px; line-height:1.5; }
+.admin-app.ams-ui.admin-subjects .subject-form label input:not([type=checkbox]):not([type=radio]),
+.admin-app.ams-ui.admin-subjects .subject-form label select,
+.admin-app.ams-ui.admin-subjects .subject-form label textarea { display:block; width:100%; min-width:0; max-width:100%; margin-top:7px; }
+.admin-app.ams-ui.admin-subjects .subject-form label input:not([type=checkbox]):not([type=radio]),
+.admin-app.ams-ui.admin-subjects .subject-form label select { min-height:44px; }
+.admin-app.ams-ui.admin-subjects .subject-form textarea { min-height:110px; resize:vertical; }
+.admin-app.ams-ui.admin-subjects .subject-form input[readonly] { background:#f3f6fa; color:#536781; border-style:solid; }
+.admin-app.ams-ui.admin-subjects .bao-focused-form .bao-card { margin:0 0 20px; }
+.admin-app.ams-ui.admin-subjects .bao-focused-form .form-grid { margin:0; }
+.admin-app.ams-ui.admin-subjects .bao-focused-form .bao-card>label { margin:0 0 16px; }
+.admin-app.ams-ui.admin-subjects .bao-focused-form .bao-card>label:last-child { margin-bottom:0; }
+.admin-app.ams-ui.admin-subjects .subject-form .form-actions,
+.admin-app.ams-ui.admin-subjects .subject-section-actions { display:flex; justify-content:flex-end; align-items:center; gap:12px; flex-wrap:wrap; margin:16px 0 0; }
+.admin-app.ams-ui.admin-subjects .bao-focused-form>.form-actions { margin:0 0 24px; padding:0; border:0; }
+.admin-app.ams-ui.admin-subjects .subject-form .expert-grid>fieldset { min-width:0; margin:0; padding:16px; }
+.admin-app.ams-ui.admin-subjects .subject-form .expert-grid legend { max-width:100%; font-size:13px; }
+.admin-app.ams-ui.admin-subjects .subject-form label.check { display:flex; align-items:flex-start; gap:10px; padding:10px 0; margin:0; }
+.admin-app.ams-ui.admin-subjects .subject-form label.check+label.check { border-top:1px solid #eef2f8; }
+.admin-app.ams-ui.admin-subjects .subject-form label.check>input,
+.admin-app.ams-ui.admin-subjects label.subject-toggle>input { display:block; flex:0 0 18px; width:18px; height:18px; min-height:0; margin:2px 0 0; padding:0; }
+.admin-app.ams-ui.admin-subjects .subject-form label.check>span { min-width:0; overflow-wrap:anywhere; }
+.admin-app.ams-ui.admin-subjects .subject-form label.check small { font-size:12px; font-weight:400; color:var(--subject-muted); }
+.admin-app.ams-ui.admin-subjects .subject-form fieldset.subject-registration-fields { min-width:0; margin:16px 0 0; padding:0; border:0; }
+.admin-app.ams-ui.admin-subjects .subject-registration-fields:disabled { opacity:.65; }
+.admin-app.ams-ui.admin-subjects [data-create-opening-fields]:disabled { display:none; }
+.admin-app.ams-ui.admin-subjects label.subject-toggle,
+.admin-app.ams-ui.admin-subjects .bao-focused-form .subject-create-opening>label.subject-toggle { display:flex; align-items:flex-start; gap:12px; margin:16px 0 0; padding:14px 16px; border-radius:10px; background:#f6f9fd; }
+.admin-app.ams-ui.admin-subjects .subject-toggle>span { min-width:0; }
+.admin-app.ams-ui.admin-subjects .subject-toggle small { display:block; margin-top:5px; color:var(--subject-muted); font-size:12px; font-weight:400; line-height:1.6; }
+.admin-app.ams-ui.admin-subjects .subject-inline-warning { margin:12px 0; padding:12px 16px; border:1px solid #f6ddb5; border-radius:8px; background:#fff9ee; color:#8a5a16; font-size:13px; }
+
+/* Edit sections. */
+.admin-app.ams-ui.admin-subjects .subject-edit-nav { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 20px; }
+.admin-app.ams-ui.admin-subjects .subject-edit-nav a { display:inline-flex; align-items:center; padding:9px 14px; border:1px solid var(--subject-border); border-radius:8px; background:#fff; text-decoration:none; font-size:13px; }
+.admin-app.ams-ui.admin-subjects .subject-edit-card,
+.admin-app.ams-ui.admin-subjects #subject-information { scroll-margin-top:100px; }
+.admin-app.ams-ui.admin-subjects .subject-edit-card { margin-top:20px; }
+.admin-app.ams-ui.admin-subjects .subject-edit-card form.subject-section-form { margin:16px 0 0; padding:0; border:0; background:none; box-shadow:none; }
+.admin-app.ams-ui.admin-subjects .subject-section-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.admin-app.ams-ui.admin-subjects .subject-section-heading h2 { margin:0; }
+.admin-app.ams-ui.admin-subjects .subject-expert-options { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.admin-app.ams-ui.admin-subjects label.subject-expert-option { display:grid; grid-template-columns:minmax(0,1fr) minmax(160px,190px); align-items:center; gap:14px; margin:0; padding:14px; border:1px solid #e3ebf7; border-radius:10px; }
+.admin-app.ams-ui.admin-subjects .subject-expert-option>span { min-width:0; overflow-wrap:anywhere; }
+.admin-app.ams-ui.admin-subjects .subject-expert-option small { display:block; margin-top:4px; color:var(--subject-muted); font-size:12px; font-weight:400; }
+.admin-app.ams-ui.admin-subjects .subject-form label.subject-expert-option select { margin:0; }
+.admin-app.ams-ui.admin-subjects form.subject-term-picker { display:flex; align-items:flex-end; gap:12px; margin:16px 0 0; padding:0; border:0; background:none; box-shadow:none; }
+.admin-app.ams-ui.admin-subjects .subject-term-picker label { flex:1; max-width:650px; margin:0; }
+.admin-app.ams-ui.admin-subjects .subject-term-picker select { height:44px; }
+.admin-app.ams-ui.admin-subjects .subject-term-picker button { height:44px; margin:0; }
+
+/* Detail: align values; preserve only intentional line breaks in descriptions. */
+.admin-app.ams-ui.admin-subjects .subject-offerings-heading { display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:16px; margin-bottom:16px; }
+.admin-app.ams-ui.admin-subjects .subject-offerings-heading>div { flex:1 1 300px; min-width:0; }
+.admin-app.ams-ui.admin-subjects .subject-offerings-heading h2 { margin:0; }
+.admin-app.ams-ui.admin-subjects .subject-offerings-heading p { margin:6px 0 0; color:var(--subject-muted); font-size:12px; }
+.admin-app.ams-ui.admin-subjects .subject-detail-layout { align-items:start; gap:24px; margin-top:24px; }
+.admin-app.ams-ui.admin-subjects .subject-detail-layout>.bao-card { margin:0; }
+.admin-app.ams-ui.admin-subjects .subject-detail-layout h2 { margin:0 0 16px; }
+.admin-app.ams-ui.admin-subjects .subject-detail-page .bao-detail-rows { margin:0; }
+.admin-app.ams-ui.admin-subjects .subject-detail-page .bao-detail-rows>div { display:grid; grid-template-columns:145px minmax(0,1fr); align-items:start; gap:20px; padding:14px 0; }
+.admin-app.ams-ui.admin-subjects .subject-detail-page .bao-detail-rows dt,
+.admin-app.ams-ui.admin-subjects .subject-detail-page .bao-detail-rows dd { min-width:0; margin:0; text-align:left; line-height:1.6; white-space:normal; }
+.admin-app.ams-ui.admin-subjects .subject-detail-page .bao-detail-rows dd.subject-description { white-space:pre-line; }
+.admin-app.ams-ui.admin-subjects .subject-detail-status .bao-state-list { margin:0; }
+.admin-app.ams-ui.admin-subjects .subject-detail-status .bao-state-list>div { padding:0; border:0; }
+.admin-app.ams-ui.admin-subjects .subject-offering-table { min-width:940px; }
+.admin-app.ams-ui.admin-subjects .subject-offering-table td { white-space:normal; }
+.admin-app.ams-ui.admin-subjects .subject-detail-page .expert-grid p { margin:12px 0 0; overflow-wrap:anywhere; }
+.admin-app.ams-ui.admin-subjects .bao-summary-title { white-space:normal; }
+.admin-app.ams-ui.admin-subjects .bao-summary .status-badge { margin-top:4px; }
+.admin-app.ams-ui.admin-subjects .bao-summary-dates { flex-shrink:0; }
+
+@media(max-width:1200px) {
+  .admin-app.ams-ui.admin-subjects form.subject-catalog-filters { grid-template-columns:repeat(2,minmax(0,1fr)); flex-basis:100%; }
+  .admin-app.ams-ui.admin-subjects form.subject-catalog-filters button { justify-self:start; }
+  .admin-app.ams-ui.admin-subjects .subject-expert-options { grid-template-columns:1fr; }
+}
+@media(max-width:850px) {
+  .admin-app.ams-ui.admin-subjects .users-toolbar { align-items:stretch; }
+  .admin-app.ams-ui.admin-subjects form.subject-catalog-filters { width:100%; }
+  .admin-app.ams-ui.admin-subjects .users-toolbar>.primary-button { align-self:flex-start; }
+  .admin-app.ams-ui.admin-subjects .users-footer { align-items:flex-start; }
+}
+@media(max-width:700px) {
+  .admin-app.ams-ui.admin-subjects .bao-card { padding:18px; }
+  .admin-app.ams-ui.admin-subjects .subject-form .form-grid,
+  .admin-app.ams-ui.admin-subjects .subject-form .expert-grid { grid-template-columns:1fr; gap:0; }
+  .admin-app.ams-ui.admin-subjects .subject-form .expert-grid { gap:16px; }
+  .admin-app.ams-ui.admin-subjects .subject-detail-page .bao-detail-rows>div { grid-template-columns:1fr; gap:6px; }
+  .admin-app.ams-ui.admin-subjects .bao-summary { flex-wrap:wrap; }
+  .admin-app.ams-ui.admin-subjects .bao-summary-dates { margin-left:0; max-width:100%; }
+  .admin-app.ams-ui.admin-subjects .bao-summary-dates span { padding:10px 14px; }
+}
+@media(max-width:520px) {
+  .admin-app.ams-ui.admin-subjects form.subject-catalog-filters { grid-template-columns:1fr; }
+  .admin-app.ams-ui.admin-subjects form.subject-catalog-filters button { width:100%; }
+  .admin-app.ams-ui.admin-subjects label.subject-expert-option { grid-template-columns:1fr; gap:10px; }
+  .admin-app.ams-ui.admin-subjects .subject-form .form-actions,
+  .admin-app.ams-ui.admin-subjects .subject-section-actions { align-items:stretch; }
+  .admin-app.ams-ui.admin-subjects .subject-form .form-actions>* ,
+  .admin-app.ams-ui.admin-subjects .subject-section-actions>button { flex:1 1 auto; white-space:normal; }
+  .admin-app.ams-ui.admin-subjects .subject-edit-nav a { padding:8px 10px; font-size:12px; }
+  .admin-app.ams-ui.admin-subjects .subject-heading>.secondary-button { max-width:100%; white-space:normal; }
+}
