@@ -47,6 +47,7 @@ class StudentDashboardServletTest {
         Harness(UserRole role, AccountStatus status) { this.role = role; this.accountStatus = status; }
         StudentDashboardServlet servlet() {
             return new StudentDashboardServlet(new StudentDashboardService() {
+                @Override public List<AcademicTerm> termOptions(long id) { loadedStudent=id; return List.of(); }
                 @Override public StudentDashboardDTO load(long id) {
                     loadedStudent = id;
                     return new StudentDashboardDTO("Student One", "one@test.edu", Instant.now(),

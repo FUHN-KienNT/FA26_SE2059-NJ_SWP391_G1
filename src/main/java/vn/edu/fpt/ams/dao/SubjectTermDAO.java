@@ -7,6 +7,26 @@ import vn.edu.fpt.ams.util.*;
 
 /** SQL for the Subject aggregate's Academic Term configurations. */
 public class SubjectTermDAO {
+  public record TermConfiguration(SubjectTerm configuration, AcademicTerm academicTerm) {}
+
+  /** Load all offerings for one result page in one read, including historical terms. */
+  public List<TermConfiguration> findBySubjects(Connection c, List<Long> subjectIds) throws SQLException {
+    if (subjectIds.isEmpty()) return List.of();
+    String placeholders = String.join(",", Collections.nCopies(subjectIds.size(), "?"));
+    String sql = "SELECT st.*,t.term_code,t.term_name,t.starts_at,t.ends_at,CASE WHEN t.is_active=TRUE AND t.starts_at<=CURRENT_TIMESTAMP AND t.ends_at>CURRENT_TIMESTAMP THEN TRUE ELSE FALSE END AS is_current,t.is_active"
+        + " FROM subject_terms st JOIN academic_terms t ON t.term_id=st.term_id"
+        + " WHERE st.subject_id IN (" + placeholders + ")"
+        + " ORDER BY is_current DESC,t.starts_at DESC,t.term_code,st.subject_term_id";
+    try (var p = Jdbc.statement(c, sql, subjectIds.toArray()); var r = p.executeQuery()) {
+      var result = new ArrayList<TermConfiguration>();
+      while (r.next()) result.add(new TermConfiguration(mapSubjectTerm(r),
+          new AcademicTerm(r.getLong("term_id"), r.getString("term_code"), r.getString("term_name"),
+              ResultSetSupport.instant(r, "starts_at"), ResultSetSupport.instant(r, "ends_at"),
+              r.getBoolean("is_current"), r.getBoolean("is_active"))));
+      return result;
+    }
+  }
+
   public Optional<SubjectTerm> findBySubjectAndTerm(long subjectId, long termId) {
     return Jdbc.transaction(DBConnection::getConnection,
         c -> findBySubjectAndTerm(c, subjectId, termId, false));

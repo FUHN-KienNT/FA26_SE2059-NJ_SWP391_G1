@@ -23,9 +23,9 @@ class StudentSubjectServiceTest {
         assertFalse(row(Instant.parse("2026-02-01T00:00:00Z"),true,true,true,false,1).canRegister());
         assertFalse(row(Instant.parse("2025-12-31T23:59:59Z"),true,true,true,false,1).canRegister());
     }
-    @Test void activeCurrentOfferingSeatAndNotAlreadyEnrolledAreAllRequired(){
+    @Test void upcomingEnabledOfferingCanRegisterButOtherEligibilityIsStillRequired(){
         var now=Instant.parse("2026-01-10T00:00:00Z");
-        assertFalse(row(now,false,true,true,false,1).canRegister());
+        assertTrue(row(now,false,true,true,false,1).canRegister());
         assertFalse(row(now,true,false,true,false,1).canRegister());
         assertFalse(row(now,true,true,false,false,1).canRegister());
         assertFalse(row(now,true,true,true,true,1).canRegister());

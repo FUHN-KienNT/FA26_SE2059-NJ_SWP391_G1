@@ -20,7 +20,8 @@ public final class StudentSubjectDAO {
             """;
     private static final String SELECT = """
             SELECT st.subject_term_id,s.subject_code,s.subject_name,s.description,s.status subject_status,
-                t.term_code,t.term_name,t.is_active,t.is_current,st.registration_enabled,
+                t.term_code,t.term_name,(t.is_active=TRUE AND t.ends_at>statement_timestamp()) AS is_active,
+                (t.is_active=TRUE AND t.starts_at<=statement_timestamp() AND t.ends_at>statement_timestamp()) AS is_current,st.registration_enabled,
                 st.registration_opens_at,st.registration_closes_at,r.status registration_status,
                 own.class_code,own.class_name,teacher.full_name,own.status class_status,
                 (SELECT COALESCE(SUM(GREATEST(0,c.capacity-(
@@ -33,19 +34,20 @@ public final class StudentSubjectDAO {
             LEFT JOIN subject_classes own ON own.class_id=e.class_id AND own.subject_term_id=st.subject_term_id
             LEFT JOIN users teacher ON teacher.user_id=own.teacher_id
             """;
-    private static final String OPEN = """
-            s.status='ACTIVE' AND t.is_active=TRUE AND t.is_current=TRUE AND st.registration_enabled=TRUE
-            AND st.registration_opens_at<=statement_timestamp() AND st.registration_closes_at>statement_timestamp()
+    // Publish the schedule before opening time; register() still checks Offering.open().
+    private static final String VISIBLE = """
+            s.status='ACTIVE' AND t.is_active=TRUE AND t.ends_at>statement_timestamp() AND st.registration_enabled=TRUE
+            AND st.registration_closes_at>statement_timestamp()
             """;
 
     public List<Offering> list(Connection c, long student, boolean enrolled) throws SQLException {
-        try(var p=Jdbc.statement(c, SELECT + " WHERE " + (enrolled ? "r.registration_id IS NOT NULL" : OPEN)
+        try(var p=Jdbc.statement(c, SELECT + " WHERE " + (enrolled ? "r.registration_id IS NOT NULL" : VISIBLE)
                 + " ORDER BY t.starts_at DESC,s.subject_code,st.subject_term_id",student);var r=p.executeQuery()) {
             var out=new ArrayList<Offering>(); while(r.next()) out.add(map(r)); return out;
         }
     }
     public Offering detail(Connection c,long student,long offering) throws SQLException {
-        try(var p=Jdbc.statement(c,SELECT+" WHERE st.subject_term_id=? AND (r.registration_id IS NOT NULL OR ("+OPEN+"))",student,offering);
+        try(var p=Jdbc.statement(c,SELECT+" WHERE st.subject_term_id=? AND (r.registration_id IS NOT NULL OR ("+VISIBLE+"))",student,offering);
                 var r=p.executeQuery()) {
             if(!r.next()) throw new NoSuchElementException("Không tìm thấy môn học trong phạm vi được xem.");
             return map(r);

@@ -10,12 +10,12 @@ public final class DashboardDAO {
           try (var p =
                   Jdbc.statement(
                       c,
-                      "SELECT term_code,term_name FROM academic_terms WHERE is_current=TRUE AND"
+                      "SELECT term_code,term_name FROM academic_terms WHERE starts_at<=CURRENT_TIMESTAMP AND ends_at>CURRENT_TIMESTAMP AND"
                           + " is_active=TRUE");
               var r = p.executeQuery()) {
             return r.next()
                 ? r.getString(1) + " — " + r.getString(2)
-                : "No active Current Term selected";
+                : "Chưa có học kỳ hiện tại";
           }
 
   }

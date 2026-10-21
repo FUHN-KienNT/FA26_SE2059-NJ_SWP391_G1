@@ -50,7 +50,7 @@ class BaonvgRoutingAndViewContractTest {
     assertTrue(view.contains("Danh sách thiết lập"));
     assertTrue(view.contains("Tất cả nhóm"));
     assertFalse(view.contains("Học kỳ"));
-    assertTrue(terms.contains("Trạng thái học kỳ"));
+    assertTrue(terms.contains("Theo lịch"));
     assertTrue(terms.contains("Không có học kỳ phù hợp."));
   }
 
@@ -72,9 +72,33 @@ class BaonvgRoutingAndViewContractTest {
   }
 
   @Test
+  void subjectEditSeparatesGlobalStatusFromTermRegistrationAndListOnlyOffersViewEdit() throws Exception {
+    String list = Files.readString(VIEWS.resolve("subjects/list.jsp"));
+    String form = Files.readString(VIEWS.resolve("subjects/form.jsp"));
+    String controls = Files.readString(VIEWS.resolve("subjects/edit-controls.jspf"));
+    assertFalse(list.contains("subject-tabs"));
+    assertFalse(list.contains("tab=terms"));
+    assertTrue(list.contains("Học kỳ đã thiết lập"));
+    assertTrue(list.contains("name=\"termId\""));
+    assertTrue(form.contains("subjects/create-term.jspf"));
+    assertFalse(list.contains("mode=status"));
+    assertFalse(list.contains("mode=term"));
+    assertFalse(list.contains("mode=experts"));
+    assertTrue(form.contains("subjects/edit-controls.jspf"));
+    assertTrue(controls.contains("Vô hiệu hóa môn học"));
+    assertTrue(controls.contains("name=\"action\" value=\"status\""));
+    assertTrue(controls.contains("name=\"action\" value=\"term\""));
+    assertTrue(controls.contains("name=\"action\" value=\"experts\""));
+    assertTrue(controls.contains("data-subject-status"));
+    assertTrue(controls.contains("name=\"csrf\""));
+    assertTrue(controls.contains("tất cả học kỳ"));
+    assertTrue(controls.contains("kỳ được chọn"));
+  }
+
+  @Test
   void allBaonvgAdminViewsUseTheSharedShell() throws Exception {
     for (String relative : List.of(
-        "settings/list.jsp", "settings/detail.jsp", "master-data/list.jsp", "master-data/detail.jsp", "master-data/switch.jsp", "subjects/list.jsp",
+        "settings/list.jsp", "settings/detail.jsp", "master-data/list.jsp", "master-data/detail.jsp", "subjects/list.jsp",
         "subjects/detail.jsp", "subjects/form.jsp", "subjects/experts.jsp",
         "subjects/status.jsp", "subjects/term.jsp")) {
       String view = Files.readString(VIEWS.resolve(relative));
@@ -99,59 +123,36 @@ class BaonvgRoutingAndViewContractTest {
     assertFalse(shell.contains("ams-sidebar-note"));
     assertTrue(shell.contains("<span>Quản trị viên</span>"));
     for (String relative : List.of("settings/list.jsp", "settings/detail.jsp", "master-data/list.jsp", "master-data/detail.jsp",
-        "master-data/switch.jsp", "subjects/list.jsp", "subjects/detail.jsp", "subjects/form.jsp", "subjects/experts.jsp",
+        "subjects/list.jsp", "subjects/detail.jsp", "subjects/form.jsp", "subjects/experts.jsp",
         "subjects/status.jsp", "subjects/term.jsp")) {
       String view = Files.readString(VIEWS.resolve(relative));
       assertFalse(view.contains("aria-label=\"Loại thiết lập\""), relative);
       assertTrue(view.contains("class=\"bao-context\""), relative);
     }
     for (String relative : List.of("master-data/list.jsp", "master-data/detail.jsp",
-        "master-data/switch.jsp", "subjects/list.jsp", "subjects/detail.jsp", "subjects/form.jsp",
+        "subjects/list.jsp", "subjects/detail.jsp", "subjects/form.jsp",
         "subjects/experts.jsp", "subjects/status.jsp", "subjects/term.jsp")) {
       assertFalse(Files.readString(VIEWS.resolve(relative)).contains("<span>Cài đặt</span>"), relative);
     }
   }
 
   @Test
-  void academicTermRedesignKeepsExistingPostFieldsAndReadonlyStatus() throws Exception {
-    String view = Files.readString(VIEWS.resolve("master-data/detail.jsp"));
-    for (String field : List.of("termCode", "termName", "startsAt", "endsAt", "termId", "csrf"))
-      assertTrue(view.contains("name=\"" + field + "\""), field);
-    assertTrue(view.contains("bao-term-layout"));
-    assertTrue(view.contains("bao-state-list"));
-    assertTrue(view.contains("if(create)"));
-    assertTrue(view.contains("bao-focused-form"));
-    assertFalse(view.contains("bao-callout"));
-    assertTrue(view.contains("Quay lại chi tiết"));
-    assertTrue(view.contains("view?\"Chi tiết\":\"Chỉnh sửa\""));
-    assertTrue(view.contains("create?list:detail"));
-    assertTrue(view.contains("name=\"active\" value=\"true\""));
-    assertTrue(view.contains("name=\"current\" value=\"true\""));
-    assertTrue(view.contains("/admin/master-data"));
-  }
-
-  @Test
-  void academicTermCreateOffersStatusButNotSetCurrent() throws Exception {
-    String view = Files.readString(VIEWS.resolve("master-data/detail.jsp"));
-    String createFields = view.substring(view.indexOf("if(create){"), view.indexOf("else{", view.indexOf("if(create){")));
-    assertTrue(createFields.contains("name=\"active\""));
-    assertFalse(createFields.contains("name=\"current\""));
-    assertFalse(createFields.contains("Đặt làm học kỳ hiện tại"));
-    assertTrue(view.contains("name=\"current\" value=\"true\""), "Edit retains its current flag without offering a toggle");
-  }
-
-  @Test
-  void academicTermSwitchRequiresAnExplicitReviewedPost() throws Exception {
-    String list = Files.readString(VIEWS.resolve("master-data/list.jsp"));
-    String confirmation = Files.readString(VIEWS.resolve("master-data/switch.jsp"));
-    assertTrue(list.contains("mode=switch"));
-    assertTrue(list.contains("Chuyển học kỳ để ngừng"));
-    assertTrue(confirmation.contains("Học kỳ sẽ ngừng hoạt động"));
-    assertTrue(confirmation.contains("Học kỳ sẽ hoạt động và thành hiện tại"));
-    assertTrue(confirmation.contains("name=\"action\" value=\"switch\""));
-    assertTrue(confirmation.contains("name=\"previousTermId\""));
-    assertTrue(confirmation.contains("name=\"csrf\""));
-    assertTrue(confirmation.contains("Xác nhận chuyển học kỳ"));
+  void academicTermCalendarHasNoManualCurrentControls() throws Exception {
+    String view=Files.readString(VIEWS.resolve("master-data/detail.jsp"));
+    for(String field:List.of("termCode","termName","startsAt","endsAt","termId","csrf","active"))
+      assertTrue(view.contains("name=\""+field+"\""),field);
+    assertFalse(view.contains("name=\"current\""));
+    assertFalse(view.contains("data-term-four-months"));
+    assertFalse(view.contains("academic-terms.js"));
+    assertTrue(view.contains("shown!=null&&shown.active()?\"checked\":\"\""), "New terms require an explicit enabled selection");
+    assertTrue(view.contains("TermTimeline.ZONE"));
+    assertTrue(view.contains("if(ended)"));
+    String list=Files.readString(VIEWS.resolve("master-data/list.jsp"));
+    assertFalse(list.contains("mode=switch"));
+    assertFalse(list.contains("Đặt hiện tại"));
+    assertTrue(list.contains("if(!ended)"));
+    assertTrue(list.contains("Theo lịch"));
+    assertTrue(list.contains("Sử dụng"));
   }
 
   @Test

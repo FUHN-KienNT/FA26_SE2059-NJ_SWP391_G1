@@ -49,6 +49,8 @@ public final class Vietnamese {
   return switch(status){
    case "SUBJECT_INACTIVE" -> "Môn học ngừng hoạt động";
    case "TERM_INACTIVE" -> "Học kỳ ngừng hoạt động";
+   case "TERM_ENDED" -> "Học kỳ đã kết thúc";
+   case "TERM_NOT_CURRENT" -> "Không phải kỳ hiện tại";
    case "DISABLED" -> "Đã tắt đăng ký";
    case "UPCOMING" -> "Chưa mở";
    case "OPEN" -> "Đang mở";

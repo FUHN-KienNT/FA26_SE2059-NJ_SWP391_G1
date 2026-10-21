@@ -1,54 +1,107 @@
 package vn.edu.fpt.ams.service;
 
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.time.Instant;
-import java.util.*;
+import java.time.Clock;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Locale;
+import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
-import vn.edu.fpt.ams.dao.*;
-import vn.edu.fpt.ams.dto.*;
-import vn.edu.fpt.ams.model.*;
-import vn.edu.fpt.ams.util.*;
 
-/** UC13-17 Subject administration. */
+import vn.edu.fpt.ams.dao.MasterDataDAO;
+import vn.edu.fpt.ams.dao.SubjectDAO;
+import vn.edu.fpt.ams.dao.SubjectExpertDAO;
+import vn.edu.fpt.ams.dao.SubjectTermDAO;
+import vn.edu.fpt.ams.dto.ExpertOptionDTO;
+import vn.edu.fpt.ams.dto.SubjectDTO;
+import vn.edu.fpt.ams.dto.SubjectDetailsDTO;
+import vn.edu.fpt.ams.dto.SubjectExpertDTO;
+import vn.edu.fpt.ams.dto.SubjectSummaryDTO;
+import vn.edu.fpt.ams.dto.SubjectTermViewDTO;
+import vn.edu.fpt.ams.model.AcademicTerm;
+import vn.edu.fpt.ams.model.ResponsibilityType;
+import vn.edu.fpt.ams.model.Subject;
+import vn.edu.fpt.ams.model.SubjectExpert;
+import vn.edu.fpt.ams.model.SubjectStatus;
+import vn.edu.fpt.ams.model.SubjectTerm;
+import vn.edu.fpt.ams.util.DBConnection;
+import vn.edu.fpt.ams.util.Jdbc;
+import vn.edu.fpt.ams.util.ValidationUtil;
+
+
 public class SubjectService {
   private static final int PAGE_SIZE = 20;
   private final Jdbc.Connections connections;
+  private final Clock clock;
   private final SubjectDAO subjects = new SubjectDAO();
   private final SubjectExpertDAO subjectExperts = new SubjectExpertDAO();
   private final SubjectTermDAO subjectTerms = new SubjectTermDAO();
-  private final MasterDataDAO masterData = new MasterDataDAO();
+  private final MasterDataDAO masterData;
 
   public SubjectService() {
     this(DBConnection::getConnection);
   }
 
   public SubjectService(Jdbc.Connections source) {
+    this(source, Clock.systemUTC());
+  }
+
+  public SubjectService(Jdbc.Connections source, Clock clock) {
     connections = source;
+    this.clock = java.util.Objects.requireNonNull(clock);
+    this.masterData = new MasterDataDAO(clock);
   }
 
   public List<SubjectSummaryDTO> list(
       long actor, String keyword, SubjectStatus status, int page) {
+    return list(actor, keyword, status, null, page);
+  }
+
+  public List<SubjectSummaryDTO> list(
+      long actor, String keyword, SubjectStatus status, Long termId, int page) {
     validateSearch(keyword);
+    if (termId != null) requirePositive(termId, "Mã học kỳ");
     if (page < 1) throw new IllegalArgumentException("Số trang không hợp lệ.");
     return Jdbc.transaction(
         connections,
         c -> {
           Access.admin(c, actor);
           var result = new ArrayList<SubjectSummaryDTO>();
-          for (Subject subject : subjects.search(c, keyword, status, page, PAGE_SIZE))
-            result.add(summary(c, subject));
+          var pageSubjects = subjects.search(c, keyword, status, termId, page, PAGE_SIZE);
+          var terms = termViews(c, pageSubjects);
+          for (Subject subject : pageSubjects)
+            result.add(summary(c, subject, terms.getOrDefault(subject.subjectId(), List.of())));
           return result;
         });
   }
 
   public long count(long actor, String keyword, SubjectStatus status) {
+    return count(actor, keyword, status, null);
+  }
+
+  public long count(long actor, String keyword, SubjectStatus status, Long termId) {
     validateSearch(keyword);
+    if (termId != null) requirePositive(termId, "Mã học kỳ");
     return Jdbc.transaction(
         connections,
         c -> {
           Access.admin(c, actor);
-          return subjects.count(c, keyword, status);
+          return subjects.count(c, keyword, status, termId);
         });
+  }
+
+  public List<AcademicTerm> termOptions(long actor) {
+    return Jdbc.transaction(connections, c -> {
+      Access.admin(c, actor);
+      return masterData.findTerms(c, null, null);
+    });
   }
 
   public SubjectDetailsDTO details(long actor, long subjectId) {
@@ -68,24 +121,7 @@ public class SubjectService {
               active.stream()
                   .filter(x -> x.responsibilityType() == ResponsibilityType.SUPPORTING)
                   .toList();
-          var termViews = new ArrayList<SubjectTermViewDTO>();
-          Instant now = Instant.now();
-          for (SubjectTerm configured : subjectTerms.findBySubject(c, subjectId)) {
-            AcademicTerm term =
-                masterData
-                    .findTermById(c, configured.termId(), false)
-                    .orElseThrow(() -> new IllegalStateException("Academic Term is missing"));
-            termViews.add(
-                new SubjectTermViewDTO(
-                    configured.subjectTermId(),
-                    term.termId(),
-                    term.termCode(),
-                    term.termName(),
-                    configured.registrationEnabled(),
-                    configured.registrationOpensAt(),
-                    configured.registrationClosesAt(),
-                    registrationStatus(subject, term, configured, now)));
-          }
+          var termViews = termViews(c, List.of(subject)).getOrDefault(subjectId, List.of());
           return new SubjectDetailsDTO(
               toDTO(subject), primary, supporting, history, List.copyOf(termViews));
         });
@@ -122,13 +158,24 @@ public class SubjectService {
         connections,
         c -> {
           Access.admin(c, actor);
-          return masterData.findTerms(c, null, true);
+          Instant now = clock.instant();
+          return masterData.findTerms(c, null, true).stream()
+              .filter(term -> term.endsAt().isAfter(now)).toList();
         });
   }
 
   /** UC14: Subject and initial responsibilities commit together. */
   public long create(
       long actor, SubjectDTO request, Map<Long, ResponsibilityType> assignments) {
+    return create(actor, request, assignments, null);
+  }
+
+  public record InitialTerm(long termId, boolean registrationEnabled,
+      Instant registrationOpensAt, Instant registrationClosesAt) {}
+
+  /** UC14 + optional UC17: the Subject, experts and opening share one transaction. */
+  public long create(long actor, SubjectDTO request, Map<Long, ResponsibilityType> assignments,
+      InitialTerm initialTerm) {
     if (request == null) throw new IllegalArgumentException("Vui lòng nhập thông tin môn học.");
     String code = subjectCode(request.subjectCode());
     String name = subjectName(request.subjectName());
@@ -147,6 +194,12 @@ public class SubjectService {
                   c, new Subject(0, code, name, description, request.status()));
           for (var entry : assignments.entrySet())
             subjectExperts.assign(c, id, entry.getKey(), entry.getValue());
+          if (initialTerm != null) {
+            var opening = new SubjectTerm(0, id, initialTerm.termId(), initialTerm.registrationEnabled(),
+                initialTerm.registrationOpensAt(), initialTerm.registrationClosesAt());
+            validateTerm(opening);
+            saveTerm(c, opening);
+          }
           return id;
         });
   }
@@ -223,6 +276,14 @@ public class SubjectService {
 
   /** UC17 updates the stable Subject-Term row when the pair already exists. */
   public long openForTerm(long actor, SubjectTerm requested) {
+    validateTerm(requested);
+    return Jdbc.transaction(connections, c -> {
+      Access.admin(c, actor);
+      return saveTerm(c, requested);
+    });
+  }
+
+  private static void validateTerm(SubjectTerm requested) {
     if (requested == null) throw new IllegalArgumentException("Vui lòng nhập cấu hình học kỳ cho môn học.");
     requirePositive(requested.subjectId(), "Mã môn học");
     requirePositive(requested.termId(), "Mã học kỳ");
@@ -231,44 +292,44 @@ public class SubjectService {
       throw new IllegalArgumentException("Vui lòng nhập thời gian mở và đóng đăng ký.");
     if (!requested.registrationClosesAt().isAfter(requested.registrationOpensAt()))
       throw new IllegalArgumentException("Thời gian đóng đăng ký phải sau thời gian mở đăng ký.");
-    return Jdbc.transaction(
-        connections,
-        c -> {
-          Access.admin(c, actor);
-          Subject subject = requireSubject(c, requested.subjectId(), true);
-          if (subject.status() != SubjectStatus.ACTIVE)
-            throw new IllegalArgumentException("Chỉ có thể mở môn học đang hoạt động theo học kỳ.");
-          AcademicTerm term =
-              masterData
-                  .findTermById(c, requested.termId(), true)
-                  .orElseThrow(() -> new NoSuchElementException("Không tìm thấy học kỳ."));
-          if (!term.active())
-            throw new IllegalArgumentException("Vui lòng chọn học kỳ đang hoạt động.");
-          Optional<SubjectTerm> existing =
-              subjectTerms.findBySubjectAndTerm(c, subject.subjectId(), term.termId(), true);
-          if (existing.isPresent()) {
-            SubjectTerm old = existing.get();
-            subjectTerms.update(
-                c,
-                new SubjectTerm(
-                    old.subjectTermId(),
-                    subject.subjectId(),
-                    term.termId(),
-                    requested.registrationEnabled(),
-                    requested.registrationOpensAt(),
-                    requested.registrationClosesAt()));
-            return old.subjectTermId();
-          }
-          return subjectTerms.insert(
-              c,
-              new SubjectTerm(
-                  0,
-                  subject.subjectId(),
-                  term.termId(),
-                  requested.registrationEnabled(),
-                  requested.registrationOpensAt(),
-                  requested.registrationClosesAt()));
-        });
+  }
+
+  private long saveTerm(Connection c, SubjectTerm requested) throws SQLException {
+    Subject subject = requireSubject(c, requested.subjectId(), true);
+    if (subject.status() != SubjectStatus.ACTIVE)
+      throw new IllegalArgumentException("Chỉ có thể mở môn học đang hoạt động theo học kỳ.");
+    AcademicTerm term =
+        masterData
+            .findTermById(c, requested.termId(), true)
+            .orElseThrow(() -> new NoSuchElementException("Không tìm thấy học kỳ."));
+    if (!term.active())
+      throw new IllegalArgumentException("Vui lòng chọn học kỳ đang hoạt động.");
+    if (!term.endsAt().isAfter(clock.instant()))
+      throw new IllegalArgumentException("Học kỳ đã kết thúc; chỉ được xem lịch sử, không thể sửa đăng ký.");
+    Optional<SubjectTerm> existing =
+        subjectTerms.findBySubjectAndTerm(c, subject.subjectId(), term.termId(), true);
+    if (existing.isPresent()) {
+      SubjectTerm old = existing.get();
+      subjectTerms.update(
+          c,
+          new SubjectTerm(
+              old.subjectTermId(),
+              subject.subjectId(),
+              term.termId(),
+              requested.registrationEnabled(),
+              requested.registrationOpensAt(),
+              requested.registrationClosesAt()));
+      return old.subjectTermId();
+    }
+    return subjectTerms.insert(
+        c,
+        new SubjectTerm(
+            0,
+            subject.subjectId(),
+            term.termId(),
+            requested.registrationEnabled(),
+            requested.registrationOpensAt(),
+            requested.registrationClosesAt()));
   }
 
   private void synchronizeExperts(
@@ -300,7 +361,23 @@ public class SubjectService {
         subjectExperts.assign(c, subjectId, entry.getKey(), entry.getValue());
   }
 
-  private SubjectSummaryDTO summary(Connection c, Subject subject) throws SQLException {
+  private Map<Long, List<SubjectTermViewDTO>> termViews(Connection c, List<Subject> pageSubjects)
+      throws SQLException {
+    var byId = pageSubjects.stream().collect(Collectors.toMap(Subject::subjectId, s -> s));
+    var result = new LinkedHashMap<Long, List<SubjectTermViewDTO>>();
+    Instant now = clock.instant();
+    for (var row : subjectTerms.findBySubjects(c, pageSubjects.stream().map(Subject::subjectId).toList())) {
+      var configured = row.configuration();
+      var term = row.academicTerm();
+      result.computeIfAbsent(configured.subjectId(), id -> new ArrayList<>()).add(
+          new SubjectTermViewDTO(configured.subjectTermId(), term.termId(), term.termCode(), term.termName(),
+              configured.registrationEnabled(), configured.registrationOpensAt(), configured.registrationClosesAt(),
+              registrationStatus(byId.get(configured.subjectId()), term, configured, now), term.active(), term.current()));
+    }
+    return result;
+  }
+
+  private SubjectSummaryDTO summary(Connection c, Subject subject, List<SubjectTermViewDTO> terms) throws SQLException {
     List<SubjectExpertDTO> active = expertViews(c, subject.subjectId(), true);
     return new SubjectSummaryDTO(
         subject.subjectId(),
@@ -312,7 +389,7 @@ public class SubjectService {
             .toList(),
         active.stream()
             .filter(x -> x.responsibilityType() == ResponsibilityType.SUPPORTING)
-            .toList());
+            .toList(), List.copyOf(terms));
   }
 
   private List<SubjectExpertDTO> expertViews(
@@ -390,6 +467,7 @@ public class SubjectService {
       Subject subject, AcademicTerm academicTerm, SubjectTerm configured, Instant now) {
     if (subject.status() != SubjectStatus.ACTIVE) return "SUBJECT_INACTIVE";
     if (!academicTerm.active()) return "TERM_INACTIVE";
+    if (!academicTerm.endsAt().isAfter(now)) return "TERM_ENDED";
     if (!configured.registrationEnabled()) return "DISABLED";
     if (now.isBefore(configured.registrationOpensAt())) return "UPCOMING";
     if (!now.isBefore(configured.registrationClosesAt())) return "CLOSED";

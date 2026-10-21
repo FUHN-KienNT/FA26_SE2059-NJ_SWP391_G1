@@ -14,7 +14,11 @@ import vn.edu.fpt.ams.util.WebSupport;
 
 @WebServlet("/admin/subjects")
 public class SubjectServlet extends HttpServlet {
-  private final SubjectService service = new SubjectService();
+  private final SubjectService service;
+
+  public SubjectServlet() { this(new SubjectService()); }
+
+  SubjectServlet(SubjectService service) { this.service = Objects.requireNonNull(service); }
 
   @Override
   protected void doGet(HttpServletRequest req, HttpServletResponse res)
@@ -28,6 +32,15 @@ public class SubjectServlet extends HttpServlet {
         return;
       }
       prepareScreen(req, actor, mode);
+      if ("edit".equals(mode) && req.getAttribute("editTermId") instanceof Long selectedTerm) {
+        @SuppressWarnings("unchecked")
+        var editable = (List<AcademicTerm>) req.getAttribute("editableTerms");
+        if (editable.stream().noneMatch(t -> t.termId() == selectedTerm)) {
+          req.getSession().setAttribute("notice", "Học kỳ này chỉ dùng để tra cứu.");
+          res.sendRedirect(req.getContextPath() + "/admin/subjects?mode=view&id=" + WebSupport.id(req.getParameter("id")));
+          return;
+        }
+      }
       req.getRequestDispatcher(view(mode)).forward(req, res);
     } catch (RuntimeException e) {
       WebSupport.failure(req, res, e);
@@ -42,11 +55,27 @@ public class SubjectServlet extends HttpServlet {
       WebSupport.checkCsrf(req);
       long actor = WebSupport.actor(req);
       String action = req.getParameter("action");
+      Long returnTerm = null;
+      if ("edit".equals(req.getParameter("returnTo"))) {
+        String rawTerm = req.getParameter("termId");
+        if (rawTerm != null && !rawTerm.isBlank()) {
+          returnTerm = WebSupport.id(rawTerm);
+          long selected = returnTerm;
+          if (service.termOptions(actor).stream().noneMatch(t -> t.termId() == selected))
+            throw new IllegalArgumentException("Học kỳ không hợp lệ.");
+        }
+      }
       String returnValue = req.getParameter("returnUserId");
       Long returnUser = "experts".equals(action) && returnValue != null && !returnValue.isBlank() ? WebSupport.id(returnValue) : null;
       long id;
       String notice;
       if ("create".equals(action)) {
+        String openNow = req.getParameter("openForTerm");
+        if (openNow != null && !"true".equals(openNow))
+          throw new IllegalArgumentException("Lựa chọn thiết lập học kỳ không hợp lệ.");
+        SubjectService.InitialTerm initialTerm = openNow == null ? null : new SubjectService.InitialTerm(
+            WebSupport.id(req.getParameter("termId")), req.getParameter("registrationEnabled") != null,
+            instant(req.getParameter("registrationOpensAt")), instant(req.getParameter("registrationClosesAt")));
         id =
             service.create(
                 actor,
@@ -56,8 +85,8 @@ public class SubjectServlet extends HttpServlet {
                     req.getParameter("subjectName"),
                     req.getParameter("description"),
                     subjectStatus(req.getParameter("initialStatus"))),
-                assignments(req));
-        notice = "Đã tạo môn học.";
+                assignments(req), initialTerm);
+        notice = initialTerm == null ? "Đã tạo môn học trong danh mục." : "Đã tạo môn học và thiết lập đăng ký theo học kỳ.";
       } else {
         id = WebSupport.id(req.getParameter("id"));
         if ("update".equals(action)) {
@@ -72,6 +101,10 @@ public class SubjectServlet extends HttpServlet {
           service.assignExperts(actor, id, responsibilityAssignments(req));
           notice = "Đã cập nhật phân công chuyên gia.";
         } else if ("status".equals(action)) {
+          if ("edit".equals(req.getParameter("returnTo"))
+              && !"true".equals(req.getParameter("confirmed"))
+              && !"true".equals(req.getParameter("confirmedWithoutScript")))
+            throw new IllegalArgumentException("Vui lòng xác nhận thay đổi trạng thái môn học.");
           service.changeStatus(
               actor,
               id,
@@ -87,12 +120,15 @@ public class SubjectServlet extends HttpServlet {
                   req.getParameter("registrationEnabled") != null,
                   instant(req.getParameter("registrationOpensAt")),
                   instant(req.getParameter("registrationClosesAt"))));
-          notice = "Đã lưu cấu hình học kỳ cho môn học.";
+          notice = "Đã lưu đăng ký môn học theo kỳ.";
         } else {
           throw new IllegalArgumentException("Thao tác môn học không hợp lệ.");
         }
       }
       req.getSession().setAttribute("notice", notice);
+      if ("edit".equals(req.getParameter("returnTo")))
+        req.getSession().setAttribute("subjectEditNoticeAction", action);
+      else req.getSession().removeAttribute("subjectEditNoticeAction");
       String destination =
           "create".equals(action)
               ? "/admin/subjects?mode=view&id=" + id
@@ -100,6 +136,11 @@ public class SubjectServlet extends HttpServlet {
                   ? "/admin/subjects"
                   : "/admin/subjects?mode=" + successMode(action) + "&id=" + id;
       if (returnUser != null) destination += "&returnUserId=" + returnUser;
+      if ("edit".equals(req.getParameter("returnTo"))) {
+        destination = "/admin/subjects?mode=edit&id=" + id;
+        if (returnTerm != null) destination += "&termId=" + returnTerm;
+        destination += "#" + editSection(action);
+      }
       res.sendRedirect(req.getContextPath() + destination);
     } catch (IllegalArgumentException e) {
       redisplay(req, res, e);
@@ -111,13 +152,25 @@ public class SubjectServlet extends HttpServlet {
   private void prepareList(HttpServletRequest req, long actor) {
     int page = WebSupport.page(req.getParameter("page"));
     SubjectStatus status = subjectStatus(req.getParameter("status"));
+    String rawTerm = req.getParameter("termId");
+    Long termId = rawTerm == null || rawTerm.isBlank() ? null : WebSupport.id(rawTerm);
+    var terms = service.termOptions(actor);
+    if (termId != null) {
+      long selected = termId;
+      if (terms.stream().noneMatch(t -> t.termId() == selected))
+        throw new IllegalArgumentException("Học kỳ không hợp lệ.");
+      req.setAttribute("selectedTermReadOnly", service.eligibleTerms(actor).stream()
+          .noneMatch(t -> t.termId() == selected));
+    }
+    req.setAttribute("termOptions", terms);
+    req.setAttribute("selectedTermId", termId);
     req.setAttribute("page", page);
     req.setAttribute(
         "subjects",
-        service.list(actor, req.getParameter("keyword"), status, page));
+        service.list(actor, req.getParameter("keyword"), status, termId, page));
     req.setAttribute(
         "total",
-        service.count(actor, req.getParameter("keyword"), status));
+        service.count(actor, req.getParameter("keyword"), status, termId));
     WebSupport.csrf(req);
   }
 
@@ -125,9 +178,27 @@ public class SubjectServlet extends HttpServlet {
     req.setAttribute("mode", mode);
     if ("create".equals(mode)) {
       req.setAttribute("eligibleExperts", service.eligibleExperts(actor, null));
+      req.setAttribute("createTerms", service.eligibleTerms(actor));
     } else if (Set.of("view", "edit", "experts", "status", "term").contains(mode)) {
       long id = WebSupport.id(req.getParameter("id"));
       req.setAttribute("details", service.details(actor, id));
+      if ("view".equals(mode)) req.setAttribute("termOptions", service.termOptions(actor));
+      if ("edit".equals(mode)) {
+        req.setAttribute("eligibleExperts", service.eligibleExperts(actor, null));
+        var terms = service.termOptions(actor);
+        var editableTerms = service.eligibleTerms(actor);
+        req.setAttribute("editTerms", terms);
+        req.setAttribute("editableTerms", editableTerms);
+        String rawTerm = req.getParameter("termId");
+        Long selected = rawTerm == null || rawTerm.isBlank() ? null : WebSupport.id(rawTerm);
+        if (selected == null)
+          selected = editableTerms.stream().filter(AcademicTerm::current).findFirst()
+              .or(() -> editableTerms.stream().findFirst()).map(AcademicTerm::termId).orElse(null);
+        Long selectedId = selected;
+        if (selectedId != null && terms.stream().noneMatch(t -> t.termId() == selectedId))
+          throw new IllegalArgumentException("Học kỳ không hợp lệ.");
+        req.setAttribute("editTermId", selected);
+      }
       if ("experts".equals(mode))
         req.setAttribute(
             "eligibleExperts",
@@ -157,6 +228,7 @@ public class SubjectServlet extends HttpServlet {
             case "term" -> "term";
             default -> throw new IllegalArgumentException("Thao tác môn học không hợp lệ.");
           };
+      if ("edit".equals(req.getParameter("returnTo"))) mode = "edit";
       prepareScreen(req, actor, mode);
       req.setAttribute("error", Vietnamese.label(error.getMessage()));
       req.setAttribute("submitted", true);
@@ -248,6 +320,15 @@ public class SubjectServlet extends HttpServlet {
       case "status" -> "view";
       case "term" -> "term";
       default -> "view";
+    };
+  }
+
+  private static String editSection(String action) {
+    return switch (action) {
+      case "term" -> "subject-registration";
+      case "status" -> "subject-status";
+      case "experts" -> "subject-experts";
+      default -> "subject-information";
     };
   }
 

@@ -26,7 +26,7 @@ public class AcademicTermServlet extends HttpServlet {
       else if (status != null && !status.isBlank())
         throw new IllegalArgumentException("Trạng thái học kỳ không hợp lệ.");
       req.setAttribute("terms", service.listTerms(actor, req.getParameter("keyword"), active));
-      req.setAttribute("hasActiveTerm", !service.listTerms(actor, null, true).isEmpty());
+      req.setAttribute("calendarTerms", service.listTerms(actor, null, null));
       WebSupport.csrf(req);
       req.getRequestDispatcher("/WEB-INF/views/master-data/list.jsp").forward(req, res);
     } catch (RuntimeException e) {

@@ -47,6 +47,8 @@ class MasterDataServletTest {
   }
 
   private static class Service extends MasterDataService {
+    AcademicTerm created;
+    @Override public long createTerm(long actor,AcademicTerm value) { assertEquals(1,actor); created=value; return 7; }
     int statusWrites;
     Boolean requestedStatus;
 
@@ -95,4 +97,17 @@ class MasterDataServletTest {
       assertEquals("/ams/admin/master-data?mode=view&id=7&saved=1", exchange.redirect);
     }
   }
+  @Test
+  void dateFormsUseVietnamMidnightAndIgnoreForgedCurrentFlag() throws Exception {
+    var exchange=new Exchange(); var service=new Service();
+    exchange.params.putAll(Map.of("action","create","termCode","FALL2026","termName","Fall",
+        "startsAt","2026-09-01","endsAt","2026-12-31","active","true","current","true"));
+    new MasterDataServlet(service).doPost(exchange.request,exchange.response);
+    assertEquals(302,exchange.status);
+    assertEquals(java.time.Instant.parse("2026-08-31T17:00:00Z"),service.created.startsAt());
+    assertEquals(java.time.Instant.parse("2026-12-31T16:59:59.999999Z"),service.created.endsAt());
+    assertFalse(service.created.current());
+    assertTrue(service.created.active());
+  }
+
 }

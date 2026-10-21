@@ -13,6 +13,11 @@ public class SubjectDAO {
 
   public List<Subject> search(Connection c, String keyword, SubjectStatus status, int page, int size)
       throws SQLException {
+    return search(c, keyword, status, null, page, size);
+  }
+
+  public List<Subject> search(Connection c, String keyword, SubjectStatus status, Long termId, int page, int size)
+      throws SQLException {
     String sql = "SELECT * FROM subjects WHERE (lower(subject_code) LIKE ? OR lower(subject_name) LIKE ?)";
     var args = new ArrayList<Object>();
     String pattern = "%" + normalizeSearch(keyword) + "%";
@@ -21,6 +26,10 @@ public class SubjectDAO {
     if (status != null) {
       sql += " AND status=?";
       args.add(status.name());
+    }
+    if (termId != null) {
+      sql += " AND EXISTS(SELECT 1 FROM subject_terms st WHERE st.subject_id=subjects.subject_id AND st.term_id=?)";
+      args.add(termId);
     }
     sql += " ORDER BY subject_code LIMIT ? OFFSET ?";
     args.add(size);
@@ -33,6 +42,10 @@ public class SubjectDAO {
   }
 
   public long count(Connection c, String keyword, SubjectStatus status) throws SQLException {
+    return count(c, keyword, status, null);
+  }
+
+  public long count(Connection c, String keyword, SubjectStatus status, Long termId) throws SQLException {
     String sql = "SELECT COUNT(*) FROM subjects WHERE (lower(subject_code) LIKE ? OR lower(subject_name) LIKE ?)";
     var args = new ArrayList<Object>();
     String pattern = "%" + normalizeSearch(keyword) + "%";
@@ -41,6 +54,10 @@ public class SubjectDAO {
     if (status != null) {
       sql += " AND status=?";
       args.add(status.name());
+    }
+    if (termId != null) {
+      sql += " AND EXISTS(SELECT 1 FROM subject_terms st WHERE st.subject_id=subjects.subject_id AND st.term_id=?)";
+      args.add(termId);
     }
     return Jdbc.scalar(c, sql, args.toArray());
   }

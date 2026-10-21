@@ -46,6 +46,26 @@ class StudentObjectiveDatabaseTest {
                     """);
         }
     }
+    @Test void regularAssignmentListRetainsOwnershipAndHidesPracticeWithoutDeletingIt() throws Exception {
+        sql("""
+                INSERT INTO assignments(assignment_id,class_id,template_id,title,assignment_purpose,response_type,
+                    instructions,maximum_score,status,available_from,due_at,published_at)
+                VALUES(60,10,1,'Regular own','REGULAR','OBJECTIVE','Instructions',10,'PUBLISHED',
+                        CURRENT_TIMESTAMP-INTERVAL '1 hour',CURRENT_TIMESTAMP+INTERVAL '1 day',CURRENT_TIMESTAMP),
+                      (61,20,1,'Regular foreign','REGULAR','OBJECTIVE','Instructions',10,'PUBLISHED',
+                        CURRENT_TIMESTAMP-INTERVAL '1 hour',CURRENT_TIMESTAMP+INTERVAL '1 day',CURRENT_TIMESTAMP),
+                      (62,10,1,'Draft own','REGULAR','OBJECTIVE','Instructions',10,'DRAFT',NULL,NULL,NULL),
+                      (63,10,1,'Essay own','REGULAR','ESSAY','Instructions',10,'PUBLISHED',
+                        CURRENT_TIMESTAMP-INTERVAL '1 hour',CURRENT_TIMESTAMP+INTERVAL '1 day',CURRENT_TIMESTAMP)
+                """);
+        assertEquals(List.of(60L),service().list(1).stream().map(x->x.assignment().assignmentId()).toList());
+        assertEquals(List.of(61L),service().list(2).stream().map(x->x.assignment().assignmentId()).toList());
+        assertTrue(service().list(3).isEmpty());
+        assertEquals(vn.edu.fpt.ams.model.AssignmentPurpose.PRACTICE,
+                new StudentObjectiveDAO().owned(connection,1,50,false).assignment().assignmentPurpose());
+        assertEquals(5,count("assignments"));
+        assertEquals(0,count("submissions"));
+    }
     @AfterEach void close() throws Exception { if(connection!=null)connection.close(); }
     StudentObjectiveService service() {
         return service(new AssignmentDAO());

@@ -26,6 +26,7 @@ public class StudentDashboardServlet extends HttpServlet {
                 throw new SecurityException("Vui lòng đăng nhập bằng tài khoản sinh viên đang hoạt động.");
             // Deliberately ignore studentId/userId query parameters; identity comes from the session.
             req.setAttribute("dashboard", service.load(WebSupport.actor(req)));
+            req.setAttribute("termOptions", service.termOptions(WebSupport.actor(req)));
             req.getRequestDispatcher("/WEB-INF/views/student/dashboard.jsp").forward(req, res);
         } catch (RuntimeException ex) {
             WebSupport.failure(req, res, ex);

@@ -1,0 +1,99 @@
+<%@ page pageEncoding="UTF-8" %>
+<%
+    var editTerms=(List<AcademicTerm>)request.getAttribute("editTerms");
+    var editableTerms=(List<AcademicTerm>)request.getAttribute("editableTerms");
+    Long editTermId=(Long)request.getAttribute("editTermId");
+    AcademicTerm editTerm=null;
+    for(var term:editTerms) if(Objects.equals(editTermId,term.termId())) editTerm=term;
+    SubjectTermViewDTO offering=null;
+    for(var term:details.subjectTerms()) if(Objects.equals(editTermId,term.termId())) offering=term;
+    boolean submittedExperts=Boolean.TRUE.equals(request.getAttribute("submitted")) && "experts".equals(request.getParameter("action"));
+    boolean submittedTerm=Boolean.TRUE.equals(request.getAttribute("submitted")) && "term".equals(request.getParameter("action"));
+    Map<Long,ResponsibilityType> assigned=new LinkedHashMap<>();
+    for(var e:details.primaryExperts()) assigned.put(e.expertId(),ResponsibilityType.PRIMARY);
+    for(var e:details.supportingExperts()) assigned.put(e.expertId(),ResponsibilityType.SUPPORTING);
+    var inputDate=java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm").withZone(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
+    String opens=submittedTerm?request.getParameter("registrationOpensAt"):(offering==null?"":inputDate.format(offering.registrationOpensAt()));
+    String closes=submittedTerm?request.getParameter("registrationClosesAt"):(offering==null?"":inputDate.format(offering.registrationClosesAt()));
+    boolean enabled=submittedTerm?request.getParameter("registrationEnabled")!=null:offering!=null && offering.registrationEnabled();
+    boolean editableTerm=editTermId!=null && editableTerms.stream().anyMatch(t -> Objects.equals(editTermId,t.termId())) && s.status()==SubjectStatus.ACTIVE;
+%>
+<section class="bao-card subject-edit-card" id="subject-experts">
+    <h2>Phân công chuyên gia</h2>
+    <% if("experts".equals(feedbackAction)){ %>
+    <% if(request.getAttribute("error")!=null){ %><p role="alert" tabindex="-1" data-subject-feedback><%=WebSupport.html(request.getAttribute("error"))%></p><% } else if(feedbackNotice!=null){ %><p role="status" tabindex="-1" data-subject-feedback><%=WebSupport.html(feedbackNotice)%></p><% } %>
+    <% } %>
+    <p class="muted">Chính: 1–2 người. Hỗ trợ: tối đa 2 người.</p>
+    <form method="post" action="<%=base%>" class="subject-section-form">
+        <input type="hidden" name="csrf" value="<%=token%>">
+        <input type="hidden" name="action" value="experts">
+        <input type="hidden" name="id" value="<%=s.subjectId()%>">
+        <input type="hidden" name="returnTo" value="edit">
+        <input type="hidden" name="termId" value="<%=editTermId==null?"":editTermId%>">
+        <div class="subject-expert-options">
+        <% for(var e:eligible){
+            String responsibility=submittedExperts?request.getParameter("responsibility_"+e.userId()):assigned.containsKey(e.userId())?assigned.get(e.userId()).name():"NOT_ASSIGNED";
+        %>
+            <label class="subject-expert-option">
+                <span><strong><%=WebSupport.html(e.fullName())%></strong><small><%=WebSupport.html(e.email())%></small></span>
+                <select name="responsibility_<%=e.userId()%>" aria-label="Vai trò của <%=WebSupport.html(e.fullName())%>">
+                    <option value="NOT_ASSIGNED" <%="NOT_ASSIGNED".equals(responsibility)?"selected":""%>>Không phân công</option>
+                    <option value="PRIMARY" <%="PRIMARY".equals(responsibility)?"selected":""%>>Chuyên gia chính</option>
+                    <option value="SUPPORTING" <%="SUPPORTING".equals(responsibility)?"selected":""%>>Chuyên gia hỗ trợ</option>
+                </select>
+            </label>
+        <% } %>
+        </div>
+        <% for(var e:details.responsibilityHistory()) if(e.active() && eligible.stream().noneMatch(x -> x.userId()==e.expertId())){ %>
+        <p class="subject-inline-warning"><%=WebSupport.html(e.fullName())%> đang được phân công nhưng tài khoản không còn đủ điều kiện. Khi lưu, hãy chọn chuyên gia thay thế; máy chủ sẽ kiểm tra phân công lớp còn hiệu lực.</p>
+        <% } %>
+        <div class="subject-section-actions"><button class="primary-button">Lưu phân công</button></div>
+    </form>
+</section>
+<section class="bao-card subject-edit-card" id="subject-status">
+    <div class="subject-section-heading"><h2>Trạng thái môn học</h2><span class="status-badge <%=s.status()==SubjectStatus.ACTIVE?"active":"inactive"%>"><%=s.status()==SubjectStatus.ACTIVE?"Đang hoạt động":"Ngừng hoạt động"%></span></div>
+    <% if("status".equals(feedbackAction)){ %>
+    <% if(request.getAttribute("error")!=null){ %><p role="alert" tabindex="-1" data-subject-feedback><%=WebSupport.html(request.getAttribute("error"))%></p><% } else if(feedbackNotice!=null){ %><p role="status" tabindex="-1" data-subject-feedback><%=WebSupport.html(feedbackNotice)%></p><% } %>
+    <% } %>
+    <p class="muted">Áp dụng cho tất cả học kỳ. Dữ liệu đã có được giữ nguyên.</p>
+    <form method="post" action="<%=base%>" class="subject-section-form" data-subject-status data-message="<%=s.status()==SubjectStatus.ACTIVE?"Vô hiệu hóa môn học này ở tất cả học kỳ và đóng đăng ký mới? Dữ liệu lịch sử được giữ nguyên.":"Kích hoạt lại môn học? Đăng ký theo kỳ vẫn tắt cho đến khi bạn mở lại."%>">
+        <input type="hidden" name="csrf" value="<%=token%>">
+        <input type="hidden" name="action" value="status">
+        <input type="hidden" name="id" value="<%=s.subjectId()%>">
+        <input type="hidden" name="returnTo" value="edit">
+        <input type="hidden" name="termId" value="<%=editTermId==null?"":editTermId%>">
+        <input type="hidden" name="status" value="<%=s.status()==SubjectStatus.ACTIVE?"INACTIVE":"ACTIVE"%>">
+        <input type="hidden" name="confirmed" value="false" data-status-confirmed>
+        <noscript><label class="subject-toggle"><input type="checkbox" name="confirmedWithoutScript" value="true" required><span>Tôi xác nhận thay đổi trạng thái môn học.</span></label></noscript>
+        <div class="subject-section-actions"><button class="<%=s.status()==SubjectStatus.ACTIVE?"destructive-button":"primary-button"%>"><%=s.status()==SubjectStatus.ACTIVE?"Vô hiệu hóa môn học":"Kích hoạt môn học"%></button></div>
+    </form>
+</section>
+<section class="bao-card subject-edit-card" id="subject-registration">
+    <h2>Đăng ký theo học kỳ</h2>
+    <% if("term".equals(feedbackAction)){ %>
+    <% if(request.getAttribute("error")!=null){ %><p role="alert" tabindex="-1" data-subject-feedback><%=WebSupport.html(request.getAttribute("error"))%></p><% } else if(feedbackNotice!=null){ %><p role="status" tabindex="-1" data-subject-feedback>Đã lưu đăng ký môn <%=WebSupport.html(s.subjectCode())%> trong kỳ <%=WebSupport.html(editTerm==null?"":editTerm.termCode())%>.</p><% } %>
+    <% } %>
+    <% if(editableTerm){ %>
+    <form method="get" action="<%=base%>#subject-registration" class="subject-term-picker" data-loaded-term="<%=editTermId%>">
+        <input type="hidden" name="mode" value="edit"><input type="hidden" name="id" value="<%=s.subjectId()%>">
+        <label>Học kỳ<select name="termId" required>
+            <% for(var term:editableTerms){ %><option value="<%=term.termId()%>" <%=Objects.equals(editTermId,term.termId())?"selected":""%>><%=WebSupport.html(term.termCode()+" · "+term.termName())%></option><% } %>
+        </select></label><noscript><button class="secondary-button">Chọn kỳ</button></noscript>
+    </form>
+    <p id="subject-term-feedback" role="alert" tabindex="-1" hidden></p>
+    <% if(offering==null){ %><p class="muted">Môn chưa được mở trong kỳ này.</p><% } %>
+    <form method="post" action="<%=base%>" class="subject-section-form" data-subject-registration>
+        <input type="hidden" name="csrf" value="<%=token%>"><input type="hidden" name="action" value="term"><input type="hidden" name="id" value="<%=s.subjectId()%>"><input type="hidden" name="returnTo" value="edit"><input type="hidden" name="termId" value="<%=editTermId%>">
+        <fieldset class="subject-registration-fields">
+            <legend class="sr-only">Đăng ký môn <%=WebSupport.html(s.subjectCode())%> trong kỳ <%=WebSupport.html(editTerm.termCode())%></legend>
+            <div class="form-grid"><label>Mở đăng ký<input type="datetime-local" name="registrationOpensAt" required value="<%=WebSupport.html(opens)%>"></label><label>Đóng đăng ký<input type="datetime-local" name="registrationClosesAt" required value="<%=WebSupport.html(closes)%>"></label></div>
+            <p class="muted">Thời gian hiển thị theo UTC+07.</p>
+            <label class="subject-toggle"><input type="checkbox" name="registrationEnabled" value="true" <%=enabled?"checked":""%>><span><strong>Cho phép đăng ký</strong><small>Chỉ áp dụng cho kỳ được chọn.</small></span></label>
+            <div class="subject-section-actions"><button class="primary-button"><%=offering==null?"Mở môn trong kỳ ":"Lưu đăng ký trong kỳ "%><%=WebSupport.html(editTerm.termCode())%></button></div>
+        </fieldset>
+    </form>
+    <% } else { %>
+    <p class="muted"><%=editTerm==null?"Không có học kỳ đủ điều kiện mở đăng ký.":WebSupport.html(editTerm.termCode())+" — chỉ xem, không sửa đăng ký."%></p>
+    <a href="<%=base%>?mode=view&amp;id=<%=s.subjectId()%>">Xem học kỳ và lịch sử đăng ký</a>
+    <% } %>
+</section>

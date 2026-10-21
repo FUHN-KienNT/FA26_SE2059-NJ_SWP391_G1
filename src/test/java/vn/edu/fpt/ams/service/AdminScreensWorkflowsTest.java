@@ -142,31 +142,24 @@ class AdminScreensWorkflowsTest {
   }
 
   @Test
-  void creatingTermNeverMarksItCurrentAutomatically() {
-    sql("UPDATE academic_terms SET is_current=FALSE,is_active=FALSE WHERE term_id=1");
-    long id = masterData.createTerm(1, requestedTerm(0, "NEXTTERM", false, true));
-    assertTrue(masterData.getTerm(1, id).active());
-    assertFalse(masterData.getTerm(1, id).current());
-    assertThrows(IllegalArgumentException.class,
-        () -> masterData.createTerm(1, requestedTerm(0, "FORGED", true, true)));
-    assertEquals(0, scalar("SELECT COUNT(*) FROM academic_terms WHERE term_code='FORGED'"));
+  void futureTermNeverBecomesCurrentFromSubmittedFlag() {
+    long id=masterData.createTerm(1,requestedTerm(0,"NEXTTERM",true,true));
+    assertTrue(masterData.getTerm(1,id).active());
+    assertFalse(masterData.getTerm(1,id).current());
+    assertEquals(0,scalar("SELECT COUNT(*) FROM academic_terms WHERE term_id=? AND is_current=TRUE",id));
   }
+
 
   @Test
-  void creatingTermDoesNotReplaceAnExistingCurrentTerm() {
-    AcademicTerm existing = masterData.getTerm(1, 1);
-    long id = masterData.createTerm(1, requestedTerm(0, "LATERTERM", false, false));
-
-    assertEquals(existing, masterData.getTerm(1, 1));
-    assertFalse(masterData.getTerm(1, id).current());
-    assertFalse(masterData.getTerm(1, id).active());
-    assertEquals(1, scalar("SELECT COUNT(*) FROM academic_terms WHERE is_current=TRUE"));
-
-    assertThrows(IllegalArgumentException.class,
-        () -> masterData.createTerm(1, requestedTerm(0, "FORGEDCURRENT", true, true)));
-    assertEquals(existing, masterData.getTerm(1, 1));
-    assertEquals(0, scalar("SELECT COUNT(*) FROM academic_terms WHERE term_code='FORGEDCURRENT'"));
+  void futureEnabledTermDoesNotReplaceCurrentOrItsHistory() {
+    var existing=masterData.getTerm(1,1);
+    long id=masterData.createTerm(1,requestedTerm(0,"LATERTERM",false,true));
+    assertEquals(existing,masterData.getTerm(1,1));
+    assertFalse(masterData.getTerm(1,id).current());
+    assertEquals(2,masterData.listTerms(1,null,true).size());
+    assertEquals(1,scalar("SELECT COUNT(*) FROM subject_terms WHERE term_id=1"));
   }
+
 
   void initializeServicesAndSeed() {
     users =
@@ -658,6 +651,172 @@ class AdminScreensWorkflowsTest {
   }
 
   @Test
+  void subjectListShowsCurrentAndHistoricalTermsAndFiltersBeforePagination() {
+    sql("UPDATE subject_terms SET registration_enabled=TRUE WHERE subject_id=1");
+    sql("INSERT INTO academic_terms(term_code,term_name,starts_at,ends_at,is_current,is_active) VALUES('PAST','Previous term',?,?,FALSE,FALSE)",
+        Instant.now().minusSeconds(900000), Instant.now().minusSeconds(800000));
+    sql("INSERT INTO subject_terms(subject_id,term_id,registration_enabled,registration_opens_at,registration_closes_at) VALUES(1,2,TRUE,?,?)",
+        Instant.now().minusSeconds(900000), Instant.now().minusSeconds(800000));
+    var overview = subjects.list(1, "SWP", null, 1).get(0);
+    assertEquals(2, overview.subjectTerms().size());
+    assertTrue(overview.subjectTerms().get(0).currentTerm());
+    assertTrue(overview.subjectTerms().get(0).termActive());
+    assertEquals("OPEN", overview.subjectTerms().get(0).registrationStatus());
+    assertFalse(overview.subjectTerms().get(1).termActive());
+    assertEquals("TERM_INACTIVE", overview.subjectTerms().get(1).registrationStatus());
+    assertEquals(overview.subjectTerms(), subjects.details(1, 1).subjectTerms());
+    assertTrue(subjects.list(1, "PRJ", null, 1).get(0).subjectTerms().isEmpty());
+    assertEquals(1, subjects.count(1, null, null, 2L));
+    for (int i = 0; i < 21; i++) {
+      sql("INSERT INTO subjects(subject_code,subject_name) VALUES(?,?)", "TERM"+i, "Term test "+i);
+      sql("INSERT INTO subject_terms(subject_id,term_id,registration_opens_at,registration_closes_at) SELECT subject_id,2,?,? FROM subjects WHERE subject_code=?",
+          Instant.now().minusSeconds(900000), Instant.now().minusSeconds(800000), "TERM"+i);
+    }
+    assertEquals(22, subjects.count(1, null, null, 2L));
+    assertEquals(20, subjects.list(1, null, null, 2L, 1).size());
+    assertEquals(2, subjects.list(1, null, null, 2L, 2).size());
+    assertEquals(1, subjects.list(1, null, null, 1L, 1).size());
+    assertTrue(subjects.list(1, "missing", null, 2L, 1).isEmpty());
+    assertEquals(2, subjects.termOptions(1).size());
+    assertThrows(SecurityException.class, () -> subjects.list(2, null, null, 2L, 1));
+    assertThrows(SecurityException.class, () -> subjects.count(2, null, null, 2L));
+    assertThrows(SecurityException.class, () -> subjects.termOptions(2));
+    assertThrows(IllegalArgumentException.class, () -> subjects.list(1, null, null, -1L, 1));
+  }
+
+  @Test
+  void subjectTermDisplayDoesNotReportAnUnavailableOfferingAsOpen() {
+    sql("UPDATE subject_terms SET registration_enabled=TRUE WHERE subject_id=1");
+    assertEquals("OPEN", subjects.list(1, "SWP", null, 1).get(0).subjectTerms().get(0).registrationStatus());
+    sql("UPDATE academic_terms SET is_current=FALSE WHERE term_id=1");
+    assertEquals("OPEN", subjects.list(1, "SWP", null, 1).get(0).subjectTerms().get(0).registrationStatus());
+    sql("UPDATE academic_terms SET is_current=TRUE WHERE term_id=1");
+    sql("UPDATE subject_terms SET registration_enabled=FALSE WHERE subject_id=1");
+    assertEquals("DISABLED", subjects.list(1, "SWP", null, 1).get(0).subjectTerms().get(0).registrationStatus());
+    sql("UPDATE subject_terms SET registration_enabled=TRUE,registration_opens_at=?,registration_closes_at=? WHERE subject_id=1",
+        Instant.now().plusSeconds(600), Instant.now().plusSeconds(3600));
+    assertEquals("UPCOMING", subjects.list(1, "SWP", null, 1).get(0).subjectTerms().get(0).registrationStatus());
+    sql("UPDATE subject_terms SET registration_opens_at=?,registration_closes_at=? WHERE subject_id=1",
+        Instant.now().minusSeconds(3600), Instant.now().minusSeconds(600));
+    assertEquals("CLOSED", subjects.list(1, "SWP", null, 1).get(0).subjectTerms().get(0).registrationStatus());
+    sql("UPDATE subjects SET status='INACTIVE' WHERE subject_id=1");
+    assertEquals("SUBJECT_INACTIVE", subjects.list(1, "SWP", null, 1).get(0).subjectTerms().get(0).registrationStatus());
+  }
+
+  @Test
+  void endedHistoricalTermIsExcludedAndCannotBeChangedAtTheExactEndTime() {
+    Instant end=Instant.parse("2030-01-01T00:00:00Z");
+    sql("UPDATE academic_terms SET starts_at=?,ends_at=?,is_active=TRUE,is_current=FALSE WHERE term_id=1",end.minusSeconds(86400),end);
+    sql("UPDATE subject_terms SET registration_enabled=TRUE,registration_opens_at=?,registration_closes_at=? WHERE subject_term_id=1",end.minusSeconds(3600),end.plusSeconds(86400));
+    var before=new SubjectService(db,Clock.fixed(end.minusNanos(1),ZoneOffset.UTC));
+    assertEquals(1,before.eligibleTerms(1).size());
+    assertEquals("OPEN",before.details(1,1).subjectTerms().get(0).registrationStatus());
+    var ended=new SubjectService(db,Clock.fixed(end,ZoneOffset.UTC));
+    assertTrue(ended.eligibleTerms(1).isEmpty());
+    assertEquals("TERM_ENDED",ended.details(1,1).subjectTerms().get(0).registrationStatus());
+    for(boolean enabled:List.of(true,false))
+      assertThrows(IllegalArgumentException.class,()->ended.openForTerm(1,
+          new SubjectTerm(0,1,1,enabled,end.minusSeconds(1800),end.plusSeconds(3600))));
+    var stored=ended.details(1,1).subjectTerms().get(0);
+    assertTrue(stored.registrationEnabled());
+    assertEquals(end.minusSeconds(3600),stored.registrationOpensAt());
+    assertEquals(SubjectStatus.ACTIVE,ended.details(1,1).subject().status());
+    long subjectRows=scalar("SELECT COUNT(*) FROM subjects"), expertRows=scalar("SELECT COUNT(*) FROM subject_experts");
+    assertThrows(IllegalArgumentException.class,()->ended.create(1,
+        new SubjectDTO(0,"ENDEDNEW","Ended",null,SubjectStatus.ACTIVE),Map.of(2L,ResponsibilityType.PRIMARY),
+        new SubjectService.InitialTerm(1,true,end,end.plusSeconds(3600))));
+    assertEquals(subjectRows,scalar("SELECT COUNT(*) FROM subjects"));
+    assertEquals(expertRows,scalar("SELECT COUNT(*) FROM subject_experts"));
+    assertEquals(0,scalar("SELECT COUNT(*) FROM subjects WHERE subject_code='ENDEDNEW'"));
+  }
+
+  @Test
+  void onlyActiveUnendedTermsAreEditableWhileHistoricalTermsRemainViewable() {
+    Instant now=Instant.parse("2030-01-01T00:00:00Z");
+    sql("UPDATE academic_terms SET starts_at=?,ends_at=?,is_current=FALSE WHERE term_id=1",now.minusSeconds(86400),now.minusSeconds(1));
+    sql("INSERT INTO academic_terms(term_code,term_name,starts_at,ends_at,is_current,is_active) VALUES('FUTUREOFF','Future disabled',?,?,FALSE,FALSE),('FUTUREON','Future active',?,?,FALSE,TRUE)",now.plusSeconds(3600),now.plusSeconds(86400),now.plusSeconds(3600),now.plusSeconds(86400));
+    var service=new SubjectService(db,Clock.fixed(now,ZoneOffset.UTC));
+    assertEquals(List.of("FUTUREON"),service.eligibleTerms(1).stream().map(AcademicTerm::termCode).toList());
+    assertEquals(3,service.termOptions(1).size());
+    assertEquals(1,service.details(1,1).subjectTerms().size());
+    assertThrows(SecurityException.class,()->service.eligibleTerms(2));
+  }
+
+  @Test
+  void staleManualCurrentFlagCannotReopenAnEndedTerm() {
+    Instant now=Instant.parse("2030-01-01T00:00:00Z");
+    sql("UPDATE academic_terms SET starts_at=?,ends_at=?,is_current=TRUE,is_active=TRUE WHERE term_id=1",now.minusSeconds(172800),now.minusSeconds(86400));
+    var service=new SubjectService(db,Clock.fixed(now,ZoneOffset.UTC));
+    assertTrue(service.eligibleTerms(1).isEmpty());
+    assertFalse(service.termOptions(1).get(0).current());
+    assertThrows(IllegalArgumentException.class,()->service.openForTerm(1,new SubjectTerm(0,1,1,true,now,now.plusSeconds(3600))));
+    assertEquals("TERM_ENDED",service.details(1,1).subjectTerms().get(0).registrationStatus());
+    assertEquals(1,service.list(1,null,null,1L,1).size());
+  }
+
+
+  @Test
+  void creatingSubjectCanSaveItsInitialTermAndExpertsTogether() {
+    Instant opens=Instant.now().minusSeconds(3600), closes=Instant.now().plusSeconds(86400);
+    long id=subjects.create(1,new SubjectDTO(0,"ONEFORM","One form",null,SubjectStatus.ACTIVE),
+        Map.of(2L,ResponsibilityType.PRIMARY,3L,ResponsibilityType.SUPPORTING),
+        new SubjectService.InitialTerm(1,true,opens,closes));
+    var created=subjects.details(1,id);
+    assertEquals("ONEFORM",created.subject().subjectCode());
+    assertEquals(1,created.primaryExperts().size());
+    assertEquals(1,created.supportingExperts().size());
+    assertEquals(1,created.subjectTerms().size());
+    assertEquals(1,created.subjectTerms().get(0).termId());
+    assertEquals("OPEN",created.subjectTerms().get(0).registrationStatus());
+    assertEquals(1,subjects.count(1,"ONEFORM",null,1L));
+    assertEquals(1,scalar("SELECT COUNT(*) FROM subject_terms WHERE subject_id=?",id));
+    assertThrows(IllegalArgumentException.class,()->subjects.create(1,
+        new SubjectDTO(0,"ONEFORM","Duplicate",null,SubjectStatus.ACTIVE),
+        Map.of(2L,ResponsibilityType.PRIMARY),new SubjectService.InitialTerm(1,true,opens,closes)));
+    assertEquals(1,scalar("SELECT COUNT(*) FROM subjects WHERE subject_code='ONEFORM'"));
+  }
+
+  @Test
+  void failedInitialTermRollsBackNewSubjectExpertsAndOffering() {
+    Instant opens=Instant.now(), closes=opens.plusSeconds(86400);
+    sql("INSERT INTO academic_terms(term_code,term_name,starts_at,ends_at,is_current,is_active) VALUES('DISABLED','Disabled',?,?,FALSE,FALSE)",opens,closes);
+    long subjectCount=scalar("SELECT COUNT(*) FROM subjects"), expertCount=scalar("SELECT COUNT(*) FROM subject_experts"), termCount=scalar("SELECT COUNT(*) FROM subject_terms");
+    var invalid=List.of(new SubjectService.InitialTerm(2,true,opens,closes),
+        new SubjectService.InitialTerm(999,true,opens,closes),
+        new SubjectService.InitialTerm(1,true,closes,opens),
+        new SubjectService.InitialTerm(1,true,null,closes));
+    for(int i=0;i<invalid.size();i++) {
+      var opening=invalid.get(i); String code="BADTERM"+i;
+      assertThrows(RuntimeException.class,()->subjects.create(1,
+          new SubjectDTO(0,code,"Invalid opening",null,SubjectStatus.ACTIVE),
+          Map.of(2L,ResponsibilityType.PRIMARY),opening));
+      assertEquals(0,scalar("SELECT COUNT(*) FROM subjects WHERE subject_code=?",code));
+      assertEquals(subjectCount,scalar("SELECT COUNT(*) FROM subjects"));
+      assertEquals(expertCount,scalar("SELECT COUNT(*) FROM subject_experts"));
+      assertEquals(termCount,scalar("SELECT COUNT(*) FROM subject_terms"));
+    }
+    assertThrows(IllegalArgumentException.class,()->subjects.create(1,
+        new SubjectDTO(0,"INACTIVEOPEN","Inactive",null,SubjectStatus.INACTIVE),
+        Map.of(2L,ResponsibilityType.PRIMARY),new SubjectService.InitialTerm(1,true,opens,closes)));
+    assertThrows(SecurityException.class,()->subjects.create(2,
+        new SubjectDTO(0,"FORBIDDENOPEN","Forbidden",null,SubjectStatus.ACTIVE),
+        Map.of(2L,ResponsibilityType.PRIMARY),new SubjectService.InitialTerm(1,true,opens,closes)));
+    assertEquals(subjectCount,scalar("SELECT COUNT(*) FROM subjects"));
+    assertEquals(expertCount,scalar("SELECT COUNT(*) FROM subject_experts"));
+    assertEquals(termCount,scalar("SELECT COUNT(*) FROM subject_terms"));
+  }
+
+  @Test
+  void catalogOnlyCreationDoesNotRequireAnActiveTermOrCreateAnOffering() {
+    sql("UPDATE academic_terms SET is_current=FALSE,is_active=FALSE");
+    long id=subjects.create(1,new SubjectDTO(0,"CATONLY","Catalog only",null,SubjectStatus.INACTIVE),
+        Map.of(2L,ResponsibilityType.PRIMARY),null);
+    assertEquals(SubjectStatus.INACTIVE,subjects.details(1,id).subject().status());
+    assertTrue(subjects.details(1,id).subjectTerms().isEmpty());
+    assertEquals(0,scalar("SELECT COUNT(*) FROM subject_terms WHERE subject_id=?",id));
+  }
+
+  @Test
   void subjectCreateIsAtomicAndEnforcesAllExpertAndFieldRules() {
     long one =
         subjects.create(
@@ -903,6 +1062,40 @@ class AdminScreensWorkflowsTest {
   }
 
   @Test
+  void editingOneOfferingDoesNotCloseOthersButSubjectDeactivationClosesAllWithoutDeletingHistory() {
+    Instant opens=Instant.now().minusSeconds(3600), closes=Instant.now().plusSeconds(86400);
+    sql("INSERT INTO academic_terms(term_code,term_name,starts_at,ends_at,is_current,is_active) VALUES('NEXT','Next',?,?,FALSE,TRUE)",
+        closes,closes.plusSeconds(86400));
+    subjects.openForTerm(1,new SubjectTerm(0,1,1,true,opens,closes));
+    long next=subjects.openForTerm(1,new SubjectTerm(0,1,2,true,opens,closes));
+    subjects.openForTerm(1,new SubjectTerm(0,1,1,false,opens,closes));
+    assertEquals(1,scalar("SELECT COUNT(*) FROM subject_terms WHERE subject_term_id=? AND registration_enabled=TRUE",next));
+    sql("INSERT INTO users(full_name,email,role,google_subject,email_verified) VALUES('History Student','history@test.edu','STUDENT','history-subject',TRUE)");
+    sql("INSERT INTO subject_registrations(student_id,subject_term_id) SELECT user_id,1 FROM users WHERE email='history@test.edu'");
+    sql("INSERT INTO class_enrollments(registration_id,class_id,enrollment_method) SELECT registration_id,1,'SELF_REGISTRATION' FROM subject_registrations");
+    long template=templates.createTemplate(2,new AssignmentTemplate(0,1,"History fixture","Instructions",BigDecimal.TEN,TemplateStatus.ACTIVE,null,null));
+    sql("INSERT INTO assignments(class_id,template_id,title,assignment_purpose,response_type,instructions,maximum_score) VALUES(1,?,'History assignment','REGULAR','ESSAY','Instructions',10)",template);
+    sql("INSERT INTO submissions(assignment_id,enrollment_id,attempt_number,deadline_at) SELECT a.assignment_id,e.enrollment_id,1,? FROM assignments a CROSS JOIN class_enrollments e",closes);
+    var counts=new LinkedHashMap<String,Long>();
+    for(String table:List.of("subjects","subject_terms","subject_experts","subject_classes","subject_registrations","class_enrollments","assignments","submissions"))
+      counts.put(table,scalar("SELECT COUNT(*) FROM "+table));
+    subjects.changeStatus(1,1,SubjectStatus.INACTIVE);
+    assertEquals(0,scalar("SELECT COUNT(*) FROM subject_terms WHERE subject_id=1 AND registration_enabled=TRUE"));
+    counts.forEach((table,count)->assertEquals(count.longValue(),scalar("SELECT COUNT(*) FROM "+table),table));
+    assertEquals(1,scalar("SELECT COUNT(*) FROM subject_registrations WHERE status='ACTIVE'"));
+    assertEquals(1,scalar("SELECT COUNT(*) FROM class_enrollments WHERE status='ACTIVE'"));
+    assertEquals(1,scalar("SELECT COUNT(*) FROM submissions WHERE status='IN_PROGRESS'"));
+    subjects.changeStatus(1,1,SubjectStatus.ACTIVE);
+    assertEquals(0,scalar("SELECT COUNT(*) FROM subject_terms WHERE subject_id=1 AND registration_enabled=TRUE"));
+    assertEquals(next,subjects.openForTerm(1,new SubjectTerm(0,1,2,true,opens,closes)));
+    assertEquals(0,scalar("SELECT COUNT(*) FROM subject_terms WHERE subject_id=1 AND term_id=1 AND registration_enabled=TRUE"));
+    sql("UPDATE academic_terms SET is_active=FALSE WHERE term_id=2");
+    assertThrows(IllegalArgumentException.class,()->subjects.openForTerm(1,new SubjectTerm(0,1,2,true,opens,closes)));
+    assertThrows(SecurityException.class,()->subjects.changeStatus(2,1,SubjectStatus.INACTIVE));
+    assertEquals(SubjectStatus.ACTIVE,subjects.details(1,1).subject().status());
+  }
+
+  @Test
   void subjectTermValidatesAndUpdatesStablePairWithoutDuplicate() {
     Instant opens = Instant.now().plus(Duration.ofDays(2));
     Instant closes = opens.plus(Duration.ofDays(7));
@@ -991,10 +1184,10 @@ class AdminScreensWorkflowsTest {
   @Test
   void savingUnchangedTermDatesAfterSubjectSetupKeepsStoredTimestamps() {
     AcademicTerm old = masterData.getTerm(1, 1);
-    Instant formStart = old.startsAt().atZone(ZoneOffset.UTC).toLocalDate()
-        .atStartOfDay(ZoneOffset.UTC).toInstant();
-    Instant formEnd = old.endsAt().atZone(ZoneOffset.UTC).toLocalDate()
-        .plusDays(1).atStartOfDay(ZoneOffset.UTC).minusNanos(1).toInstant();
+    Instant formStart = old.startsAt().atZone(TermTimeline.ZONE).toLocalDate()
+        .atStartOfDay(TermTimeline.ZONE).toInstant();
+    Instant formEnd = old.endsAt().atZone(TermTimeline.ZONE).toLocalDate()
+        .plusDays(1).atStartOfDay(TermTimeline.ZONE).minusNanos(1).toInstant();
 
     masterData.updateTerm(1, new AcademicTerm(1, old.termCode(), "Fall renamed",
         formStart, formEnd, true, true));
@@ -1003,8 +1196,8 @@ class AdminScreensWorkflowsTest {
     assertEquals("Fall renamed", saved.termName());
     assertEquals(old.startsAt(), saved.startsAt());
     assertEquals(old.endsAt(), saved.endsAt());
-    Instant changedEnd = old.endsAt().atZone(ZoneOffset.UTC).toLocalDate()
-        .plusDays(2).atStartOfDay(ZoneOffset.UTC).minusNanos(1).toInstant();
+    Instant changedEnd = old.endsAt().atZone(TermTimeline.ZONE).toLocalDate()
+        .plusDays(2).atStartOfDay(TermTimeline.ZONE).minusNanos(1).toInstant();
     var error = assertThrows(IllegalArgumentException.class, () -> masterData.updateTerm(1,
         new AcademicTerm(1, old.termCode(), "Should not save", formStart, changedEnd, true, true)));
     assertEquals("Không thể thay đổi ngày học kỳ khi đã có cấu hình môn học cho học kỳ này.",
@@ -1021,15 +1214,16 @@ class AdminScreensWorkflowsTest {
   }
 
   @Test
-  void currentTermDeactivationProtectsOpenRegistrationAndPreservesRows() {
+  void disablingCurrentTermStopsRegistrationAndPreservesRows() {
     sql("UPDATE subject_terms SET registration_enabled=TRUE WHERE subject_term_id=1");
-    assertThrows(IllegalArgumentException.class,()->masterData.setTermStatus(1,1,false));
-    sql("UPDATE subject_terms SET registration_enabled=FALSE WHERE subject_term_id=1");
-    assertThrows(IllegalArgumentException.class,()->masterData.setTermStatus(1,1,false));
-    assertTrue(masterData.getTerm(1,1).active());
+    masterData.setTermStatus(1,1,false);
+    assertFalse(masterData.getTerm(1,1).current());
+    assertEquals("TERM_INACTIVE",subjects.details(1,1).subjectTerms().get(0).registrationStatus());
+    assertEquals(1,scalar("SELECT COUNT(*) FROM subject_terms WHERE term_id=1"));
+    masterData.setTermStatus(1,1,true);
     assertTrue(masterData.getTerm(1,1).current());
-    assertEquals(1,scalar("SELECT COUNT(*) FROM academic_terms WHERE term_id=1"));
   }
+
 
   private AcademicTerm requestedTerm(long id, String code, boolean current, boolean active) {
     return new AcademicTerm(id, code, "Test Term", Instant.parse("2028-01-01T00:00:00Z"),
@@ -1037,95 +1231,207 @@ class AdminScreensWorkflowsTest {
   }
 
   @Test
-  void inactiveCreateAllowedAndConflictingCreateRollsBack() {
-    long id = masterData.createTerm(1, requestedTerm(0, "INACTIVE28", false, false));
-    assertFalse(masterData.getTerm(1,id).active());
-    var before = masterData.listTerms(1,null,null);
-    var failure = assertThrows(IllegalArgumentException.class,
-        () -> masterData.createTerm(1, requestedTerm(0,"ACTIVE28",false,true)));
-    assertEquals("Chỉ được phép có một học kỳ hoạt động tại một thời điểm.",failure.getMessage());
-    assertThrows(IllegalArgumentException.class,
-        () -> masterData.createTerm(1,requestedTerm(0,"CURRENT28",true,true)));
-    assertThrows(IllegalArgumentException.class,
-        () -> masterData.createTerm(1,requestedTerm(0,"INVALID28",true,false)));
-    assertEquals(before,masterData.listTerms(1,null,null));
+  void disabledOverlapAllowedButEnabledOverlapRollsBack() {
+    long first=masterData.createTerm(1,requestedTerm(0,"ACTIVE28",false,true));
+    long draft=masterData.createTerm(1,requestedTerm(0,"DRAFT28",false,false));
+    assertFalse(masterData.getTerm(1,draft).active());
+    assertThrows(IllegalArgumentException.class,()->masterData.createTerm(1,requestedTerm(0,"OVERLAP28",false,true)));
+    assertThrows(IllegalArgumentException.class,()->masterData.setTermStatus(1,draft,true));
+    assertFalse(masterData.getTerm(1,draft).active());
+    assertTrue(masterData.getTerm(1,first).active());
+    assertEquals(0,scalar("SELECT COUNT(*) FROM academic_terms WHERE term_code='OVERLAP28'"));
   }
 
-  @Test
-  void activeCreateAllowedWhenNoActiveTermAndCurrentRequiresActive() {
-    sql("UPDATE academic_terms SET is_current=FALSE,is_active=FALSE");
-    long id = masterData.createTerm(1,requestedTerm(0,"ACTIVE28",false,true));
-    assertTrue(masterData.getTerm(1,id).active());
-    masterData.markCurrent(1,id);
-    assertTrue(masterData.getTerm(1,id).current());
-    assertThrows(IllegalArgumentException.class,()->masterData.markCurrent(1,1));
-  }
 
   @Test
-  void activationUpdateAndSecondCurrentConflictsLeaveRowsUnchanged() {
-    long id = masterData.createTerm(1,requestedTerm(0,"INACTIVE28",false,false));
-    var before = masterData.listTerms(1,null,null);
-    assertThrows(IllegalArgumentException.class,()->masterData.setTermStatus(1,id,true));
-    assertThrows(IllegalArgumentException.class,()->masterData.updateTerm(1,requestedTerm(id,"CHANGED28",false,true)));
-    assertThrows(IllegalArgumentException.class,()->masterData.updateTerm(1,requestedTerm(id,"INACTIVE28",true,false)));
-    assertThrows(IllegalArgumentException.class,()->masterData.updateTerm(1,requestedTerm(id,"INACTIVE28",true,true)));
-    assertEquals(before,masterData.listTerms(1,null,null));
-    // Historical invalid data can be repaired by deactivating a non-current active term.
-    sql("UPDATE academic_terms SET is_active=TRUE WHERE term_id=?",id);
-    var historical = masterData.listTerms(1,null,null);
-    assertThrows(IllegalArgumentException.class,()->masterData.markCurrent(1,id));
-    assertEquals(historical,masterData.listTerms(1,null,null));
-    masterData.setTermStatus(1,id,false);
-    assertFalse(masterData.getTerm(1,id).active());
+  void currentCalendarRejectsExactContainedAndPartiallyOverlappingDates() {
+    var current=masterData.getTerm(1,1);
+    Instant start=current.startsAt(),end=current.endsAt();
+    var ranges=List.of(new Instant[]{start,end},
+        new Instant[]{start.plusSeconds(3600),end.minusSeconds(3600)},
+        new Instant[]{start.minusSeconds(3600),end.plusSeconds(3600)},
+        new Instant[]{start.minusSeconds(3600),start.plusSeconds(3600)},
+        new Instant[]{end.minusSeconds(3600),end.plusSeconds(3600)});
+    int index=0;
+    for(var range:ranges) {
+      var proposed=new AcademicTerm(0,"OVERLAP"+(index++),"Overlap",range[0],range[1],false,true);
+      assertThrows(IllegalArgumentException.class,()->masterData.createTerm(1,proposed));
+    }
+    assertEquals(1,masterData.listTerms(1,null,null).size());
+    long draft=masterData.createTerm(1,new AcademicTerm(0,"DRAFTCURRENT","Draft",start,end,false,false));
+    assertFalse(masterData.getTerm(1,draft).current());
+    assertThrows(IllegalArgumentException.class,()->masterData.setTermStatus(1,draft,true));
+    assertFalse(masterData.getTerm(1,draft).active());
     assertTrue(masterData.getTerm(1,1).current());
   }
 
   @Test
-  void editingActiveCurrentTermKeepsFlagsAndRejectsInactiveCurrent() {
-    var old = masterData.getTerm(1,1);
-    masterData.updateTerm(1,new AcademicTerm(1,old.termCode(),"Fall Updated",old.startsAt(),old.endsAt(),true,true));
-    var changed = masterData.getTerm(1,1);
-    assertEquals("Fall Updated",changed.termName());
-    assertTrue(changed.active());
-    assertTrue(changed.current());
-    assertThrows(IllegalArgumentException.class,()->masterData.updateTerm(1,
-        new AcademicTerm(1,old.termCode(),"Invalid",old.startsAt(),old.endsAt(),true,false)));
-    assertEquals(changed,masterData.getTerm(1,1));
+  void calendarRollsOverAtBoundaryAndGapsHaveNoCurrentTerm() {
+    Instant start=Instant.parse("2030-01-01T00:00:00Z"),edge=start.plusSeconds(3600);
+    sql("UPDATE academic_terms SET is_current=FALSE,is_active=FALSE");
+    var writer=new MasterDataService(db,Clock.fixed(start.minusSeconds(1),ZoneOffset.UTC));
+    long first=writer.createTerm(1,new AcademicTerm(0,"FIRST30","First",start,edge,false,true));
+    long second=writer.createTerm(1,new AcademicTerm(0,"SECOND30","Second",edge,edge.plusSeconds(3600),false,true));
+    assertTrue(writer.listTerms(1,null,null).stream().noneMatch(AcademicTerm::current));
+    assertTrue(new MasterDataService(db,Clock.fixed(start,ZoneOffset.UTC)).getTerm(1,first).current());
+    var boundary=new MasterDataService(db,Clock.fixed(edge,ZoneOffset.UTC));
+    assertFalse(boundary.getTerm(1,first).current());
+    assertTrue(boundary.getTerm(1,second).current());
+    var after=new MasterDataService(db,Clock.fixed(edge.plusSeconds(7200),ZoneOffset.UTC));
+    assertTrue(after.listTerms(1,null,null).stream().noneMatch(AcademicTerm::current));
+    assertEquals(1,scalar("SELECT COUNT(*) FROM subject_terms WHERE term_id=1"));
+  }
+
+
+  @Test
+  void editsAndActivationCannotIntroduceOverlappingEnabledTerms() {
+    var start=Instant.parse("2028-01-01T00:00:00Z");
+    masterData.createTerm(1,requestedTerm(0,"ACTIVE28",false,true));
+    long later=masterData.createTerm(1,new AcademicTerm(0,"LATER28","Later",start.plusSeconds(20000000),start.plusSeconds(30000000),false,true));
+    var old=masterData.getTerm(1,later);
+    assertThrows(IllegalArgumentException.class,()->masterData.updateTerm(1,requestedTerm(later,"LATER28",false,true)));
+    assertEquals(old,masterData.getTerm(1,later));
+    assertThrows(SecurityException.class,()->masterData.setTermStatus(2,later,false));
+    assertTrue(masterData.getTerm(1,later).active());
+  }
+
+
+  @Test
+  void metadataEditIgnoresSubmittedCurrentFlagAndCanDisableUsage() {
+    var old=masterData.getTerm(1,1);
+    masterData.updateTerm(1,new AcademicTerm(1,old.termCode(),"Updated",old.startsAt(),old.endsAt(),false,true));
+    assertTrue(masterData.getTerm(1,1).current());
+    masterData.updateTerm(1,new AcademicTerm(1,old.termCode(),"Disabled",old.startsAt(),old.endsAt(),true,false));
+    assertFalse(masterData.getTerm(1,1).active());
+    assertFalse(masterData.getTerm(1,1).current());
+  }
+
+
+  @Test
+  void pastTermCreationRequiresDisabledUsageAndCannotBeReenabled() {
+    Instant now=Instant.parse("2030-01-01T00:00:00Z");
+    var service=new MasterDataService(db,Clock.fixed(now,ZoneOffset.UTC));
+    int index=0;
+    for(Instant end:List.of(now.minusSeconds(1),now)) {
+      String code="HISTORY"+(index++);
+      long count=scalar("SELECT COUNT(*) FROM academic_terms");
+      var error=assertThrows(IllegalArgumentException.class,()->service.createTerm(1,
+          new AcademicTerm(0,code,"History",now.minusSeconds(86400),end,false,true)));
+      assertEquals("Không thể bật sử dụng học kỳ đã kết thúc.",error.getMessage());
+      assertEquals(count,scalar("SELECT COUNT(*) FROM academic_terms"));
+      long id=service.createTerm(1,new AcademicTerm(0,code,"History",now.minusSeconds(86400),end,false,false));
+      var archived=service.getTerm(1,id);
+      assertFalse(archived.active());
+      assertFalse(archived.current());
+      assertThrows(IllegalArgumentException.class,()->service.setTermStatus(1,id,true));
+      assertThrows(IllegalArgumentException.class,()->service.updateTerm(1,
+          new AcademicTerm(id,code,"Changed",archived.startsAt(),archived.endsAt(),false,false)));
+      assertEquals(archived,service.getTerm(1,id));
+    }
   }
 
   @Test
-  void switchingCurrentTermReplacesBothFlagsWithoutDeletingOldData() {
-    long target = masterData.createTerm(1, requestedTerm(0, "NEXT28", false, false));
-    long oldOfferings = scalar("SELECT COUNT(*) FROM subject_terms WHERE term_id=1");
-
-    masterData.switchCurrentTerm(1, target, 1);
-
-    assertFalse(masterData.getTerm(1, 1).active());
-    assertFalse(masterData.getTerm(1, 1).current());
-    assertTrue(masterData.getTerm(1, target).active());
-    assertTrue(masterData.getTerm(1, target).current());
-    assertEquals(1, scalar("SELECT COUNT(*) FROM academic_terms WHERE is_active=TRUE"));
-    assertEquals(1, scalar("SELECT COUNT(*) FROM academic_terms WHERE is_current=TRUE"));
-    assertEquals(oldOfferings, scalar("SELECT COUNT(*) FROM subject_terms WHERE term_id=1"));
+  void ongoingTermWithPastStartIsCurrentOnlyWhenExplicitlyEnabled() {
+    Instant now=Instant.parse("2030-01-01T00:00:00Z");
+    var service=new MasterDataService(db,Clock.fixed(now,ZoneOffset.UTC));
+    long id=service.createTerm(1,new AcademicTerm(0,"ONGOING30","Ongoing",now.minusSeconds(86400),now.plusSeconds(86400),true,false));
+    assertFalse(service.getTerm(1,id).current());
+    service.setTermStatus(1,id,true);
+    assertTrue(service.getTerm(1,id).current());
   }
 
   @Test
-  void switchingWithStaleConfirmationOrWrongRoleLeavesTermsUnchanged() {
-    long first = masterData.createTerm(1, requestedTerm(0, "FIRST28", false, false));
-    long second = masterData.createTerm(1, requestedTerm(0, "SECOND28", false, false));
-    assertThrows(SecurityException.class, () -> masterData.switchCurrentTerm(2, first, 1));
-    masterData.switchCurrentTerm(1, first, 1);
-    var before = masterData.listTerms(1, null, null);
-
-    var error = assertThrows(IllegalArgumentException.class,
-        () -> masterData.switchCurrentTerm(1, second, 1));
-    assertEquals("Học kỳ hoạt động đã thay đổi. Vui lòng xem lại trước khi chuyển.",
-        error.getMessage());
-    assertEquals(before, masterData.listTerms(1, null, null));
-    assertThrows(IllegalArgumentException.class,
-        () -> masterData.switchCurrentTerm(1, first, first));
-    assertEquals(before, masterData.listTerms(1, null, null));
+  void equalOrReversedTermDatesAreRejectedEvenForDisabledHistory() {
+    Instant now=Instant.parse("2030-01-01T00:00:00Z");
+    var service=new MasterDataService(db,Clock.fixed(now,ZoneOffset.UTC));
+    long count=scalar("SELECT COUNT(*) FROM academic_terms");
+    for(Instant end:List.of(now,now.minusSeconds(1))) {
+      assertThrows(IllegalArgumentException.class,()->service.createTerm(1,
+          new AcademicTerm(0,"INVALID30","Invalid",now,end,false,false)));
+    }
+    assertEquals(count,scalar("SELECT COUNT(*) FROM academic_terms"));
   }
+
+  @Test
+  void endedTermsAreReadOnlyAndCannotBeEnabledAgain() {
+    Instant now=Instant.parse("2030-01-01T00:00:00Z");
+    var ended=new MasterDataService(db,Clock.fixed(now,ZoneOffset.UTC));
+    var old=ended.getTerm(1,1);
+    assertFalse(old.current());
+    assertThrows(IllegalArgumentException.class,()->ended.updateTerm(1,new AcademicTerm(1,old.termCode(),"Changed",old.startsAt(),old.endsAt(),false,true)));
+    ended.setTermStatus(1,1,false);
+    assertThrows(IllegalArgumentException.class,()->ended.setTermStatus(1,1,true));
+    assertEquals(1,scalar("SELECT COUNT(*) FROM subject_terms WHERE term_id=1"));
+  }
+
+
+  @Test
+  void enablingValidCalendarDoesNotRequireRewritingEndedLegacyTerms() {
+    Instant now=Instant.now();
+    sql("UPDATE academic_terms SET starts_at=?,ends_at=? WHERE term_id=1",now.minusSeconds(172800),now.minusSeconds(86400));
+    long replacement=masterData.createTerm(1,new AcademicTerm(0,"REALCURRENT","Current",now.minusSeconds(259200),now.plusSeconds(86400),false,true));
+    assertTrue(masterData.getTerm(1,replacement).current());
+    assertFalse(masterData.getTerm(1,1).current());
+    assertTrue(dashboards.currentTerm(1).contains("REALCURRENT"));
+    assertEquals(1,scalar("SELECT COUNT(*) FROM subject_terms WHERE term_id=1"));
+    assertEquals(1,scalar("SELECT COUNT(*) FROM academic_terms WHERE term_id=1 AND is_active=TRUE AND is_current=TRUE"));
+  }
+
+  @Test
+  void currentCalendarContextDoesNotRelabelOrMoveHistoricalSubjectsAndStudentPlacement() {
+    Instant now=Instant.now();
+    sql("UPDATE academic_terms SET starts_at=?,ends_at=? WHERE term_id=1",now.minusSeconds(172800),now.minusSeconds(86400));
+    long current=masterData.createTerm(1,new AcademicTerm(0,"NEWCURRENT","Current",now.minusSeconds(3600),now.plusSeconds(86400),false,true));
+    verifiedStudent("calendar-student","calendar-student@test.edu");
+    long student=scalar("SELECT user_id FROM users WHERE email='calendar-student@test.edu'");
+    sql("INSERT INTO subject_registrations(student_id,subject_term_id) VALUES(?,1)",student);
+    sql("INSERT INTO class_enrollments(registration_id,class_id,enrollment_method) SELECT registration_id,1,'SELF_REGISTRATION' FROM subject_registrations WHERE student_id=?",student);
+    var counts=new LinkedHashMap<String,Long>();
+    for(String table:List.of("academic_terms","subject_terms","subject_registrations","class_enrollments")) counts.put(table,scalar("SELECT COUNT(*) FROM "+table));
+    var offeringService=new StudentSubjectService(db);
+    var overviewService=new StudentDashboardService(db);
+    assertEquals(current,subjects.termOptions(1).stream().filter(AcademicTerm::current).findFirst().orElseThrow().termId());
+    assertEquals(current,offeringService.termOptions(student).stream().filter(AcademicTerm::current).findFirst().orElseThrow().termId());
+    assertEquals(current,overviewService.termOptions(student).stream().filter(AcademicTerm::current).findFirst().orElseThrow().termId());
+    assertEquals(1,subjects.details(1,1).subjectTerms().get(0).termId());
+    assertEquals("TERM_ENDED",subjects.details(1,1).subjectTerms().get(0).registrationStatus());
+    assertEquals("Đã kết thúc",TermTimeline.label(masterData.getTerm(1,1),now));
+    assertEquals(1,scalar("SELECT COUNT(*) FROM subject_registrations r JOIN subject_terms st USING(subject_term_id) WHERE r.student_id=? AND st.term_id=1",student));
+    assertEquals("FA26",overviewService.load(student).classes().get(0).termCode());
+    assertEquals(0,scalar("SELECT COUNT(*) FROM subject_terms WHERE term_id=?",current));
+    counts.forEach((table,count)->assertEquals(count.longValue(),scalar("SELECT COUNT(*) FROM "+table),table));
+  }
+
+  @Test
+  void studentCalendarContextRejectsStaffAndMissingAccounts() {
+    var offeringService=new StudentSubjectService(db);
+    var overviewService=new StudentDashboardService(db);
+    for(long actor:List.of(1L,2L,4L,999L)) {
+      assertThrows(SecurityException.class,()->offeringService.termOptions(actor));
+      assertThrows(SecurityException.class,()->overviewService.termOptions(actor));
+    }
+  }
+
+  @Test
+  void endedTermCannotAcceptGoogleInvitationButKeepsInvitationHistory() {
+    invite("ended-token","ended-student@test.edu");
+    verifiedStudent("ended-student","ended-student@test.edu");
+    sql("UPDATE academic_terms SET starts_at=?,ends_at=? WHERE term_id=1",Instant.now().minusSeconds(172800),Instant.now().minusSeconds(86400));
+    assertThrows(RuntimeException.class,()->google.signIn(new Identity("ended-student","ended-student@test.edu","Student"),"ended-token"));
+    assertEquals(0,scalar("SELECT COUNT(*) FROM class_enrollments"));
+    assertEquals(1,scalar("SELECT COUNT(*) FROM student_invitations WHERE token='ended-token' AND status='PENDING'"));
+  }
+
+  @Test
+  void oldManualSwitchEndpointsNeverChangeCalendar() {
+    long next=masterData.createTerm(1,requestedTerm(0,"NEXT28",false,true));
+    var before=masterData.listTerms(1,null,null);
+    assertThrows(SecurityException.class,()->masterData.switchCurrentTerm(2,next,1));
+    assertThrows(IllegalArgumentException.class,()->masterData.switchCurrentTerm(1,next,1));
+    assertThrows(IllegalArgumentException.class,()->masterData.markCurrent(1,next));
+    assertEquals(before,masterData.listTerms(1,null,null));
+  }
+
 
   @Test
   void expertClassScopeUsesSubjectResponsibilityAndClassAssignment() {

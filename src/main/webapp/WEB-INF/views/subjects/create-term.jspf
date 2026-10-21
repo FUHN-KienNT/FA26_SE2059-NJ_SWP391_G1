@@ -1,0 +1,28 @@
+<%@ page pageEncoding="UTF-8" %>
+<%
+    var createTerms=(List<AcademicTerm>)request.getAttribute("createTerms");
+    boolean initialOpening=submitted?"true".equals(request.getParameter("openForTerm")):!createTerms.isEmpty();
+    String createTermId=request.getParameter("termId");
+    if(!submitted && createTerms.stream().noneMatch(t -> String.valueOf(t.termId()).equals(request.getParameter("termId"))))
+        createTermId=createTerms.stream().filter(AcademicTerm::current).findFirst().or(() -> createTerms.stream().findFirst()).map(t -> String.valueOf(t.termId())).orElse("");
+%>
+<section class="bao-card subject-create-opening">
+    <h2>Học kỳ và đăng ký</h2>
+    <p class="muted">Có thể thiết lập đăng ký ngay khi tạo môn.</p>
+    <label class="subject-toggle"><input type="checkbox" name="openForTerm" value="true" data-create-opening <%=initialOpening?"checked":""%> <%=createTerms.isEmpty()?"disabled":""%>><span><strong>Thiết lập học kỳ ngay</strong><small>Bỏ chọn nếu chỉ muốn tạo môn trong danh mục để mở theo kỳ sau.</small></span></label>
+    <p class="subject-inline-warning" data-create-opening-unavailable <%=createTerms.isEmpty()?"":"hidden"%>>Chọn môn đang hoạt động và học kỳ được sử dụng, chưa kết thúc.</p>
+    <% if(createTerms.isEmpty()){ %><p class="muted">Chưa có học kỳ đủ điều kiện. Bạn vẫn có thể tạo môn trong danh mục.</p><% } %>
+    <fieldset class="subject-registration-fields" data-create-opening-fields <%=initialOpening && !createTerms.isEmpty() && !"INACTIVE".equals(request.getParameter("initialStatus"))?"":"disabled"%>>
+        <legend class="sr-only">Học kỳ mở môn và thời gian đăng ký</legend>
+        <label>Học kỳ<select name="termId" data-create-opening-required>
+            <option value="">Chọn học kỳ</option>
+            <% for(var term:createTerms){ %><option value="<%=term.termId()%>" <%=String.valueOf(term.termId()).equals(createTermId)?"selected":""%>><%=WebSupport.html(term.termCode()+" · "+term.termName())%><%=term.current()?" — Hiện tại":""%></option><% } %>
+        </select></label>
+        <div class="form-grid">
+            <label>Mở đăng ký<input type="datetime-local" name="registrationOpensAt" data-create-opening-required value="<%=WebSupport.html(request.getParameter("registrationOpensAt"))%>"></label>
+            <label>Đóng đăng ký<input type="datetime-local" name="registrationClosesAt" data-create-opening-required value="<%=WebSupport.html(request.getParameter("registrationClosesAt"))%>"></label>
+        </div>
+        <p class="muted">Thời gian hiển thị theo UTC+07. Thời gian đóng phải sau thời gian mở.</p>
+        <label class="subject-toggle"><input type="checkbox" name="registrationEnabled" value="true" <%=(!submitted || request.getParameter("registrationEnabled")!=null)?"checked":""%>><span><strong>Cho phép đăng ký</strong><small>Việc nhận đăng ký mới còn phụ thuộc thời gian đăng ký và điều kiện của học kỳ.</small></span></label>
+    </fieldset>
+</section>

@@ -13,6 +13,15 @@ public class StudentDashboardService {
     public StudentDashboardService() { this(DBConnection::getConnection); }
     public StudentDashboardService(Jdbc.Connections connections) { this.connections = connections; }
 
+    public java.util.List<vn.edu.fpt.ams.model.AcademicTerm> termOptions(long studentId) {
+        if (studentId <= 0) throw new SecurityException("Vui lòng đăng nhập bằng tài khoản sinh viên đang hoạt động.");
+        return Jdbc.transaction(connections,c->{
+            c.setReadOnly(true);
+            dao.activeStudent(c,studentId).orElseThrow(()->new SecurityException("Vui lòng đăng nhập bằng tài khoản sinh viên đang hoạt động."));
+            return new vn.edu.fpt.ams.dao.MasterDataDAO().findTerms(c,null,null);
+        });
+    }
+
     public StudentDashboardDTO load(long studentId) {
         if (studentId <= 0) throw new SecurityException("Vui lòng đăng nhập bằng tài khoản sinh viên đang hoạt động.");
         return Jdbc.transaction(connections, c -> {

@@ -9,4 +9,5 @@ public record SubjectSummaryDTO(
     String subjectName,
     SubjectStatus status,
     List<SubjectExpertDTO> primaryExperts,
-    List<SubjectExpertDTO> supportingExperts) {}
+    List<SubjectExpertDTO> supportingExperts,
+    List<SubjectTermViewDTO> subjectTerms) {}

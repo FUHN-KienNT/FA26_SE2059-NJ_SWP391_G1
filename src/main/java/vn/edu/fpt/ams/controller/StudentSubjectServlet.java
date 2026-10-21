@@ -23,6 +23,7 @@ public class StudentSubjectServlet extends HttpServlet {
         res.setHeader("Cache-Control","no-store");
         try{
             long actor=student(req);
+            req.setAttribute("termOptions",service.termOptions(actor));
             if(req.getParameter("id")!=null){
                 req.setAttribute("offering",service.detail(actor,WebSupport.id(req.getParameter("id"))));
                 req.getRequestDispatcher("/WEB-INF/views/student/subject-detail.jsp").forward(req,res);
@@ -41,6 +42,7 @@ public class StudentSubjectServlet extends HttpServlet {
             try{service.register(actor,offering);}
             catch(IllegalArgumentException ex){
                 req.setAttribute("error",ex.getMessage());req.setAttribute("offering",service.detail(actor,offering));
+                req.setAttribute("termOptions",service.termOptions(actor));
                 res.setStatus(400);req.getRequestDispatcher("/WEB-INF/views/student/subject-detail.jsp").forward(req,res);return;
             }
             res.sendRedirect(req.getContextPath()+"/student/subjects?id="+offering+"&registered=1");

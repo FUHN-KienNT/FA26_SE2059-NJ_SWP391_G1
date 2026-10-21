@@ -54,6 +54,15 @@ class StudentDashboardServiceTest {
         assertEquals(1, other.results().size());
     }
 
+    @Test void iterationTwoOverviewExcludesPracticeAssignmentsAndAttemptResults() {
+        var view = service.load(1);
+        assertEquals(4, view.assignmentCount());
+        assertEquals(5, view.submittedAttemptCount());
+        assertEquals(2, view.releasedResultCount());
+        assertTrue(view.openAssignments().stream().noneMatch(x -> x.title().equals("Iter3 Practice")));
+        assertTrue(view.results().stream().noneMatch(x -> x.title().equals("Iter3 Practice")));
+    }
+
     @Test void newStudentHasRealZeroCountsAndEmptySections() {
         var empty = service.load(5);
         assertEquals(0, empty.subjectCount());
