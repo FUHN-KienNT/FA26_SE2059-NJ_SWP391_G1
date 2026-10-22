@@ -18,21 +18,39 @@ import vn.edu.fpt.ams.service.TeacherDashboardService;
 @WebServlet("/teacher/enrollments")
 @MultipartConfig(maxFileSize = 5 * 1024 * 1024, maxRequestSize = 6 * 1024 * 1024)
 public class EnrollmentServlet extends HttpServlet {
-    private final EnrollmentService service = new EnrollmentService();
-    private final TeacherDashboardService dashboardService = new TeacherDashboardService();
+    private final EnrollmentService service;
+    private final TeacherDashboardService dashboardService;
 
+    /** Initialize the servlet with database-backed enrollment and class services. */
+    public EnrollmentServlet() { this(new EnrollmentService(), new TeacherDashboardService()); }
+
+    /** Supply services for isolated routing and ownership tests. */
+    EnrollmentServlet(EnrollmentService service, TeacherDashboardService dashboardService) {
+        this.service = service;
+        this.dashboardService = dashboardService;
+    }
+
+    /** Load either the searchable class list or one authorized class roster. */
     @Override protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         long teacherId = (Long) request.getSession().getAttribute("userId");
-        Long classId = optionalId(request, "classId");
         try {
+            Long classId = optionalId(request, "classId");
             if (classId != null && "manage".equals(request.getParameter("mode"))) {
                 loadEnrollmentPage(request, teacherId, classId);
                 request.getRequestDispatcher("/WEB-INF/views/enrollments/detail.jsp").forward(request, response);
                 return;
             }
             List<TeacherClassSummary> classes = dashboardService.assignedClasses(teacherId);
-            request.setAttribute("classes", classes);
+            String keyword = parameter(request, "keyword");
+            String term = parameter(request, "term");
+            request.setAttribute("keyword", keyword);
+            request.setAttribute("term", term);
+            request.setAttribute("terms", classes.stream().map(TeacherClassSummary::termCode).distinct().sorted().toList());
+            request.setAttribute("listQuery", "keyword=" + encode(keyword) + "&amp;term=" + encode(term));
+            request.setAttribute("classes", classes.stream()
+                    .filter(item -> term.isEmpty() || term.equals(item.termCode()))
+                    .filter(item -> matches(item, keyword)).toList());
             if (classId != null) {
                 TeacherClassSummary selected = classes.stream()
                         .filter(item -> item.classId() == classId)
@@ -53,10 +71,14 @@ public class EnrollmentServlet extends HttpServlet {
         }
     }
 
+    /** Submit an enrollment action and reopen its popup when validation fails. */
     @Override protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         long teacherId = (Long) request.getSession().getAttribute("userId");
-        long classId = requiredId(request, "classId");
+        request.setCharacterEncoding("UTF-8");
+        long classId;
+        try { classId = requiredId(request, "classId"); }
+        catch (IllegalArgumentException ex) { response.sendError(400, "Mã lớp không hợp lệ."); return; }
         String action = request.getParameter("action");
         try {
             if ("addStudent".equals(action)) {
@@ -76,8 +98,12 @@ public class EnrollmentServlet extends HttpServlet {
                                     + ", không hợp lệ " + result.rejected() + ".");
                 }
             } else if ("updateStatus".equals(action)) {
-                service.updateEnrollmentStatus(teacherId, requiredId(request, "enrollmentId"),
-                        EnrollmentStatus.valueOf(request.getParameter("status")));
+                long enrollmentId = requiredId(request, "enrollmentId");
+                if (service.listStudents(teacherId, classId).stream().noneMatch(item -> item.enrollmentId() == enrollmentId)) {
+                    throw new IllegalArgumentException("Sinh viên không thuộc lớp đã chọn.");
+                }
+                service.updateEnrollmentStatus(teacherId, enrollmentId,
+                        EnrollmentStatus.valueOf(parameter(request, "status")));
                 request.getSession().setAttribute("enrollmentNotice", "Đã cập nhật trạng thái sinh viên trong lớp.");
             } else {
                 response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Thao tác quản lý sinh viên không hợp lệ");
@@ -92,10 +118,13 @@ public class EnrollmentServlet extends HttpServlet {
                 return;
             }
             request.setAttribute("error", message(ex.getMessage()));
+            request.setAttribute("openDialog", action);
+            request.setAttribute("submittedEmail", request.getParameter("email"));
             request.getRequestDispatcher("/WEB-INF/views/enrollments/detail.jsp").forward(request, response);
         }
     }
 
+    /** Resolve class ownership before loading editable enrollment data and flash notices. */
     private void loadEnrollmentPage(HttpServletRequest request, long teacherId, long classId) {
         List<TeacherClassSummary> classes = dashboardService.assignedClasses(teacherId);
         TeacherClassSummary selected = classes.stream()
@@ -126,14 +155,38 @@ public class EnrollmentServlet extends HttpServlet {
         };
     }
 
+    /** Parse positive identifiers and reject malformed or nonpositive class context. */
     private static Long optionalId(HttpServletRequest request, String name) {
         String raw = request.getParameter(name);
-        return raw == null || raw.isBlank() ? null : Long.valueOf(raw);
+        if (raw == null || raw.isBlank()) return null;
+        long id = Long.parseLong(raw);
+        if (id <= 0) throw new IllegalArgumentException("Mã định danh phải lớn hơn 0.");
+        return id;
     }
 
+    /** Require a supplied positive identifier for a write action. */
     private static long requiredId(HttpServletRequest request, String name) {
         Long id = optionalId(request, name);
         if (id == null) throw new IllegalArgumentException(name + " là thông tin bắt buộc");
         return id;
+    }
+
+    /** Normalize bounded list filters without changing enrollment data. */
+    private static String parameter(HttpServletRequest request, String name) {
+        String value = request.getParameter(name);
+        value = value == null ? "" : value.trim();
+        if (value.length() > 100) throw new IllegalArgumentException("Bộ lọc tối đa 100 ký tự.");
+        return value;
+    }
+
+    /** Encode a filter value before including it in a return link. */
+    private static String encode(String value) {
+        return java.net.URLEncoder.encode(value, java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    /** Match a class by code, name, or subject, ignoring letter case. */
+    static boolean matches(TeacherClassSummary item, String keyword) {
+        String text = String.join(" ", item.classCode(), item.className(), item.subjectCode(), item.subjectName());
+        return text.toLowerCase(java.util.Locale.ROOT).contains(keyword.toLowerCase(java.util.Locale.ROOT));
     }
 }

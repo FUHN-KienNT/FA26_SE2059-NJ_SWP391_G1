@@ -1,0 +1,6 @@
+.teacher-actions{display:flex;flex-wrap:wrap;gap:12px;margin:20px 0}
+.teacher-app dialog{width:min(540px,calc(100% - 32px));max-height:85vh;overflow:auto;border:1px solid var(--ams-line);border-radius:12px;padding:24px;color:var(--ams-text)}
+.teacher-app dialog::backdrop{background:rgb(15 23 42 / 45%)}
+.teacher-app dialog form{display:grid;gap:16px;margin:16px 0}
+.teacher-app dialog label{display:grid;gap:8px}
+.teacher-app dialog input{width:100%;min-width:0}
