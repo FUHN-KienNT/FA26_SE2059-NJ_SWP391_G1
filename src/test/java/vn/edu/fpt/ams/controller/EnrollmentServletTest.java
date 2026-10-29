@@ -68,6 +68,23 @@ class EnrollmentServletTest {
         assertFalse(h.updated); assertNotNull(h.attributes.get("error"));
     }
 
+    /** A completed import is delivered once, only after resolving its owned class. */
+    @Test void importDetailsAreScopedToTheSelectedClassAndConsumedOnce() throws Exception {
+        var h = new Harness();
+        var result = new ImportResultDTO(1, 0, 0, List.of(
+                new ImportLineResult(2, "one@example.test", ImportLineResult.Outcome.IMPORTED, "Đã thêm sinh viên vào lớp.")));
+        h.session.put("enrollmentImportResult:1", result);
+        h.session.put("enrollmentImportResult:2", result);
+        h.params.putAll(Map.of("classId", "1", "mode", "manage"));
+        h.servlet().doGet(h.request(), h.response());
+        assertSame(result, h.attributes.get("importResult"));
+        assertFalse(h.session.containsKey("enrollmentImportResult:1"));
+        assertTrue(h.session.containsKey("enrollmentImportResult:2"));
+        h.attributes.clear();
+        h.servlet().doGet(h.request(), h.response());
+        assertFalse(h.attributes.containsKey("importResult"));
+    }
+
     private static final class Harness {
         final Map<String,String> params = new HashMap<>();
         final Map<String,Object> attributes = new HashMap<>(), session = new HashMap<>();

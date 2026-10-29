@@ -2,6 +2,7 @@
 <%@ page import="java.util.List" %>
 <%@ page import="vn.edu.fpt.ams.dto.EnrollmentDTO" %>
 <%@ page import="vn.edu.fpt.ams.dto.TeacherClassSummary" %>
+<%@ page import="vn.edu.fpt.ams.dto.ImportResultDTO" %>
 <%
     String context = request.getContextPath();
     TeacherClassSummary selected = (TeacherClassSummary) request.getAttribute("selected");
@@ -9,6 +10,7 @@
     List<EnrollmentDTO> students = (List<EnrollmentDTO>) request.getAttribute("students");
     String error = (String) request.getAttribute("error");
     String notice = (String) request.getAttribute("notice");
+    ImportResultDTO importResult = (ImportResultDTO) request.getAttribute("importResult");
 %>
 <!doctype html>
 <html lang="vi">
@@ -54,6 +56,27 @@
                 <%
                 }
             %>
+            <% if (importResult != null) { %>
+            <section class="ams-panel" aria-labelledby="import-result-title">
+                <h2 id="import-result-title">Kết quả nhập CSV</h2>
+                <p>Thêm thành công: <%= importResult.imported() %> · Bỏ qua: <%= importResult.skipped() %> · Không hợp lệ: <%= importResult.rejected() %></p>
+                <% if (importResult.lines().isEmpty()) { %><p>Tệp không có dòng dữ liệu sinh viên để xử lý.</p><% } else { %>
+                <div class="ams-table-wrap"><table>
+                    <thead><tr><th scope="col">Dòng trong tệp</th><th scope="col">Email sinh viên</th><th scope="col">Kết quả</th><th scope="col">Lý do</th></tr></thead>
+                    <tbody>
+                    <% for (var row : importResult.lines()) { %>
+                        <tr>
+                            <td><%= row.lineNumber() %></td>
+                            <td><%= vn.edu.fpt.ams.util.WebSupport.html(row.email()) %></td>
+                            <td><%= row.outcome().label() %></td>
+                            <td><%= vn.edu.fpt.ams.util.WebSupport.html(row.reason()) %></td>
+                        </tr>
+                    <% } %>
+                    </tbody>
+                </table></div>
+                <% } %>
+            </section>
+            <% } %>
             <% if (students.isEmpty()) { %><p>Lớp này chưa có sinh viên.</p><% } %>
             <table>
                 <tr>
@@ -124,7 +147,6 @@
             <dialog id="import-students" aria-labelledby="import-students-title" <%= "importStudents".equals(request.getAttribute("openDialog")) ? "data-reopen" : "" %>>
             <h2 id="import-students-title">Nhập danh sách sinh viên</h2>
             <% if (error != null && "importStudents".equals(request.getAttribute("openDialog"))) { %><p role="alert"><%= vn.edu.fpt.ams.util.WebSupport.html(error) %></p><% } %>
-            <p>Tệp CSV UTF-8, email ở cột đầu tiên; có thể có dòng tiêu đề email. Chức năng hiện tại chỉ thêm tài khoản sinh viên đã tồn tại.</p>
             <form action="<%= context %>/teacher/enrollments" method="post" enctype="multipart/form-data">
                 <input type="hidden" name="action" value="importStudents">
                 <input type="hidden" name="classId" value="<%= selected.classId() %>">

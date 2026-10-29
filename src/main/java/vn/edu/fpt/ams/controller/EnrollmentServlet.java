@@ -92,6 +92,7 @@ public class EnrollmentServlet extends HttpServlet {
                 }
                 try (var stream = upload.getInputStream()) {
                     var result = service.importStudentsFromCsv(teacherId, classId, stream);
+                    request.getSession().setAttribute("enrollmentImportResult:" + classId, result);
                     request.getSession().setAttribute("enrollmentNotice",
                             "Đã nhập danh sách. Thêm thành công " + result.imported()
                                     + ", bỏ qua " + result.skipped()
@@ -133,6 +134,12 @@ public class EnrollmentServlet extends HttpServlet {
                 .orElseThrow(() -> new IllegalArgumentException("Lớp này không thuộc phân công của giảng viên hiện tại"));
         request.setAttribute("selected", selected);
         request.setAttribute("students", service.listStudents(teacherId, classId));
+        String importKey = "enrollmentImportResult:" + classId;
+        Object importResult = request.getSession().getAttribute(importKey);
+        if (importResult != null) {
+            request.setAttribute("importResult", importResult);
+            request.getSession().removeAttribute(importKey);
+        }
         Object notice = request.getSession().getAttribute("enrollmentNotice");
         if (notice != null) {
             request.setAttribute("notice", notice);
