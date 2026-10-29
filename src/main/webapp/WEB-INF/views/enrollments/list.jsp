@@ -18,9 +18,10 @@
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width,initial-scale=1">
-        <title>Danh sách lớp phụ trách | AMS</title>
+        <title><%= selected == null ? "Lớp phụ trách" : "Danh sách sinh viên" %> | AMS</title>
         <link rel="stylesheet" href="<%= context %>/css/app.css">
         <%@ include file="/WEB-INF/views/shared/assets.jspf" %>
+        <link rel="stylesheet" href="<%= context %>/css/teacher-enrollment.css">
         <style>.ams-content table th,.ams-content table td{word-break:normal;overflow-wrap:normal}.ams-content table .class-actions{min-width:150px}.class-actions a{white-space:nowrap}</style>
     </head>
     <body class="ams-ui teacher-app">
@@ -30,9 +31,16 @@
                 <a href="<%= context %>/home">AMS</a>
     · <a href="<%= context %>/teacher/dashboard">Bảng điều khiển giảng viên</a>
             </nav>
-            <h1>
-                Danh sách lớp phụ trách
-            </h1>
+            <h1><%= selected == null ? "Lớp phụ trách" : "Danh sách sinh viên" %></h1>
+            <% if (selected == null) { %>
+            <form method="get" class="ams-panel" data-live-search>
+                <label>Tìm lớp hoặc môn học <input name="keyword" maxlength="100" value="<%= vn.edu.fpt.ams.util.WebSupport.html((String) request.getAttribute("keyword")) %>"></label>
+                <label>Học kỳ <select name="term"><option value="">Tất cả học kỳ</option>
+                <% for (String term : (List<String>) request.getAttribute("terms")) { %>
+                    <option value="<%= vn.edu.fpt.ams.util.WebSupport.html(term) %>" <%= term.equals(request.getAttribute("term")) ? "selected" : "" %>><%= vn.edu.fpt.ams.util.WebSupport.html(term) %></option>
+                <% } %></select></label>
+                <button type="submit">Tìm kiếm</button>
+            </form>
             <table>
                 <tr>
                     <th>
@@ -59,13 +67,13 @@
                     %>
                     <tr>
                         <td>
-                            <a href="<%= context %>/teacher/enrollments?classId=<%= item.classId() %>"><%= item.classCode() %></a>
+                            <a href="<%= context %>/teacher/enrollments?classId=<%= item.classId() %>&amp;<%= request.getAttribute("listQuery") %>"><%= vn.edu.fpt.ams.util.WebSupport.html(item.classCode()) %></a>
                         </td>
                         <td>
-                            <%= item.subjectCode() %> <%= item.subjectName() %>
+                            <%= vn.edu.fpt.ams.util.WebSupport.html(item.subjectCode()) %> <%= vn.edu.fpt.ams.util.WebSupport.html(item.subjectName()) %>
                         </td>
                         <td>
-                            <%= item.termCode() %>
+                            <%= vn.edu.fpt.ams.util.WebSupport.html(item.termCode()) %>
                         </td>
                         <td>
                             <%= item.activeRoster() %> / <%= item.capacity() %>
@@ -87,16 +95,19 @@
                 if (classes.isEmpty()) {
                 %>
                 <p>
-                    Bạn chưa được phân công phụ trách lớp nào.
+                    Không có lớp phù hợp. Thử đổi bộ lọc hoặc kiểm tra phân công lớp.
                 </p>
                 <%
                 }
             %>
+            <% } %>
             <%
                 if (selected != null) {
                 %>
+                <p><a class="ams-button" href="<%= context %>/teacher/enrollments?<%= request.getAttribute("listQuery") %>">Quay lại danh sách lớp</a>
+                <a class="ams-button" href="<%= context %>/teacher/enrollments?classId=<%= selected.classId() %>&amp;mode=manage">Quản lý ghi danh</a></p>
                 <h2>
-                    Danh sách sinh viên · <%= selected.classCode() %>
+                    Danh sách sinh viên · <%= vn.edu.fpt.ams.util.WebSupport.html(selected.classCode()) %>
                 </h2>
                 <p>
                     <%= selected.activeRoster() %> sinh viên đang học, <%= selected.pendingInvitations() %> lời mời đang chờ, <%= selected.availableSeats() %> chỗ còn lại.
@@ -118,10 +129,10 @@
                         %>
                         <tr>
                             <td>
-                                <%= student.studentName() %>
+                                <%= vn.edu.fpt.ams.util.WebSupport.html(student.studentName()) %>
                             </td>
                             <td>
-                                <%= student.studentEmail() %>
+                                <%= vn.edu.fpt.ams.util.WebSupport.html(student.studentEmail()) %>
                             </td>
                             <td>
                                 <%= vn.edu.fpt.ams.util.WebSupport.html(vn.edu.fpt.ams.util.Vietnamese.label(student.status())) %>
@@ -141,7 +152,7 @@
                     }
                 %>
                 <h2>
-                    Lời mời đang chờ
+                    Lời mời sinh viên
                 </h2>
                 <table>
                     <tr>
@@ -163,10 +174,10 @@
                         %>
                         <tr>
                             <td>
-                                <%= invitation.fullName() == null ? "" : invitation.fullName() %>
+                                <%= vn.edu.fpt.ams.util.WebSupport.html(invitation.fullName()) %>
                             </td>
                             <td>
-                                <%= invitation.email() %>
+                                <%= vn.edu.fpt.ams.util.WebSupport.html(invitation.email()) %>
                             </td>
                             <td>
                                 <%= vn.edu.fpt.ams.util.WebSupport.html(vn.edu.fpt.ams.util.Vietnamese.label(invitation.status())) %>
