@@ -44,6 +44,7 @@
                 <h2>Không gian giảng dạy</h2>
                 <p>Chọn lớp để xem sinh viên, quản lý ghi danh hoặc mở danh sách bài tập.</p>
                 <a class="ams-button ams-button-primary" href="<%= context %>/teacher/enrollments">Xem lớp phụ trách</a>
+                <a class="ams-button" href="<%= context %>/teacher/offers">Lời mời dạy lớp bổ sung</a>
             </section>
             <%
                 if (classes.isEmpty()) {

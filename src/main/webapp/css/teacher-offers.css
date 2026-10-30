@@ -1,0 +1,15 @@
+.offer-filters{display:flex;align-items:end;flex-wrap:wrap;gap:16px}
+.offer-filters label,.offer-response label{display:grid;gap:6px}
+.offer-filters input{min-width:260px}
+.offer-table{min-width:1000px}
+.offer-table td{overflow-wrap:anywhere}
+.offer-table td:last-child{min-width:260px}
+.offer-table details{margin-top:12px}
+.offer-response{display:grid;gap:12px;margin-top:14px}
+.offer-response input{width:100%}
+.offer-actions{display:flex;gap:8px;flex-wrap:wrap}
+.ams-ui button.offer-decline[type=submit]{background:white;border-color:var(--ams-line);color:var(--ams-text)}
+.offer-state{display:inline-block;padding:4px 10px;border-radius:20px;background:#edf2fa;font-size:13px}
+.offer-state.pending{background:#fff3d6;color:#785100}
+.offer-state.accepted{background:#eaf7ee;color:#23663c}
+.offer-state.declined,.offer-state.cancelled{background:#fff0ee;color:#a12720}
