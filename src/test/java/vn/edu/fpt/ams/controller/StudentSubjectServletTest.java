@@ -50,7 +50,7 @@ class StudentSubjectServletTest {
         StudentSubjectServlet servlet(){return new StudentSubjectServlet(new StudentSubjectService(){
             @Override public List<AcademicTerm> termOptions(long id){actor=id;return List.of();}
             @Override public Page list(long id,String mode,String q){actor=id;return new Page(List.of(),"available","");}
-            @Override public Offering detail(long id,long term){actor=id;offering=term;return new Offering(term,"SWP","Project","","ACTIVE","T","Term",true,true,true,Instant.now().minusSeconds(10),Instant.now().plusSeconds(100),null,null,null,null,null,1,Instant.now());}
+            @Override public Offering detail(long id,long term){actor=id;offering=term;return new Offering(term,"SWP","Project","","ACTIVE","T","Term",true,true,true,Instant.now().minusSeconds(10),Instant.now().plusSeconds(100),null,null,null,null,null,1,Instant.now(),null);}
             @Override public long register(long id,long term){actor=id;offering=term;if(reject)throw new IllegalArgumentException("Môn học đã hết chỗ.");return 1;}
         });}
         HttpServletRequest request(){

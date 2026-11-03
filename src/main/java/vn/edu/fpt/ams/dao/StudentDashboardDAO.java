@@ -85,7 +85,7 @@ public final class StudentDashboardDAO {
     public List<ClassOverview> classes(Connection c, long student) throws SQLException {
         String sql = """
                 SELECT DISTINCT s.subject_code,s.subject_name,c.class_code,t.term_code,t.term_name,
-                    u.full_name,t.starts_at
+                    u.full_name,t.starts_at,c.class_id
                 FROM class_enrollments e
                 JOIN subject_registrations r ON r.registration_id=e.registration_id
                 JOIN subject_classes c ON c.class_id=e.class_id AND c.subject_term_id=r.subject_term_id
@@ -100,7 +100,7 @@ public final class StudentDashboardDAO {
             p.setMaxRows(PREVIEW_LIMIT);
             try (var r = p.executeQuery()) {
                 var out = new ArrayList<ClassOverview>();
-                while (r.next()) out.add(new ClassOverview(r.getString(1), r.getString(2),
+                while (r.next()) out.add(new ClassOverview(r.getLong("class_id"), r.getString(1), r.getString(2),
                         r.getString(3), r.getString(4), r.getString(5), r.getString(6)));
                 return out;
             }

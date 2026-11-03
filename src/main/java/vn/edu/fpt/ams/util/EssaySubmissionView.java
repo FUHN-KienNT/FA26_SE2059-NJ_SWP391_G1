@@ -23,9 +23,26 @@ public final class EssaySubmissionView {
     private EssaySubmissionView() {}
 
     /** Order 0 is a readable legacy task without a reliable identity; it is never paired. */
-    public record Item(int order, String title, String description, String answer, String points) {
+    public record Item(int order, String title, String description, String answer, String points,
+                       List<RequirementAnswer> requirements) {
+        public Item { requirements = List.copyOf(requirements); }
+        public Item(int order, String title, String description, String answer, String points) {
+            this(order, title, description, answer, points, List.of());
+        }
         public Item(int order, String title, String description, String answer) {
             this(order, title, description, answer, null);
+        }
+    }
+    /** Images are codec-verified PNG data URIs; all displayed strings still need HTML escaping. */
+    public record RequirementAnswer(int order, String title, String points, String answerType,
+                                    String answer, String image) {
+        public String answerTypeLabel() {
+            return switch (answerType) {
+                case "TEXT" -> "Văn bản";
+                case "DIAGRAM" -> "Sơ đồ";
+                case "BOTH" -> "Văn bản và sơ đồ";
+                default -> "";
+            };
         }
     }
     public record UnmatchedAnswer(String reference, String text) {}
@@ -38,7 +55,7 @@ public final class EssaySubmissionView {
     }
 
     /**
-     * New content: {"format":"ams-essay-v1","answers":[{"task_order":1,"text":"..."}]}.
+     * Version 2 pairs each answer with a question and requirement; version 1 pairs by question.
      * Plain text, including JSON-looking legacy work, remains one exact original block.
      * Answer order and paragraph breaks never determine which question an answer belongs to.
      */
@@ -55,6 +72,9 @@ public final class EssaySubmissionView {
             boolean possibleJson = trimmed.startsWith("{") || trimmed.startsWith("[");
             return new Essay(tasks.items(), content, false, tasks.invalid() || possibleJson, List.of());
         }
+        if (root != null && root.isJsonObject()
+                && EssayAnswerCodec.FORMAT.equals(text(root.getAsJsonObject().get("format"))))
+            return requirements(taskChecklistJson, content, tasks);
         if (root == null || !root.isJsonObject()
                 || !FORMAT.equals(text(root.getAsJsonObject().get("format"))))
             return new Essay(tasks.items(), content, false, tasks.invalid(), List.of());
@@ -101,6 +121,31 @@ public final class EssaySubmissionView {
         List<Item> items = tasks.items().stream().map(item -> new Item(item.order(), item.title(),
                 item.description(), item.order() == 0 ? null : paired.get(item.order()), item.points())).toList();
         return new Essay(items, null, true, invalid, unmatched);
+    }
+
+    private static Essay requirements(String taskJson, String content, Tasks legacyTasks) {
+        try {
+            // Keep the existing duplicate-property guard for frozen prompts as well as answers.
+            parse(taskJson);
+            List<EssayQuestions.Task> tasks = EssayQuestions.read(taskJson);
+            var saved = EssayAnswerCodec.normalize(taskJson, content);
+            List<Item> items = new ArrayList<>();
+            for (var task : tasks) {
+                List<RequirementAnswer> requirements = new ArrayList<>();
+                for (var requirement : task.requirements()) {
+                    var answer = saved.answers().get(EssayAnswerCodec.key(task.order(), requirement.order()));
+                    requirements.add(new RequirementAnswer(requirement.order(), requirement.title(),
+                            requirement.points().stripTrailingZeros().toPlainString(), requirement.answerType(),
+                            answer.text(), answer.image()));
+                }
+                items.add(new Item(task.order(), task.title(), null, null,
+                        task.points().stripTrailingZeros().toPlainString(), requirements));
+            }
+            return new Essay(items, null, true, false, List.of());
+        } catch (RuntimeException ex) {
+            // Never partly attach an invalid payload or render unverified diagram markup.
+            return new Essay(legacyTasks.items(), content, false, true, List.of());
+        }
     }
 
     private record SavedAnswer(int order, String text) {}

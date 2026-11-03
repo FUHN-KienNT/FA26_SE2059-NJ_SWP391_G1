@@ -165,7 +165,8 @@
                                     if (hasLegacy && !essay.items().isEmpty()) {
                                     %>
                                     <p class="content-warning">
-                                        Bài nộp cũ được lưu thành một câu trả lời chung, chưa tách theo từng câu hỏi. Nội dung gốc được hiển thị bên dưới.
+                                        <%= essay.invalid() ? "Không thể ghép chính xác nội dung đã lưu với từng yêu cầu. Nội dung gốc được giữ nguyên và hiển thị bên dưới."
+                                                : "Bài nộp cũ được lưu thành một câu trả lời chung, chưa tách theo từng câu hỏi. Nội dung gốc được hiển thị bên dưới." %>
                                     </p>
                                     <%
                                     }
@@ -201,6 +202,42 @@
                                             %>
                                         </div>
                                         <div class="essay-response-block">
+                                            <%
+                                                if (!item.requirements().isEmpty()) {
+                                                    for (var requirement : item.requirements()) {
+                                                %>
+                                                <section class="essay-requirement-answer">
+                                                    <div class="essay-requirement-prompt">
+                                                        <p class="review-eyebrow">Yêu cầu <%= requirement.order() %></p>
+                                                        <h4 class="content-text"><%= escape(requirement.title()) %></h4>
+                                                        <p class="essay-requirement-meta"><%= escape(requirement.answerTypeLabel()) %> · <%= escape(requirement.points()) %> điểm</p>
+                                                    </div>
+                                                    <%
+                                                        if (requirement.answer() != null && !requirement.answer().isBlank()) {
+                                                        %>
+                                                        <div class="content-text essay-answer-text"><%= escape(requirement.answer()) %></div>
+                                                        <%
+                                                        }
+                                                        if (requirement.image() != null && !requirement.image().isBlank()) {
+                                                        %>
+                                                        <figure class="essay-diagram-answer">
+                                                            <img src="<%= escape(requirement.image()) %>" alt="Sơ đồ sinh viên đã lưu cho yêu cầu <%= requirement.order() %>" loading="lazy">
+                                                            <figcaption>Sơ đồ sinh viên đã lưu</figcaption>
+                                                        </figure>
+                                                        <%
+                                                        }
+                                                        if ((requirement.answer() == null || requirement.answer().isBlank())
+                                                                && (requirement.image() == null || requirement.image().isBlank())) {
+                                                        %>
+                                                        <p class="empty-content">Chưa có câu trả lời cho yêu cầu này.</p>
+                                                        <%
+                                                        }
+                                                    %>
+                                                </section>
+                                                <%
+                                                    }
+                                                } else {
+                                            %>
                                             <h4>
                                                 <%= item.order() > 0 ? "Câu trả lời của sinh viên cho câu " + item.order() : "Câu trả lời của sinh viên" %>
                                             </h4>
@@ -225,6 +262,9 @@
                                                     Chưa có câu trả lời cho câu hỏi này.
                                                 </p>
                                                 <%
+                                                }
+                                            %>
+                                            <%
                                                 }
                                             %>
                                         </div>

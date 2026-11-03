@@ -36,5 +36,6 @@
 <div><dt>Lớp đang được xếp</dt><dd><%=offering.classCode()==null?"Không có lớp đang tham gia":WebSupport.html(offering.classCode())%><small><%=WebSupport.html(offering.className())%></small></dd></div>
 <div><dt>Giảng viên</dt><dd><%=offering.teacherName()==null?"Chưa phân công":WebSupport.html(offering.teacherName())%></dd></div>
 <div><dt>Trạng thái lớp</dt><dd><%=offering.classStatus()==null?"—":"ACTIVE".equals(offering.classStatus())?"Đang hoạt động":"Ngừng hoạt động"%></dd></div></dl>
+<% if(offering.canViewClass()){ %><a class="student-outline-button" href="${pageContext.request.contextPath}/student/classes?classId=<%=offering.classId()%>">Xem lớp và bài tập</a><% } %>
 <a class="student-outline-button" href="${pageContext.request.contextPath}/student/dashboard">Về Bảng điều khiển</a></section><% } %>
 </div></main></div></body></html>

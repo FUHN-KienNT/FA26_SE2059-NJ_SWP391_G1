@@ -28,6 +28,7 @@
 <% if(!enrolled){ %><td>Mở: <%=WebSupport.html(AssignmentListView.deadline(item.opensAt()))%><small>Đóng: <%=WebSupport.html(AssignmentListView.deadline(item.closesAt()))%></small></td><% } %>
 <td><span class="student-status"><%=enrolled&&!item.enrolled()?"Đăng ký đã ngừng hoạt động":item.stateLabel()%></span></td>
 <td><div class="student-subject-actions"><a class="student-outline-button" href="${pageContext.request.contextPath}/student/subjects?id=<%=item.id()%>">Xem chi tiết</a>
+<% if(enrolled && item.canViewClass()){ %><a class="student-outline-button" href="${pageContext.request.contextPath}/student/classes?classId=<%=item.classId()%>">Xem lớp và bài tập</a><% } %>
 <% if(!enrolled && item.now().isBefore(item.opensAt())){ %><button class="student-outline-button" type="button" disabled>Chưa mở đăng ký</button><% } %></div></td></tr><% } %>
 </tbody></table></div><p class="student-panel-footnote">Tìm thấy <%=subjects.offerings().size()%> môn học theo học kỳ.</p><% } %></section>
 </div></main></div></body></html>

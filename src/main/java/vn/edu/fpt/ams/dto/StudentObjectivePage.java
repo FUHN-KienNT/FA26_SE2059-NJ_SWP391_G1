@@ -10,7 +10,12 @@ import vn.edu.fpt.ams.model.SubmissionStatus;
 /** Student-facing data deliberately contains no answer key or unreleased score. */
 public record StudentObjectivePage(Assignment assignment, String classCode,
         long submissionId, int attemptNumber, SubmissionStatus status, Instant deadline,
-        List<Item> questions, Instant serverTime, Map<Long,List<String>> selected, long answerRevision) {
+        List<Item> questions, Instant serverTime, Map<Long,List<String>> selected, long answerRevision, String essayContent) {
+    public StudentObjectivePage(Assignment assignment,String classCode,long submissionId,int attemptNumber,
+            SubmissionStatus status,Instant deadline,List<Item> questions,Instant serverTime,
+            Map<Long,List<String>> selected,long answerRevision) {
+        this(assignment,classCode,submissionId,attemptNumber,status,deadline,questions,serverTime,selected,answerRevision,null);
+    }
     public StudentObjectivePage {
         questions = List.copyOf(questions);
         selected = Map.copyOf(selected);

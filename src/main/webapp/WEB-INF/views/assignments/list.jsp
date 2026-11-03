@@ -82,7 +82,6 @@
                 else {
                 %>
                 <form class="filters" method="get" action="<%= escape(listUrl) %>">
-                    <input type="hidden" name="classId" value="<%= classId %>">
                     <div class="search-row">
                         <label class="search-label" for="search">
                             Tìm theo tiêu đề
@@ -100,6 +99,20 @@
                         <a class="button" href="<%= escape(listUrl) %>?classId=<%= classId %>">Đặt lại</a>
                     </div>
                     <div class="filter-grid">
+                        <label for="classId">
+                            Lớp học
+                            <select id="classId" name="classId">
+                                <%
+                                    for (AssignmentClassOption option : data.classes()) {
+                                    %>
+                                    <option value="<%= option.classId() %>" <%= classId != null && option.classId() == classId ? "selected" : "" %>>
+                                        <%= escape(option.classCode()) %> — <%= escape(option.className()) %>
+                                    </option>
+                                    <%
+                                    }
+                                %>
+                            </select>
+                        </label>
                         <label for="purpose">
                             Mục đích
                             <select id="purpose" name="purpose">

@@ -38,7 +38,7 @@
         <link rel="stylesheet" href="<%= html(base) %>/css/assignment-list.css">
         <%@ include file="/WEB-INF/views/shared/assets.jspf" %>
         <link rel="stylesheet" href="<%= html(base) %>/css/assignment-form.css">
-        <script src="<%= html(base) %>/js/assignment-form.js" defer></script>
+        <script src="<%= html(base) %>/js/assignment-form.js?v=20261102-excel" defer></script>
     </head>
     <body class="ams-ui teacher-app">
         <%@ include file="/WEB-INF/views/shared/shell.jspf" %>
@@ -150,6 +150,7 @@
                 %>
                 <form method="post" action="<%= html(base) %>/teacher/assignments" id="assignment-form"
           data-edit="<%= editing %>" data-edit-conflict="<%= editConflict %>"
+          data-authoring-url="<%= html(base) %>/teacher/assignment-authoring"
           data-saved-response-type="<%= html(savedResponseType) %>"
           data-saved-essay-content="<%= savedEssayContent %>"
           data-saved-objective-content="<%= savedObjectiveContent %>">
@@ -207,14 +208,14 @@
                                 <label for="purpose">
                                     Mục đích *
                                 </label>
-                                <select id="purpose" name="purpose" required><% boolean purposeExists=false; for(var option:purposeOptions) if(option.value().equals(form.value("purpose"))) purposeExists=true; if(!editing&&!purposeExists){ %><option value="" selected disabled>Chọn mục đích</option><% } for(var option:purposeOptions){ boolean unavailable="PRACTICE".equals(option.value()) && !objectiveAvailable && !(editing && "PRACTICE".equals(form.value("purpose"))); %><option value="<%=html(option.value())%>" <%=option.value().equals(form.value("purpose"))?"selected":""%> <%=unavailable?"disabled":""%>><%=html(option.name())%><%=unavailable?" (cần bật Trắc nghiệm)":""%></option><% } if(editing&&!form.value("purpose").isBlank()&&!purposeExists){ %><option value="<%=html(form.value("purpose"))%>" selected><%=html(form.value("purpose"))%> (giá trị hiện tại)</option><% } %></select>
+                                <select id="purpose" name="purpose" required><% boolean purposeExists=false; for(var option:purposeOptions) if(option.value().equals(form.value("purpose"))) purposeExists=true; if(!editing&&!purposeExists){ %><option value="" selected disabled>Chọn mục đích</option><% } for(var option:purposeOptions){ boolean unavailable="PRACTICE".equals(option.value()) && !objectiveAvailable && !(editing && "PRACTICE".equals(form.value("purpose"))); %><option value="<%=html(option.value())%>" <%=option.value().equals(form.value("purpose"))?"selected":""%> <%=unavailable?"disabled":""%>><%=html(vn.edu.fpt.ams.util.Vietnamese.label(option.value()))%><%=unavailable?" (cần bật Trắc nghiệm)":""%></option><% } if(editing&&!form.value("purpose").isBlank()&&!purposeExists){ %><option value="<%=html(form.value("purpose"))%>" selected><%=html(vn.edu.fpt.ams.util.Vietnamese.label(form.value("purpose")))%> (giá trị hiện tại)</option><% } %></select>
                                 <small class="field-error" id="purpose-error"><%= html(errors.get("purpose")) %></small>
                             </div>
                             <div>
                                 <label for="responseType">
                                     Hình thức trả lời *
                                 </label>
-                                <select id="responseType" name="responseType" required><% boolean responseExists=false; for(var option:responseOptions) if(option.value().equals(form.value("responseType"))) responseExists=true; if(!editing&&!responseExists){ %><option value="" selected disabled>Chọn hình thức</option><% } for(var option:responseOptions){ %><option value="<%=html(option.value())%>" <%=option.value().equals(form.value("responseType"))?"selected":""%>><%=html(option.name())%></option><% } if(editing&&!form.value("responseType").isBlank()&&!responseExists){ %><option value="<%=html(form.value("responseType"))%>" selected><%=html(form.value("responseType"))%> (giá trị hiện tại)</option><% } %></select>
+                                <select id="responseType" name="responseType" required><% boolean responseExists=false; for(var option:responseOptions) if(option.value().equals(form.value("responseType"))) responseExists=true; if(!editing&&!responseExists){ %><option value="" selected disabled>Chọn hình thức</option><% } for(var option:responseOptions){ %><option value="<%=html(option.value())%>" <%=option.value().equals(form.value("responseType"))?"selected":""%>><%=html(vn.edu.fpt.ams.util.Vietnamese.label(option.value()))%></option><% } if(editing&&!form.value("responseType").isBlank()&&!responseExists){ %><option value="<%=html(form.value("responseType"))%>" selected><%=html(vn.edu.fpt.ams.util.Vietnamese.label(form.value("responseType")))%> (giá trị hiện tại)</option><% } %></select>
                                 <small class="field-error" id="responseType-error"><%= html(errors.get("responseType")) %></small>
                             </div>
                         </div>
@@ -258,18 +259,71 @@
                             Câu hỏi tự luận
                         </h2>
                         <p class="form-hint">
-                            Thêm từ 1 đến 200 câu hỏi. Mỗi câu chỉ gồm nội dung và điểm, ít nhất 0.01 điểm, tối đa 2 chữ số thập phân. Tổng điểm các câu phải bằng điểm tối đa của bài tập trước khi lưu.
+                            Thêm từ 1 đến 200 câu hỏi, mỗi câu có từ 1 đến 10 yêu cầu con. Điểm ít nhất 0.01, tối đa 2 chữ số thập phân. Tổng điểm yêu cầu con không vượt điểm câu hỏi; tổng điểm câu hỏi không vượt điểm tối đa của bài tập.
                         </p>
                         <fieldset id="essay-fields" <%= "OBJECTIVE".equals(form.value("responseType")) ? "disabled" : "" %>>
-                            <div id="task-editor">
+                            <div class="authoring-tabs" role="tablist" aria-label="Cách soạn câu hỏi tự luận">
+                                <button type="button" role="tab" id="essay-tab-manual" aria-controls="essay-panel-manual" aria-selected="true" tabindex="0" data-essay-tab="manual">Nhập thủ công</button>
+                                <button type="button" role="tab" id="essay-tab-import" aria-controls="essay-panel-import" aria-selected="false" tabindex="-1" data-essay-tab="import">Import từ file</button>
+                                <button type="button" role="tab" id="essay-tab-generate" aria-controls="essay-panel-generate" aria-selected="false" tabindex="-1" data-essay-tab="generate">Soạn bằng AI</button>
                             </div>
+                            <div role="tabpanel" id="essay-panel-manual" aria-labelledby="essay-tab-manual" tabindex="0">
+                                <p class="form-hint">Nhập và chỉnh sửa trực tiếp ở phần Câu hỏi trong đề bên dưới.</p>
+                            </div>
+                            <div role="tabpanel" id="essay-panel-import" aria-labelledby="essay-tab-import" tabindex="0" hidden>
+                                <p class="form-hint">Chọn tối đa 3 file .txt, .docx, .pdf, .xlsx hoặc .xls, mỗi file tối đa 2 MB. Giữ cấu trúc câu hỏi, yêu cầu con và điểm theo file mẫu. Nội dung trích xuất sẽ xuất hiện ở phần xem trước để bạn kiểm tra và chỉnh sửa.</p>
+                                <p><a href="<%= html(base) %>/teacher/assignment-authoring?action=template&amp;format=xlsx&amp;classId=<%= context.classId() %>" download>Tải file Excel mẫu (.xlsx)</a> · <a href="<%= html(base) %>/teacher/assignment-authoring?action=template&amp;classId=<%= context.classId() %>" download>Tải file .txt mẫu</a></p>
+                                <fieldset id="import-source-fields">
+                                    <label for="import-files">File câu hỏi</label>
+                                    <input type="file" id="import-files" accept=".txt,.docx,.pdf,.xlsx,.xls" multiple aria-describedby="import-file-hint">
+                                    <small class="form-hint" id="import-file-hint">Excel dùng sheet “Cau hoi”, mỗi dòng là một yêu cầu con theo file mẫu. File PDF cần có văn bản có thể chọn và sao chép.</small>
+                                    <button type="button" class="button" id="import-questions">Đọc file và xem trước</button>
+                                </fieldset>
+                                <p class="authoring-status" id="import-status" role="status" aria-live="polite"></p>
+                            </div>
+                            <div role="tabpanel" id="essay-panel-generate" aria-labelledby="essay-tab-generate" tabindex="0" hidden>
+                                <p class="form-hint">Mô tả đề bài và thêm tài liệu tham khảo nếu cần. Yêu cầu, ngữ cảnh và file chỉ được gửi để AI soạn câu hỏi khi bạn chọn “Tạo câu hỏi”.</p>
+                                <fieldset id="generate-source-fields">
+                                    <label for="generate-prompt">Yêu cầu soạn đề *</label>
+                                    <textarea id="generate-prompt" rows="4" maxlength="4000" aria-describedby="generate-prompt-hint" placeholder="Ví dụ: Soạn câu hỏi về phân tích và thiết kế hệ thống, từ cơ bản đến vận dụng."></textarea>
+                                    <small class="form-hint" id="generate-prompt-hint">Tối đa 4.000 ký tự.</small>
+                                    <label for="generate-context">Ngữ cảnh, kiến thức tham khảo</label>
+                                    <textarea id="generate-context" rows="4" maxlength="12000" aria-describedby="generate-context-hint"></textarea>
+                                    <small class="form-hint" id="generate-context-hint">Tối đa 12.000 ký tự.</small>
+                                    <label for="generate-files">File tham khảo (.txt, .docx, .pdf, .xlsx, .xls)</label>
+                                    <input type="file" id="generate-files" accept=".txt,.docx,.pdf,.xlsx,.xls" multiple aria-describedby="generate-file-hint">
+                                    <small class="form-hint" id="generate-file-hint">Không bắt buộc. Tối đa 3 file, mỗi file tối đa 2 MB. Excel dùng cấu trúc câu hỏi theo file mẫu.</small>
+                                    <div class="form-grid">
+                                        <div><label for="generate-question-count">Số câu hỏi (1–200)</label><input id="generate-question-count" type="text" inputmode="numeric" value="3"></div>
+                                        <div><label for="generate-requirement-count">Yêu cầu con mỗi câu (1–10)</label><input id="generate-requirement-count" type="text" inputmode="numeric" value="2"></div>
+                                    </div>
+                                    <button type="button" class="button" id="generate-questions">Tạo câu hỏi</button>
+                                </fieldset>
+                                <p class="authoring-status" id="generate-status" role="status" aria-live="polite"></p>
+                            </div>
+                            <section class="authoring-preview" id="authoring-preview" aria-labelledby="preview-heading" hidden>
+                                <h3 id="preview-heading" tabindex="-1">Xem trước câu hỏi</h3>
+                                <p class="form-hint">Bạn có thể sửa nội dung, điểm và hình thức trả lời dưới đây. Chọn thêm hoặc thay thế để đưa câu hỏi vào đề; bản nháp chỉ được lưu khi bạn chọn nút lưu ở cuối trang.</p>
+                                <p id="preview-summary" aria-live="polite"></p>
+                                <div id="preview-editor"></div>
+                                <p class="field-error" id="preview-error" role="alert" tabindex="-1"></p>
+                                <div class="editor-actions">
+                                    <button type="button" class="button primary" id="append-preview">Thêm vào đề</button>
+                                    <button type="button" class="button" id="replace-preview">Thay thế câu hỏi</button>
+                                    <button type="button" class="button" id="discard-preview">Bỏ kết quả xem trước</button>
+                                </div>
+                            </section>
+                            <section class="applied-questions" aria-labelledby="applied-heading">
+                                <h3 id="applied-heading" tabindex="-1">Câu hỏi trong đề</h3>
+                                <p class="form-hint">Các câu hỏi đã thêm từ file hoặc AI đều hiển thị tại đây. Bạn có thể chỉnh sửa và lưu ngay, không cần chuyển sang Nhập thủ công.</p>
+                                <p class="authoring-status" id="applied-status" role="status" aria-live="polite"></p>
+                                <div id="task-editor"></div>
+                                <div class="editor-footer">
+                                    <button type="button" class="button" id="add-task">Thêm câu tự luận</button>
+                                    <span id="task-count" aria-live="polite"></span><span id="task-points-total" aria-live="polite"></span>
+                                </div>
+                            </section>
                             <small class="field-error" id="tasksJson-error"><%= html(errors.get("tasksJson")) %></small>
-                            <div class="editor-footer">
-                                <button type="button" class="button" id="add-task">
-                                    Thêm câu tự luận
-                                </button>
-                                <span id="task-count" aria-live="polite"></span><span id="task-points-total" aria-live="polite"></span>
-                            </div>
                         </fieldset>
                     </section>
                     <section class="form-card" id="question-section" aria-labelledby="questions-heading" <%= "OBJECTIVE".equals(form.value("responseType")) ? "" : "hidden" %>>

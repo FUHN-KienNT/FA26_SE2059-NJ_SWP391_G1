@@ -1,7 +1,16 @@
 package vn.edu.fpt.ams.util;
 
 import static org.junit.jupiter.api.Assertions.*;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
+import javax.imageio.ImageIO;
 import org.junit.jupiter.api.Test;
 
 class EssaySubmissionViewTest {
@@ -9,6 +18,15 @@ class EssaySubmissionViewTest {
             [{"task_order":2,"title":"Explain permissions","description":"Teacher and Student"},
              {"task_order":1,"title":"Describe the Web flow","description":"Servlet → Service → DAO"}]
             """;
+    private static final String NESTED_TASKS = """
+            [{"task_order":2,"title":"Permissions question","description":"","maximum_points":4,"requirements":[
+               {"requirement_order":2,"title":"Draw permissions","maximum_points":1.50,"answer_type":"DIAGRAM"},
+               {"requirement_order":1,"title":"Explain permissions","maximum_points":1,"answer_type":"TEXT"}]},
+             {"task_order":1,"title":"Web flow question","description":"Keep context","maximum_points":6,"requirements":[
+               {"requirement_order":2,"title":"Describe and draw the flow","maximum_points":3,"answer_type":"BOTH"},
+               {"requirement_order":1,"title":"Explain the flow","maximum_points":2.50,"answer_type":"TEXT"}]}]
+            """;
+    private static final String PNG = png();
 
     @Test void pairsByFrozenTaskIdentityRatherThanArrayPosition() {
         var result = EssaySubmissionView.read(TASKS, """
@@ -59,7 +77,7 @@ class EssaySubmissionViewTest {
 
     @Test void jsonLookingLegacyWorkNeedsTheExactVersionedEnvelope() {
         for (String content : List.of("{\"answers\":[{\"task_order\":1,\"text\":\"A\"}]}",
-                "{\"format\":\"ams-essay-v2\",\"answers\":[]}","{\"format\":true,\"answers\":[]}",
+                "{\"format\":\"ams-essay-v3\",\"answers\":[]}","{\"format\":true,\"answers\":[]}",
                 "[\"first paragraph\",\"second paragraph\"]","\"This is a JSON example.\"","null")) {
             var result = EssaySubmissionView.read(TASKS,content);
             assertFalse(result.structured());
@@ -202,5 +220,155 @@ class EssaySubmissionViewTest {
         assertEquals("&lt;script&gt; &amp; prompt",AssignmentListView.escape(item.title()));
         assertEquals("&lt;b&gt;",AssignmentListView.escape(item.description()));
         assertEquals("&lt;img onerror=alert(1)&gt; &amp; work",AssignmentListView.escape(item.answer()));
+    }
+
+    @Test void versionTwoPairsEachTextAndDiagramWithItsOwnFrozenRequirement() {
+        JsonObject content = versionTwo();
+        JsonArray answers = content.getAsJsonArray("answers");
+        answers.add(answer(2, 2, "", "<mxfile/>", PNG));
+        answers.add(answer(1, 2, "  First paragraph.\n\nSecond paragraph.  ", "<mxGraphModel/>", PNG));
+        answers.add(answer(2, 1, "Teacher permissions", "", ""));
+        answers.add(answer(1, 1, "Servlet calls Service", "", ""));
+        var result = EssaySubmissionView.read(NESTED_TASKS, content.toString());
+        assertTrue(result.structured());
+        assertFalse(result.invalid());
+        assertNull(result.legacyContent());
+        assertTrue(result.unmatched().isEmpty());
+        assertEquals(List.of(1, 2), result.items().stream().map(EssaySubmissionView.Item::order).toList());
+        var first = result.items().get(0);
+        assertEquals("Web flow question\nKeep context", first.title());
+        assertEquals("6", first.points());
+        assertNull(first.answer());
+        assertEquals(List.of(1, 2), first.requirements().stream().map(EssaySubmissionView.RequirementAnswer::order).toList());
+        assertEquals("Explain the flow", first.requirements().get(0).title());
+        assertEquals("2.5", first.requirements().get(0).points());
+        assertEquals("Servlet calls Service", first.requirements().get(0).answer());
+        assertEquals("", first.requirements().get(0).image());
+        assertEquals("BOTH", first.requirements().get(1).answerType());
+        assertEquals("Văn bản và sơ đồ", first.requirements().get(1).answerTypeLabel());
+        assertEquals("  First paragraph.\n\nSecond paragraph.  ", first.requirements().get(1).answer());
+        assertEquals(PNG, first.requirements().get(1).image());
+        var second = result.items().get(1);
+        assertEquals("Teacher permissions", second.requirements().get(0).answer());
+        assertEquals("Văn bản", second.requirements().get(0).answerTypeLabel());
+        assertEquals("Draw permissions", second.requirements().get(1).title());
+        assertEquals("Sơ đồ", second.requirements().get(1).answerTypeLabel());
+        assertEquals("", second.requirements().get(1).answer());
+        assertEquals(PNG, second.requirements().get(1).image());
+        assertThrows(UnsupportedOperationException.class, () -> first.requirements().clear());
+    }
+
+    @Test void versionTwoShowsEveryRequirementEvenWhenNoAnswerWasSavedForIt() {
+        JsonObject content = versionTwo();
+        content.getAsJsonArray("answers").add(answer(2, 1, "Answered", "", ""));
+        var result = EssaySubmissionView.read(NESTED_TASKS, content.toString());
+        assertTrue(result.structured());
+        assertFalse(result.invalid());
+        assertEquals(4, result.items().stream().mapToInt(item -> item.requirements().size()).sum());
+        assertTrue(result.items().get(0).requirements().stream().allMatch(requirement ->
+                requirement.answer().isEmpty() && requirement.image().isEmpty()));
+        assertEquals("Answered", result.items().get(1).requirements().get(0).answer());
+        assertEquals("", result.items().get(1).requirements().get(1).image());
+    }
+
+    @Test void versionTwoSupportsLegacyScoredQuestionsThroughTheirDefaultTextRequirement() {
+        JsonObject content = versionTwo();
+        content.getAsJsonArray("answers").add(answer(3, 1, "Legacy question answer", "", ""));
+        var result = EssaySubmissionView.read(
+                "[{\"task_order\":3,\"title\":\"Original prompt\",\"description\":\"Original details\",\"maximum_points\":5}]",
+                content.toString());
+        assertTrue(result.structured());
+        assertFalse(result.invalid());
+        var requirement = result.items().get(0).requirements().get(0);
+        assertEquals("Trả lời câu hỏi", requirement.title());
+        assertEquals("TEXT", requirement.answerType());
+        assertEquals("5", requirement.points());
+        assertEquals("Legacy question answer", requirement.answer());
+    }
+
+    @Test void invalidVersionTwoKeepsTheExactOriginalInsteadOfAttachingPartialAnswers() {
+        List<String> invalid = new ArrayList<>(List.of(
+                "{\"format\":\"ams-essay-v2\"}", "{\"format\":\"ams-essay-v2\",\"answers\":{}}",
+                "{\"format\":\"ams-essay-v2\",\"answers\":[{\"task_order\":1,\"requirement_order\":1,\"requirement_order\":2,\"text\":\"Keep me\"}]}"));
+        for (JsonObject invalidAnswer : List.of(
+                answer(99, 1, "Unknown question", "", ""), answer(1, 99, "Unknown requirement", "", ""),
+                answer(1, 1, "Text requirement with diagram", "<mxfile/>", PNG),
+                answer(2, 2, "Diagram requirement with text", "", ""),
+                answer(2, 2, "", "<mxfile/>", "data:image/svg+xml,<svg onload=alert(1)>"),
+                answer(2, 2, "", "<!DOCTYPE mxfile SYSTEM 'file:///sensitive'><mxfile/>", PNG),
+                answer(2, 2, "", "<mxfile/>", "data:image/png;base64,broken"),
+                answer(2, 2, "", "", PNG))) {
+            JsonObject content = versionTwo();
+            content.getAsJsonArray("answers").add(answer(1, 1, "Valid answer must also stay in original", "", ""));
+            content.getAsJsonArray("answers").add(invalidAnswer);
+            invalid.add(content.toString());
+        }
+        JsonObject duplicate = versionTwo();
+        duplicate.getAsJsonArray("answers").add(answer(1, 1, "First", "", ""));
+        duplicate.getAsJsonArray("answers").add(answer(1, 1, "Second", "", ""));
+        invalid.add(duplicate.toString());
+        for (String content : invalid) {
+            var result = EssaySubmissionView.read(NESTED_TASKS, content);
+            assertTrue(result.invalid(), content);
+            assertFalse(result.structured(), content);
+            assertEquals(content, result.legacyContent());
+            assertTrue(result.items().stream().allMatch(item -> item.answer() == null && item.requirements().isEmpty()));
+            assertTrue(result.unmatched().isEmpty());
+        }
+    }
+
+    @Test void versionTwoRejectsAmbiguousFrozenRequirementsAndInvalidTaskData() {
+        String content = versionTwo().toString();
+        for (String tasks : List.of(TASKS, "[]", "[", NESTED_TASKS.replace("\"requirement_order\":2", "\"requirement_order\":1"),
+                NESTED_TASKS.replace("\"task_order\":2", "\"task_order\":2,\"task_order\":1"))) {
+            var result = EssaySubmissionView.read(tasks, content);
+            assertTrue(result.invalid(), tasks);
+            assertFalse(result.structured(), tasks);
+            assertEquals(content, result.legacyContent());
+            assertTrue(result.items().stream().allMatch(item -> item.requirements().isEmpty()));
+        }
+    }
+
+    @Test void versionTwoPromptAndAnswerHtmlStayPlainTextWhileImageIsVerifiedPng() {
+        String tasks = NESTED_TASKS.replace("Explain the flow", "<script>alert(1)</script> & prompt");
+        JsonObject content = versionTwo();
+        content.getAsJsonArray("answers").add(answer(1, 1, "<img onerror=alert(1)> & answer", "", ""));
+        var result = EssaySubmissionView.read(tasks, content.toString());
+        assertFalse(result.invalid());
+        var requirement = result.items().get(0).requirements().get(0);
+        assertEquals("&lt;script&gt;alert(1)&lt;/script&gt; &amp; prompt", AssignmentListView.escape(requirement.title()));
+        assertEquals("&lt;img onerror=alert(1)&gt; &amp; answer", AssignmentListView.escape(requirement.answer()));
+        assertTrue(requirement.image().isBlank());
+    }
+
+    @Test void previousItemConstructorsRemainAvailableWithImmutableEmptyRequirements() {
+        var four = new EssaySubmissionView.Item(1, "Title", "Description", "Answer");
+        var five = new EssaySubmissionView.Item(1, "Title", "Description", "Answer", "5");
+        assertNull(four.points());
+        assertEquals("5", five.points());
+        assertTrue(four.requirements().isEmpty());
+        assertTrue(five.requirements().isEmpty());
+        assertThrows(UnsupportedOperationException.class, () -> five.requirements().clear());
+    }
+
+    private static JsonObject versionTwo() {
+        JsonObject content = new JsonObject();
+        content.addProperty("format", EssayAnswerCodec.FORMAT);
+        content.add("answers", new JsonArray());
+        return content;
+    }
+
+    private static JsonObject answer(int task, int requirement, String text, String xml, String image) {
+        JsonObject answer = new JsonObject();
+        answer.addProperty("task_order", task); answer.addProperty("requirement_order", requirement);
+        answer.addProperty("text", text); answer.addProperty("diagram_xml", xml); answer.addProperty("diagram_image", image);
+        return answer;
+    }
+
+    private static String png() {
+        try (var output = new ByteArrayOutputStream()) {
+            ImageIO.write(new BufferedImage(2, 2, BufferedImage.TYPE_INT_ARGB), "png", output);
+            return "data:image/png;base64," + Base64.getEncoder().encodeToString(output.toByteArray());
+        } catch (IOException ex) { throw new UncheckedIOException(ex); }
     }
 }

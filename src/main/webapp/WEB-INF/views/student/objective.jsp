@@ -9,7 +9,7 @@
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width,initial-scale=1">
-        <title>Bài tập trắc nghiệm | AMS</title>
+        <title>Bài tập | AMS</title>
         <link rel="stylesheet" href="<%=base%>/css/app.css">
         <link rel="stylesheet" href="<%=base%>/css/common-ui.css">
         <link rel="stylesheet" href="<%=base%>/css/student-objective.css?v=20261019-2">
@@ -19,13 +19,13 @@
         <main id="page-content" class="ams-content student-work">
             <div class="student-work-inner">
             <p>
-                <a href="<%=base%>/student/dashboard">Bảng điều khiển</a> / <a href="<%=base%>/student/assignments">Bài tập trắc nghiệm</a>
+                <a href="<%=base%>/student/dashboard">Bảng điều khiển</a> / <a href="<%=base%>/student/classes<%=data==null?"":"?classId="+data.assignment().classId()%>"><%=data==null?"Lớp của tôi":"Chi tiết lớp"%></a> / Bài tập
             </p>
             <%
                 if(data==null){
                 %>
                 <h1>
-                    Bài tập trắc nghiệm
+                    Bài tập
                 </h1>
                 <p>
                     Các bài đã công bố trong lớp bạn đang học.
@@ -34,7 +34,7 @@
                     if(items==null || items.isEmpty()){
                     %>
                     <p>
-                        Chưa có bài tập trắc nghiệm.
+                        Chưa có bài tập.
                     </p>
                     <%
                     }

@@ -33,6 +33,13 @@ public class StudentObjectiveService {
                 finishSaved(c,owned.assignment(),attempt,now);
                 attempt=attempt(dao.attempts(c,studentId,assignmentId),submissionId);
             }
+            if(owned.assignment().responseType()==ResponseType.ESSAY) {
+                Assignment frozen=dao.snapshotAssignment(c,submissionId,assignmentId);
+                String content=attempt.status()==SubmissionStatus.IN_PROGRESS
+                        ? EssayAnswerCodec.normalize(frozen.taskChecklistJson(),attempt.content()).json():null;
+                return new StudentObjectivePage(frozen,owned.classCode(),submissionId,attempt.attemptNumber(),attempt.status(),
+                        deadline(owned.assignment(),attempt),List.of(),now,Map.of(),dao.revision(c,submissionId),content);
+            }
             var questions=attempt.status()==SubmissionStatus.IN_PROGRESS
                     ? ObjectiveAnswerGrader.display(dao.snapshotQuestions(c,submissionId)) : List.<StudentObjectivePage.Item>of();
             return page(owned,attempt,questions,now,dao.revision(c,submissionId));
@@ -54,10 +61,17 @@ public class StudentObjectiveService {
                     ? (a.attemptLimit()==null?0:a.attemptLimit()) : 1;
             long used=attempts.stream().filter(s->s.status()!=SubmissionStatus.VOID).count();
             if(used>=limit) throw new IllegalArgumentException("Bạn đã sử dụng hết số lượt làm bài.");
-            var questions=assignments.findAllDraftQuestions(c,assignmentId,false);
-            ObjectiveAnswerGrader.display(questions); // Reject a broken answer key before starting the timer.
-            var total=questions.stream().map(Question::maximumPoints).reduce(java.math.BigDecimal.ZERO,java.math.BigDecimal::add);
-            if(total.compareTo(a.maximumScore())!=0) throw new IllegalStateException("Tổng điểm các câu hỏi không bằng điểm tối đa.");
+            if(a.responseType()==ResponseType.ESSAY) {
+                if(!AssignmentRules.validMaximum(a.maximumScore()))throw new IllegalStateException("Điểm tối đa của bài phải là số nguyên từ 1 đến 100.");
+                var tasks=EssayQuestions.read(a.taskChecklistJson());
+                var total=tasks.stream().map(EssayQuestions.Task::points).reduce(java.math.BigDecimal.ZERO,java.math.BigDecimal::add);
+                if(total.compareTo(a.maximumScore())>0)throw new IllegalStateException("Tổng điểm câu hỏi vượt điểm tối đa.");
+            } else {
+                var questions=assignments.findAllDraftQuestions(c,assignmentId,false);
+                ObjectiveAnswerGrader.display(questions); // Reject a broken answer key before starting the timer.
+                var total=questions.stream().map(Question::maximumPoints).reduce(java.math.BigDecimal.ZERO,java.math.BigDecimal::add);
+                if(total.compareTo(a.maximumScore())!=0) throw new IllegalStateException("Tổng điểm các câu hỏi không bằng điểm tối đa.");
+            }
             Instant deadline=a.dueAt();
             if(a.timeLimitMinutes()!=null) {
                 Instant timed=now.plusSeconds(a.timeLimitMinutes()*60L);
@@ -71,6 +85,7 @@ public class StudentObjectiveService {
         actor(studentId);
         return transaction(c->{
             var owned=dao.owned(c,studentId,assignmentId,true);
+            if(owned.assignment().responseType()!=ResponseType.OBJECTIVE)throw new IllegalArgumentException("Hãy sử dụng biểu mẫu tự luận của bài này.");
             var attempt=attempt(dao.attempts(c,studentId,assignmentId),submissionId);
             if(attempt.status()!=SubmissionStatus.IN_PROGRESS) return submissionId; // Double-submit cannot overwrite work.
             Instant now=assignments.currentTime(c);
@@ -89,6 +104,7 @@ public class StudentObjectiveService {
         actor(studentId);
         return transaction(c->{
             var owned=dao.owned(c,studentId,assignmentId,true);
+            if(owned.assignment().responseType()!=ResponseType.OBJECTIVE)throw new IllegalArgumentException("Hãy sử dụng biểu mẫu tự luận của bài này.");
             var attempt=attempt(dao.attempts(c,studentId,assignmentId),submissionId);
             Instant now=assignments.currentTime(c), deadline=deadline(owned.assignment(),attempt);
             if(attempt.status()!=SubmissionStatus.IN_PROGRESS) return new SaveResult(true,now,deadline,dao.revision(c,submissionId));
@@ -100,6 +116,32 @@ public class StudentObjectiveService {
             checkRevision(c,submissionId,expectedRevision);
             dao.save(c,submissionId,expectedRevision,ObjectiveAnswerGrader.draft(dao.snapshotQuestions(c,submissionId),selected));
             return new SaveResult(false,now,deadline,expectedRevision+1);
+        });
+    }
+    public SaveResult saveEssay(long studentId,long assignmentId,long submissionId,long expectedRevision,String input) {
+        return essayWrite(studentId,assignmentId,submissionId,expectedRevision,input,false);
+    }
+    public long submitEssay(long studentId,long assignmentId,long submissionId,long expectedRevision,String input) {
+        essayWrite(studentId,assignmentId,submissionId,expectedRevision,input,true);return submissionId;
+    }
+    private SaveResult essayWrite(long studentId,long assignmentId,long submissionId,long expectedRevision,String input,boolean submit) {
+        actor(studentId);
+        return transaction(c->{
+            var owned=dao.owned(c,studentId,assignmentId,true);
+            if(owned.assignment().responseType()!=ResponseType.ESSAY)throw new IllegalArgumentException("Bài tập này không phải tự luận.");
+            var attempt=attempt(dao.attempts(c,studentId,assignmentId),submissionId);
+            Instant now=assignments.currentTime(c),end=deadline(owned.assignment(),attempt);
+            if(attempt.status()!=SubmissionStatus.IN_PROGRESS)return new SaveResult(true,now,end,dao.revision(c,submissionId));
+            if(!now.isBefore(end)) {
+                finishSaved(c,owned.assignment(),attempt,now);
+                return new SaveResult(true,now,end,dao.revision(c,submissionId));
+            }
+            requireOpen(owned.assignment(),now);checkRevision(c,submissionId,expectedRevision);
+            Assignment frozen=dao.snapshotAssignment(c,submissionId,assignmentId);
+            String content=EssayAnswerCodec.normalize(frozen.taskChecklistJson(),input).json();
+            dao.saveEssay(c,submissionId,expectedRevision,content);
+            if(submit)dao.submitSavedWork(c,submissionId,now);
+            return new SaveResult(submit,now,end,expectedRevision+1);
         });
     }
     private void checkRevision(Connection c,long submissionId,long expected) throws SQLException {
