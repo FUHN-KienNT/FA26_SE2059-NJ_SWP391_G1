@@ -83,11 +83,12 @@ class AssignmentRulesBoundaryTest {
         invalid(objective("9.99"),"questionsJson");
         assertEquals(2,JsonParser.parseString(validate(objective("10")).questions().get(0).options()).getAsJsonArray().size());
     }
-    @Test void essayPointsAreSavedAsDecimalsAndMustSumExactly() {
+    @Test void essayPointsAreSavedAsDecimalsAndCannotExceedAssignmentMaximum() {
         var form=essay();form.put("tasksJson","[{\"title\":\"A\",\"maximum_points\":\"0.01\"},{\"title\":\"B\",\"maximum_points\":\"9.99\"}]");
         var tasks=JsonParser.parseString(validate(form).assignment().taskChecklistJson()).getAsJsonArray();
         assertEquals(new BigDecimal("0.01"),tasks.get(0).getAsJsonObject().get("maximum_points").getAsBigDecimal());
-        form.put("tasksJson",form.get("tasksJson").replace("9.99","9.98"));invalid(form,"tasksJson");
+        form.put("tasksJson",form.get("tasksJson").replace("9.99","9.98"));assertDoesNotThrow(()->validate(form));
+        form.put("tasksJson",form.get("tasksJson").replace("9.98","10.00"));invalid(form,"tasksJson");
     }
     @Test void activeContentCountsAndOptionLimitAreEnforcedOnServer() {
         for(int count:List.of(0,1,200,201)) {

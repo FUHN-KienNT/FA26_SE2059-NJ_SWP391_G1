@@ -22,6 +22,7 @@ class StudentAssignmentServletTest {
             case "getSession"->httpSession;
             case "getParameter"->params.containsKey(a[0])?params.get(a[0])[0]:null;
             case "getParameterMap"->params;
+            case "getContentLengthLong"->0L;
             case "getContextPath"->"/ams";
             default->null;
         });
@@ -70,5 +71,29 @@ class StudentAssignmentServletTest {
             throw new ConcurrentModificationException("Vui lòng tải lại trang.");
         }};
         new StudentAssignmentServlet(service).doPost(e.request,e.response);assertEquals(409,e.status);
+    }
+    @Test void essayAutosaveUsesSessionIdentityCsrfAndExplicitContent() throws Exception {
+        var e=new Exchange();e.params.put("action",new String[]{"saveEssay"});
+        String content="{\"format\":\"ams-essay-v2\",\"answers\":[]}";e.params.put("essayContent",new String[]{content});
+        var service=new StudentObjectiveService(){@Override public SaveResult saveEssay(long u,long a,long s,long revision,String input){
+            assertEquals(4,u);assertEquals(50,a);assertEquals(8,s);assertEquals(0,revision);assertEquals(content,input);
+            return new SaveResult(false,Instant.ofEpochMilli(1000),Instant.ofEpochMilli(2000),1);
+        }};
+        new StudentAssignmentServlet(service).doPost(e.request,e.response);
+        assertEquals(200,e.status);assertTrue(e.body.toString().contains("\"revision\":1"));
+        var rejected=new Exchange();rejected.params.put("action",new String[]{"saveEssay"});rejected.params.put("csrf",new String[]{"bad"});
+        new StudentAssignmentServlet(new StudentObjectiveService(){@Override public SaveResult saveEssay(long u,long a,long s,long r,String input){fail("Invalid CSRF must not reach save");return null;}}).doPost(rejected.request,rejected.response);
+        assertEquals(403,rejected.status);
+    }
+    @Test void manualEssaySubmissionCollectsExplicitRequirementTextAndRedirects() throws Exception {
+        var e=new Exchange();e.params.put("action",new String[]{"submitEssay"});e.params.put("text_1_2",new String[]{"Nội dung của yêu cầu 2"});
+        e.params.put("diagram_xml_1_2",new String[]{"<mxGraphModel/>"});e.params.put("diagram_image_1_2",new String[]{"data:image/png;base64,kept"});
+        var service=new StudentObjectiveService(){@Override public long submitEssay(long u,long a,long s,long revision,String input){
+            var row=com.google.gson.JsonParser.parseString(input).getAsJsonObject().getAsJsonArray("answers").get(0).getAsJsonObject();
+            assertEquals(1,row.get("task_order").getAsInt());assertEquals(2,row.get("requirement_order").getAsInt());assertEquals("Nội dung của yêu cầu 2",row.get("text").getAsString());
+            assertEquals("<mxGraphModel/>",row.get("diagram_xml").getAsString());assertEquals("data:image/png;base64,kept",row.get("diagram_image").getAsString());return s;
+        }};
+        new StudentAssignmentServlet(service).doPost(e.request,e.response);assertEquals(303,e.status);
+        assertEquals("/ams/student/assignments?assignmentId=50&submissionId=8",e.headers.get("Location"));
     }
 }

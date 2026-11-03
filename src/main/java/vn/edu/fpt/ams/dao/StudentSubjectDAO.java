@@ -23,7 +23,7 @@ public final class StudentSubjectDAO {
                 t.term_code,t.term_name,(t.is_active=TRUE AND t.ends_at>statement_timestamp()) AS is_active,
                 (t.is_active=TRUE AND t.starts_at<=statement_timestamp() AND t.ends_at>statement_timestamp()) AS is_current,st.registration_enabled,
                 st.registration_opens_at,st.registration_closes_at,r.status registration_status,
-                own.class_code,own.class_name,teacher.full_name,own.status class_status,
+                own.class_id,own.class_code,own.class_name,teacher.full_name,own.status class_status,
                 (SELECT COALESCE(SUM(GREATEST(0,c.capacity-(
             """ + OCCUPIED + "))),0) FROM subject_classes c WHERE c.subject_term_id=st.subject_term_id AND "
             + ELIGIBLE_CLASS + ") available_seats,statement_timestamp() server_now " + """
@@ -59,7 +59,8 @@ public final class StudentSubjectDAO {
                 r.getBoolean("is_active"),r.getBoolean("is_current"),r.getBoolean("registration_enabled"),
                 r.getTimestamp("registration_opens_at").toInstant(),r.getTimestamp("registration_closes_at").toInstant(),
                 r.getString("registration_status"),r.getString("class_code"),r.getString("class_name"),
-                r.getString("full_name"),r.getString("class_status"),r.getLong("available_seats"),r.getTimestamp("server_now").toInstant());
+                r.getString("full_name"),r.getString("class_status"),r.getLong("available_seats"),r.getTimestamp("server_now").toInstant(),
+                r.getObject("class_id", Long.class));
     }
 
     public record Context(long subject,long term) {}

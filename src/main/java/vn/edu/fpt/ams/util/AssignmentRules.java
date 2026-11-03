@@ -8,6 +8,7 @@ public final class AssignmentRules {
     public static final int MAX_SCORE = 100;
     public static final int MAX_INSTRUCTIONS = 500;
     public static final int MAX_TASKS = 200;
+    public static final int MAX_REQUIREMENTS = 10;
     public static final int MAX_QUESTIONS = 500;
     public static final int MAX_OPTIONS = 10;
     public static final int MIN_MINUTES = 20;

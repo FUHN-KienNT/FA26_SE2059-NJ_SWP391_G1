@@ -58,7 +58,7 @@ class StudentObjectiveDatabaseTest {
                       (63,10,1,'Essay own','REGULAR','ESSAY','Instructions',10,'PUBLISHED',
                         CURRENT_TIMESTAMP-INTERVAL '1 hour',CURRENT_TIMESTAMP+INTERVAL '1 day',CURRENT_TIMESTAMP)
                 """);
-        assertEquals(List.of(60L),service().list(1).stream().map(x->x.assignment().assignmentId()).toList());
+        assertEquals(List.of(60L,63L),service().list(1).stream().map(x->x.assignment().assignmentId()).toList());
         assertEquals(List.of(61L),service().list(2).stream().map(x->x.assignment().assignmentId()).toList());
         assertTrue(service().list(3).isEmpty());
         assertEquals(vn.edu.fpt.ams.model.AssignmentPurpose.PRACTICE,
@@ -94,6 +94,7 @@ class StudentObjectiveDatabaseTest {
         assertTrue(service.page(1,50,id).questions().isEmpty());
     }
     @Test void ownershipRoleMembershipAndPublishedStatusAreRequired() throws Exception {
+        sql("UPDATE assignments SET assignment_purpose='REGULAR',attempt_limit=NULL");
         var service=service();assertEquals(1,service.list(1).size());assertTrue(service.list(2).isEmpty());assertTrue(service.list(3).isEmpty());
         assertThrows(NoSuchElementException.class,()->service.start(2,50));
         assertThrows(NoSuchElementException.class,()->service.start(3,50));
@@ -139,14 +140,14 @@ class StudentObjectiveDatabaseTest {
     @Test void deadlineUsesDueTimeWhenItComesBeforeTheTimeLimit() throws Exception {
         Instant now=Instant.parse("2026-10-16T11:30:00Z"); // 18:30 Vietnam time.
         var service=service(new AssignmentDAO(){@Override public Instant currentTime(Connection c){return now;}});
-        sql("UPDATE assignments SET available_from='2026-10-16T10:00:00Z',due_at='2026-10-16T12:00:00Z',time_limit_minutes=60");
+        sql("UPDATE assignments SET available_from='2026-10-16T10:00:00Z',due_at='2026-10-16T12:00:00Z',published_at='2026-10-16T09:00:00Z',time_limit_minutes=60");
         long id=service.start(1,50);
         assertEquals(Instant.parse("2026-10-16T12:00:00Z"),service.page(1,50,id).deadline());
     }
     @Test void exactDeadlineFinalizesAndRejectsEvenValidLateAnswers() throws Exception {
         Instant[] clock={Instant.parse("2026-10-16T11:30:00Z")};
         var service=service(new AssignmentDAO(){@Override public Instant currentTime(Connection c){return clock[0];}});
-        sql("UPDATE assignments SET available_from='2026-10-16T10:00:00Z',due_at='2026-10-16T12:00:00Z',time_limit_minutes=20");
+        sql("UPDATE assignments SET available_from='2026-10-16T10:00:00Z',due_at='2026-10-16T12:00:00Z',published_at='2026-10-16T09:00:00Z',time_limit_minutes=20");
         long id=service.start(1,50);
         assertEquals(Instant.parse("2026-10-16T11:50:00Z"),service.page(1,50,id).deadline());
         clock[0]=Instant.parse("2026-10-16T11:49:59.999Z");

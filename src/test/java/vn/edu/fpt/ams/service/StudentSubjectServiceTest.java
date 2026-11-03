@@ -16,7 +16,7 @@ class StudentSubjectServiceTest {
     private Offering row(Instant now,boolean current,boolean active,boolean enabled,boolean enrolled,long seats){
         return new Offering(1,"SWP391","Project","Description","ACTIVE","TERM","Term",active,current,enabled,
                 Instant.parse("2026-01-01T00:00:00Z"),Instant.parse("2026-02-01T00:00:00Z"),
-                enrolled?"ACTIVE":null,null,null,null,null,seats,now);
+                enrolled?"ACTIVE":null,null,null,null,null,seats,now,null);
     }
     @Test void registrationWindowIncludesOpenAndExcludesClose(){
         assertTrue(row(Instant.parse("2026-01-01T00:00:00Z"),true,true,true,false,1).canRegister());

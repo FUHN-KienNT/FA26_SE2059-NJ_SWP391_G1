@@ -42,7 +42,20 @@ public final class AssignmentEditSupport {
                 JsonElement points = source.get("maximum_points");
                 task.addProperty("maximum_points", points != null && points.isJsonPrimitive()
                         ? points.getAsString() : "");
+                if (source.has("requirements"))
+                    task.add("requirements", source.get("requirements").deepCopy());
             } else throw new IllegalStateException("Nội dung câu hỏi tự luận đã lưu cần được sửa lại.");
+            task.addProperty("task_order", tasks.size() + 1);
+            if (!task.has("requirements")) {
+                JsonObject requirement = new JsonObject();
+                requirement.addProperty("requirement_order", 1);
+                requirement.addProperty("title", "Trả lời câu hỏi");
+                requirement.add("maximum_points", task.get("maximum_points").deepCopy());
+                requirement.addProperty("answer_type", "TEXT");
+                JsonArray requirements = new JsonArray();
+                requirements.add(requirement);
+                task.add("requirements", requirements);
+            }
             tasks.add(task);
         }
         values.put("tasksJson", tasks.toString());

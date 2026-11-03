@@ -17,12 +17,12 @@ public record StudentDashboardDTO(
         results = List.copyOf(results);
     }
 
-    public record ClassOverview(String subjectCode, String subjectName, String classCode,
+    public record ClassOverview(long classId, String subjectCode, String subjectName, String classCode,
             String termCode, String termName, String teacherName) {}
 
     public record OpenAssignment(long assignmentId, String title, String classCode,
             String responseType, Instant dueAt) {
-        public boolean hasAssignmentPage() { return "OBJECTIVE".equals(responseType); }
+        public boolean hasAssignmentPage() { return "OBJECTIVE".equals(responseType)||"ESSAY".equals(responseType); }
     }
 
     public record ReleasedResult(String title, String classCode, int attemptNumber,

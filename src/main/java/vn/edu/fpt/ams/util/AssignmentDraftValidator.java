@@ -50,29 +50,11 @@ public final class AssignmentDraftValidator {
 
         JsonArray tasks = new JsonArray();
         if (response == ResponseType.ESSAY) try {
-            JsonArray entered = array(form.value("tasksJson"), AssignmentRules.MAX_TASKS);
-            if (entered.isEmpty()) errors.put("tasksJson", "Thêm từ 1 đến 200 câu hỏi tự luận.");
-            BigDecimal total = BigDecimal.ZERO;
-            boolean validTotal = true;
-            for (int i = 0; i < entered.size(); i++) {
-                JsonObject source = object(entered.get(i));
-                JsonObject task = new JsonObject();
-                task.addProperty("task_order", i + 1);
-                String content = requiredText(source, "title");
-                String oldDescription = text(source, "description").strip();
-                // Older forms stored a separate description. Keep that text in the question.
-                if (!oldDescription.isBlank() && !oldDescription.equals(content)) content += "\n" + oldDescription;
-                task.addProperty("title", AssignmentRules.normalizeLines(content));
-                task.addProperty("description", "");
-                BigDecimal taskPoints = points(text(source, "maximum_points"), "tasksJson", errors);
-                if (taskPoints == null) validTotal = false;
-                else { task.addProperty("maximum_points", taskPoints); total = total.add(taskPoints); }
-                tasks.add(task);
-            }
-            if (validTotal && score != null && total.compareTo(score) != 0)
-                errors.putIfAbsent("tasksJson", "Tổng điểm các câu hỏi phải bằng điểm tối đa của bài tập.");
+            tasks = EssayQuestions.normalize(array(form.value("tasksJson"), AssignmentRules.MAX_TASKS), score);
         } catch (IllegalArgumentException ex) {
-            errors.putIfAbsent("tasksJson", "Nhập từ 1 đến 200 câu hỏi tự luận, mỗi câu có nội dung và điểm hợp lệ.");
+            errors.putIfAbsent("tasksJson", ex.getMessage() == null
+                    ? "Nhập từ 1 đến 200 câu hỏi tự luận, mỗi câu có từ 1 đến 10 yêu cầu hợp lệ."
+                    : ex.getMessage());
         }
 
         List<Question> questions = new ArrayList<>();

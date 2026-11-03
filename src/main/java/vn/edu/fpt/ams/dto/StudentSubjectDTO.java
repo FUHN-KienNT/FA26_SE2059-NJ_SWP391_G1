@@ -11,8 +11,9 @@ public final class StudentSubjectDTO {
             String subjectStatus, String termCode, String termName, boolean termActive,
             boolean currentTerm, boolean enabled, Instant opensAt, Instant closesAt,
             String registrationStatus, String classCode, String className, String teacherName,
-            String classStatus, long availableSeats, Instant now) {
+            String classStatus, long availableSeats, Instant now, Long classId) {
         public boolean enrolled() { return "ACTIVE".equals(registrationStatus); }
+        public boolean canViewClass() { return enrolled() && classId != null && classId > 0 && "ACTIVE".equals(classStatus); }
         public boolean open() { return "ACTIVE".equals(subjectStatus) && termActive
                 && enabled && !now.isBefore(opensAt) && now.isBefore(closesAt); }
         public boolean canRegister() { return open() && !enrolled() && availableSeats > 0; }

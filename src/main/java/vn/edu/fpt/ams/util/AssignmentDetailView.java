@@ -35,9 +35,36 @@ public final class AssignmentDetailView {
                     String description = string(item.getAsJsonObject().get("description"));
                     if (text != null && description != null && !description.isBlank() && !description.equals(text))
                         text += "\n" + description;
+                    if (text == null || text.isBlank()) { invalid = true; continue; }
                     JsonElement points = item.getAsJsonObject().get("maximum_points");
                     if (points != null && points.isJsonPrimitive() && points.getAsJsonPrimitive().isNumber())
                         text += "\n" + points.getAsBigDecimal().stripTrailingZeros().toPlainString() + " điểm";
+                    JsonElement requirements = item.getAsJsonObject().get("requirements");
+                    if (requirements != null) {
+                        if (!requirements.isJsonArray() || requirements.getAsJsonArray().isEmpty()
+                                || requirements.getAsJsonArray().size() > AssignmentRules.MAX_REQUIREMENTS) {
+                            invalid = true;
+                        } else {
+                            int requirementNumber = 0;
+                            for (JsonElement requirement : orderedItems(requirements, "requirement_order")) {
+                                requirementNumber++;
+                                if (!requirement.isJsonObject()) { invalid = true; continue; }
+                                JsonObject child = requirement.getAsJsonObject();
+                                String title = string(child.get("title"));
+                                String answerType = answerTypeLabel(string(child.get("answer_type")));
+                                JsonElement childPoints = child.get("maximum_points");
+                                if (title == null || title.isBlank() || answerType == null
+                                        || childPoints == null || !childPoints.isJsonPrimitive()
+                                        || !childPoints.getAsJsonPrimitive().isNumber()
+                                        || !AssignmentRules.validPoints(childPoints.getAsBigDecimal())) {
+                                    invalid = true;
+                                    continue;
+                                }
+                                text += "\nYêu cầu " + requirementNumber + ": " + title + " (" + answerType
+                                        + ", " + childPoints.getAsBigDecimal().stripTrailingZeros().toPlainString() + " điểm)";
+                            }
+                        }
+                    }
                 }
                 if (text == null || text.isBlank()) invalid = true;
                 else items.add(text);
@@ -106,6 +133,16 @@ public final class AssignmentDetailView {
     private static String string(JsonElement element) {
         return element != null && element.isJsonPrimitive() && element.getAsJsonPrimitive().isString()
                 ? element.getAsString() : null;
+    }
+
+    private static String answerTypeLabel(String answerType) {
+        if (answerType == null) return null;
+        return switch (answerType) {
+            case "TEXT" -> "Văn bản";
+            case "DIAGRAM" -> "Sơ đồ";
+            case "BOTH" -> "Văn bản và sơ đồ";
+            default -> null;
+        };
     }
 
     public static String listUrl(String base, long classId, AssignmentListFilter filter) {

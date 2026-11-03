@@ -16,6 +16,19 @@ import vn.edu.fpt.ams.model.*;
 public final class SubmissionContentSnapshot {
     private SubmissionContentSnapshot() { }
 
+    public static Assignment assignment(String json,long expectedId) {
+        try {
+            JsonObject a=JsonParser.parseString(json).getAsJsonObject();
+            long id=a.get("assignment_id").getAsLong();
+            if(id!=expectedId)throw new IllegalArgumentException("Snapshot assignment mismatch.");
+            return new Assignment(id,a.get("class_id").getAsLong(),a.get("template_id").getAsLong(),text(a,"title"),
+                    AssignmentPurpose.valueOf(text(a,"assignment_purpose")),ResponseType.valueOf(text(a,"response_type")),
+                    text(a,"instructions"),text(a,"scope_text"),json(a,"task_checklist"),a.get("maximum_score").getAsBigDecimal(),
+                    AssignmentStatus.valueOf(text(a,"status")),instant(a,"available_from"),instant(a,"due_at"),
+                    integer(a,"time_limit_minutes"),integer(a,"attempt_limit"),instant(a,"published_at"),instant(a,"cancelled_at"));
+        } catch(RuntimeException ex) {throw new IllegalStateException("Không tải được bản chụp đề bài.",ex);}
+    }
+
     public static AssignmentDetailPage displayPage(AssignmentDetailPage current, TeacherSubmissionRow row) {
         if (row.assignmentSnapshot() == null && row.questionsSnapshot() == null) return current;
         try {

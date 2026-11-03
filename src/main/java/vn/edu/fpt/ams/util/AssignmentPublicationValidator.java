@@ -81,40 +81,16 @@ public final class AssignmentPublicationValidator {
     }
 
     private static void validateTasks(Assignment assignment, Map<String, String> errors) {
-        JsonArray tasks = array(assignment.taskChecklistJson());
-        if (tasks == null) {
-            errors.put("tasksJson", "Kiểm tra các câu hỏi tự luận đã lưu. Mỗi câu cần nội dung và số thứ tự nguyên dương, không trùng nhau.");
-            return;
+        try {
+            List<EssayQuestions.Task> tasks = EssayQuestions.read(assignment.taskChecklistJson());
+            BigDecimal total = tasks.stream().map(EssayQuestions.Task::points)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            if (AssignmentRules.validMaximum(assignment.maximumScore())
+                    && total.compareTo(assignment.maximumScore()) > 0)
+                errors.put("tasksJson", "Tổng điểm các câu hỏi không được vượt quá điểm tối đa của bài tập.");
+        } catch (IllegalArgumentException ex) {
+            errors.put("tasksJson", ex.getMessage());
         }
-        if (tasks.isEmpty() || tasks.size() > AssignmentRules.MAX_TASKS) {
-            errors.put("tasksJson", "Thêm từ 1 đến 200 câu hỏi tự luận trước khi công bố.");
-            return;
-        }
-        Set<Integer> orders = new HashSet<>();
-        BigDecimal total = BigDecimal.ZERO;
-        boolean validTotal = true;
-        for (int i = 0; i < tasks.size(); i++) {
-            JsonElement element = tasks.get(i);
-            // Existing detail/edit views support legacy text tasks, whose order is their array position.
-            if (element.isJsonPrimitive() && element.getAsJsonPrimitive().isString()) {
-                taskError(errors, i, "chưa có điểm. Hãy sửa bản nháp để thêm điểm.");
-                validTotal = false;
-            } else if (element.isJsonObject()) {
-                JsonObject task = element.getAsJsonObject();
-                Integer order = positiveInteger(task.get("task_order"));
-                if (order == null || !orders.add(order)) taskError(errors, i, "cần số thứ tự nguyên dương, không trùng nhau.");
-                if (!requiredText(task.get("title"))) taskError(errors, i, "cần nội dung không để trống.");
-                JsonElement description = task.get("description");
-                if (description != null && !description.isJsonNull() && !string(description))
-                    taskError(errors, i, "có nội dung mô tả cũ không hợp lệ. Hãy sửa lại bản nháp.");
-                BigDecimal points = decimal(task.get("maximum_points"));
-                if (!validPoints(points)) { taskError(errors, i, "cần điểm hợp lệ với tối đa 2 chữ số thập phân."); validTotal = false; }
-                else total = total.add(points);
-            } else taskError(errors, i, "không hợp lệ. Hãy kiểm tra nội dung và thứ tự câu hỏi.");
-        }
-        if (validTotal && AssignmentRules.validMaximum(assignment.maximumScore())
-                && total.compareTo(assignment.maximumScore()) != 0)
-            errors.putIfAbsent("tasksJson", "Tổng điểm các câu hỏi phải bằng điểm tối đa của bài tập.");
     }
 
     private static void validateNoTasks(String json, Map<String, String> errors) {
@@ -206,11 +182,6 @@ public final class AssignmentPublicationValidator {
         return AssignmentRules.validPoints(points);
     }
 
-    private static BigDecimal decimal(JsonElement value) {
-        if (value == null || !value.isJsonPrimitive() || !value.getAsJsonPrimitive().isNumber()) return null;
-        try { return value.getAsBigDecimal(); } catch (NumberFormatException ex) { return null; }
-    }
-
     private static Integer positiveInteger(JsonElement element) {
         if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isNumber()) return null;
         try {
@@ -228,9 +199,6 @@ public final class AssignmentPublicationValidator {
     private static boolean blank(String value) { return value == null || value.isBlank(); }
     private static String pointsMessage() {
         return "Điểm phải từ 0.01 đến 100, có tối đa 2 chữ số thập phân.";
-    }
-    private static void taskError(Map<String, String> errors, int index, String message) {
-        errors.putIfAbsent("tasksJson", "Câu tự luận " + (index + 1) + " " + message);
     }
     private static void questionError(Map<String, String> errors, int index, String message) {
         errors.putIfAbsent("questionsJson", "Câu hỏi " + (index + 1) + " " + message);

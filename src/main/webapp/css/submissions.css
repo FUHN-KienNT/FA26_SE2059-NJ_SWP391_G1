@@ -38,6 +38,13 @@
 .submission-page .essay-response-block{padding:20px}
 .submission-page .essay-response-block h4{margin:0 0 12px;font-size:13px;color:#526176}
 .submission-page .essay-response-block .empty-content{padding:0;margin:0;font-size:14px;line-height:1.6;color:#627183}
+.submission-page .essay-requirement-answer+.essay-requirement-answer{border-top:1px solid #dce2e8;margin-top:24px;padding-top:24px}
+.submission-page .essay-requirement-prompt{margin-bottom:14px}
+.submission-page .essay-requirement-prompt h4{font-size:15px;line-height:1.6;color:#253246;margin:6px 0}
+.submission-page .essay-requirement-meta{font-size:12px;line-height:1.5;color:#627183;margin:6px 0 0}
+.submission-page .essay-diagram-answer{margin:14px 0 0;padding:14px;border:1px solid #dce2e8;border-radius:6px;background:#fff;overflow:auto}
+.submission-page .essay-diagram-answer img{display:block;max-width:100%;height:auto;margin:auto}
+.submission-page .essay-diagram-answer figcaption{font-size:12px;line-height:1.5;color:#627183;margin-top:10px;text-align:center}
 .submission-page .legacy-essay-answer{margin-top:24px}
 .submission-page .essay-answer-text{padding:18px;background:#f6f8fb;border:1px solid #e6ebf0;border-radius:6px;line-height:1.8}
 .submission-page .answer-legend{display:flex;gap:12px 24px;flex-wrap:wrap;font-size:13px;line-height:1.5}

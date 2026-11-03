@@ -17,7 +17,7 @@ public class StudentObjectiveDAO {
                 AND r.subject_term_id=c.subject_term_id AND r.status='ACTIVE'
             JOIN users u ON u.user_id=r.student_id AND u.role='STUDENT' AND u.account_status='ACTIVE'
             WHERE u.user_id=? AND c.status='ACTIVE' AND a.status='PUBLISHED'
-                AND a.response_type='OBJECTIVE'
+                AND a.response_type IN ('OBJECTIVE','ESSAY')
             """;
 
     public List<Owned> list(Connection connection, long studentId) throws SQLException {
@@ -124,6 +124,22 @@ public class StudentObjectiveDAO {
                 """)) {
             s.setObject(1,submittedAt.atOffset(ZoneOffset.UTC));s.setLong(2,id);
             if(s.executeUpdate()!=1)throw new SQLException("Lượt làm bài đã kết thúc.");
+        }
+    }
+
+    public void saveEssay(Connection connection,long id,long revision,String content) throws SQLException {
+        try(var s=connection.prepareStatement("UPDATE submissions SET content=?,answer_revision=answer_revision+1 WHERE submission_id=? AND status='IN_PROGRESS' AND answer_revision=?")) {
+            s.setString(1,content);s.setLong(2,id);s.setLong(3,revision);
+            if(s.executeUpdate()!=1)throw new ConcurrentModificationException("Bài làm đã được cập nhật ở phiên khác. Vui lòng tải lại trang.");
+        }
+    }
+
+    public Assignment snapshotAssignment(Connection connection,long submissionId,long assignmentId) throws SQLException {
+        try(var s=connection.prepareStatement("SELECT assignment_data FROM submission_content_snapshots WHERE submission_id=?")) {
+            s.setLong(1,submissionId);try(var rows=s.executeQuery()) {
+                if(!rows.next())throw new IllegalStateException("Không tìm thấy bản chụp đề bài của lượt làm này.");
+                return vn.edu.fpt.ams.util.SubmissionContentSnapshot.assignment(rows.getString(1),assignmentId);
+            }
         }
     }
 
