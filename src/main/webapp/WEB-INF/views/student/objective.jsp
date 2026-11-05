@@ -170,6 +170,7 @@
                         </p>
                     </div>
                     <a href="<%=base%>/student/assignments?assignmentId=<%=data.assignment().assignmentId()%>">Trở về bài tập</a>
+                    <% if(data.status()==SubmissionStatus.SUBMITTED||data.status()==SubmissionStatus.GRADED||data.status()==SubmissionStatus.RELEASED) { %><p><a href="<%=base%>/student/results?assignmentId=<%=data.assignment().assignmentId()%>&amp;submissionId=<%=data.submissionId()%>"><%=data.status()==SubmissionStatus.RELEASED?"Xem kết quả":"Xem trạng thái kết quả"%></a> · <a href="<%=base%>/student/results?assignmentId=<%=data.assignment().assignmentId()%>">Lịch sử nộp bài</a></p><% } %>
                     <%
                     }
                 }

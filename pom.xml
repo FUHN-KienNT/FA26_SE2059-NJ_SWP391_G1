@@ -6,6 +6,7 @@
   <name>AMS Assignment Management System</name>
   <properties><ams.build.directory>${project.basedir}/target</ams.build.directory><maven.compiler.release>17</maven.compiler.release><project.build.sourceEncoding>UTF-8</project.build.sourceEncoding></properties>
   <dependencies>
+    <dependency><groupId>net.sourceforge.plantuml</groupId><artifactId>plantuml</artifactId><version>1.2026.9</version></dependency>
     <dependency><groupId>org.apache.poi</groupId><artifactId>poi-ooxml</artifactId><version>6.0.0</version></dependency>
     <dependency><groupId>org.apache.pdfbox</groupId><artifactId>pdfbox</artifactId><version>3.0.8</version></dependency>
     <dependency><groupId>org.apache.tomcat.embed</groupId><artifactId>tomcat-embed-jasper</artifactId><version>10.1.60</version><scope>test</scope></dependency>

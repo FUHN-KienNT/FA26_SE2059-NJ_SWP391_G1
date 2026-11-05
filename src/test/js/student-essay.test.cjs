@@ -8,6 +8,7 @@ const code = fs.readFileSync(path.join(__dirname, '../../main/webapp/js/student-
 const answer = {
     task_order: 2, requirement_order: 3, text: 'Phân tích hệ thống.\nGiữ nguyên bài làm.',
     diagram_xml: '<mxfile><diagram name="Trang-1"><mxGraphModel/></diagram></mxfile>',
+    diagram_plantuml: '',
     diagram_image: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a8WQAAAAASUVORK5CYII='
 };
 const settle = () => new Promise(resolve => setImmediate(resolve));
@@ -15,7 +16,7 @@ function response(status = 200, saved = {}) {
     return {status, ok: status >= 200 && status < 300, headers: {get: () => 'application/json'},
         json: async () => ({finished: false, serverTime: 100, deadline: 10_000, revision: 4, ...saved})};
 }
-function harness({expired = false, text = answer.text, fetchResponse = () => response()} = {}) {
+function harness({expired = false, text = answer.text, diagram = answer, fetchResponse = () => response()} = {}) {
     class Element {
         constructor(tagName = 'DIV', value = '') {
             this.tagName = tagName; this.value = value; this.events = {}; this.disabled = false; this.readOnly = false;
@@ -34,8 +35,9 @@ function harness({expired = false, text = answer.text, fetchResponse = () => res
     const id = name => { if (!ids.has(name)) ids.set(name, new Element()); return ids.get(name); };
     const fields = {
         '.essay-text': new Element('TEXTAREA', text),
-        '.diagram-xml': new Element('TEXTAREA', answer.diagram_xml),
-        '.diagram-image': new Element('TEXTAREA', answer.diagram_image),
+        '.diagram-xml': new Element('TEXTAREA', diagram.diagram_xml),
+        '.diagram-plantuml': new Element('TEXTAREA', diagram.diagram_plantuml),
+        '.diagram-image': new Element('TEXTAREA', diagram.diagram_image),
         '.open-diagram': new Element('BUTTON'), '.remove-diagram': new Element('BUTTON')
     };
     const row = {dataset: {task: '2', requirement: '3', answerType: 'BOTH'}, querySelector: selector => fields[selector] || null};
@@ -67,10 +69,10 @@ function harness({expired = false, text = answer.text, fetchResponse = () => res
     return {form, calls, redirects, fields, controls, status: id('essay-save-status'),
         submit: () => form.fire('submit'), advance: milliseconds => { elapsed += milliseconds; intervals.forEach(callback => callback()); }};
 }
-function submitted(h) {
+function submitted(h, expected = answer) {
     const call = h.calls.find(call => call.data.action === 'submitEssay');
     assert.ok(call, 'Expected a submission request');
-    assert.deepEqual(JSON.parse(call.data.essayContent), {format: 'ams-essay-v2', answers: [answer]});
+    assert.deepEqual(JSON.parse(call.data.essayContent), {format: 'ams-essay-v2', answers: [expected]});
     return call.data;
 }
 
@@ -81,12 +83,15 @@ test('client expiry submits keyed text and diagram content instead of an empty-a
     assert.equal(h.redirects.length, 1);
 });
 
-test('manual submission retains keyed text and diagram content after autosave', async () => {
-    const h = harness();
+test('autosave and manual submission retain keyed text, PlantUML source and preview', async () => {
+    const plantAnswer = {...answer, diagram_xml: '', diagram_plantuml: '@startuml\nSV -> AMS: Nộp bài\n@enduml'};
+    const h = harness({diagram: plantAnswer});
     await settle();
+    const saved = h.calls.find(call => call.data.action === 'saveEssay');
+    assert.deepEqual(JSON.parse(saved.data.essayContent), {format: 'ams-essay-v2', answers: [plantAnswer]});
     h.submit();
     await settle();
-    assert.equal(submitted(h).answerRevision, '4');
+    assert.equal(submitted(h, plantAnswer).answerRevision, '4');
     assert.equal(h.redirects.length, 1);
 });
 

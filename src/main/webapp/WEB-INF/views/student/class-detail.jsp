@@ -115,6 +115,7 @@ String[] workOptions = {"NOT_STARTED", "IN_PROGRESS", "SUBMITTED", "GRADED", "RE
                     <td><% if ("PUBLISHED".equals(assignment.status())) { %>
                         <a class="class-assignment-action" href="<%=WebSupport.html(StudentClassView.assignmentUrl(classContext, classroom.classId(), assignment))%>" aria-label="<%=WebSupport.html(StudentClassView.actionLabel(assignment) + ": " + assignment.title())%>"><%=WebSupport.html(StudentClassView.actionLabel(assignment))%><span aria-hidden="true"> →</span></a>
                         <% } else { %><span class="class-unavailable">Bài tập đã hủy</span><% } %>
+                        <% if (assignment.submittedAt()!=null && ("SUBMITTED".equals(assignment.workStatus())||"GRADED".equals(assignment.workStatus())||"RELEASED".equals(assignment.workStatus()))) { %><small><a href="<%=classContext%>/student/results?assignmentId=<%=assignment.assignmentId()%>&amp;submissionId=<%=assignment.submissionId()%>"><%="RELEASED".equals(assignment.workStatus())?"Xem kết quả":"Trạng thái kết quả"%></a> · <a href="<%=classContext%>/student/results?assignmentId=<%=assignment.assignmentId()%>">Lịch sử nộp</a></small><% } %>
                     </td>
                 </tr>
                 <% } %>

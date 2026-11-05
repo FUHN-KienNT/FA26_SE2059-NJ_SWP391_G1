@@ -72,6 +72,33 @@ class EssayAnswerCodecTest {
         assertEquals(png, content.answers().get("7:3").image());
     }
 
+    @Test void plantUmlRoundTripsByRequirementWithoutChangingOlderDrawIoAnswers() throws Exception {
+        String source = "@startuml\nSinhVien -> HeThong : Nộp bài\n@enduml";
+        String png = png(2, 2);
+        JsonObject plant = row(7, 5, "Giải thích luồng nộp bài.", "", png);
+        plant.addProperty("diagram_plantuml", source);
+        var normalized = EssayAnswerCodec.normalize(TASKS, payload(plant, row(7, 3, "", XML, png)));
+        var answer = normalized.answers().get("7:5");
+        assertEquals(PlantUmlSource.normalize(source), answer.plantuml());
+        assertEquals("", answer.xml());
+        assertEquals(png, answer.image());
+        assertEquals("Giải thích luồng nộp bài.", answer.text());
+        assertEquals(XML, normalized.answers().get("7:3").xml());
+        assertEquals("", normalized.answers().get("7:3").plantuml());
+        assertEquals(normalized.json(), EssayAnswerCodec.normalize(TASKS, normalized.json()).json());
+    }
+
+    @Test void plantUmlMustMatchAnswerTypeAndHaveOneEditableSourcePlusPng() throws Exception {
+        String source = "@startuml\nA -> B : Submit\n@enduml";
+        String png = png(2, 2);
+        JsonObject textOnly = row(7, 9, "", "", png); textOnly.addProperty("diagram_plantuml", source);
+        JsonObject twoEditors = row(7, 5, "", XML, png); twoEditors.addProperty("diagram_plantuml", source);
+        JsonObject noPreview = row(7, 5, "", "", ""); noPreview.addProperty("diagram_plantuml", source);
+        JsonObject unsafe = row(7, 5, "", "", png); unsafe.addProperty("diagram_plantuml", "@startuml\n!include https://example.test/private\n@enduml");
+        for (var invalid : List.of(textOnly, twoEditors, noPreview, unsafe))
+            assertThrows(IllegalArgumentException.class, () -> EssayAnswerCodec.normalize(TASKS, payload(invalid)));
+    }
+
     @Test void pngMustDecodeAsABoundedRasterInsteadOfSvgBase64OrJunk() throws Exception {
         assertDoesNotThrow(() -> EssayAnswerCodec.validateImage(png(1, 1)));
         String svg = "data:image/svg+xml;base64," + Base64.getEncoder().encodeToString("<svg/>".getBytes(StandardCharsets.UTF_8));

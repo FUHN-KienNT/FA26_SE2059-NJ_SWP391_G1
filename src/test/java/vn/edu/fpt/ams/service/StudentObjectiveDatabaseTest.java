@@ -79,17 +79,17 @@ class StudentObjectiveDatabaseTest {
     }
     void sql(String sql) throws Exception {try(var s=connection.createStatement()){s.execute(sql);}if(!connection.getAutoCommit())connection.commit();}
     long count(String table) throws Exception {try(var s=connection.createStatement();var r=s.executeQuery("SELECT count(*) FROM "+table)){r.next();return r.getLong(1);}}
-    @Test void startsResumesAndGradesMixedSelectionsWithoutReleasingOrOverwriting() throws Exception {
+    @Test void startsResumesAndReleasesMixedSelectionsWithoutOverwriting() throws Exception {
         var service=service();long id=service.start(1,50);
         assertEquals(id,service.start(1,50));assertEquals(1,count("submissions"));assertEquals(1,count("submission_content_snapshots"));
         var page=service.page(1,50,id);assertTrue(page.questions().get(0).multiple());assertFalse(page.questions().get(1).multiple());
         service.submit(1,50,id,0,Map.of(51L,List.of("A","C"),52L,List.of("B")));
         try(var s=connection.createStatement();var r=s.executeQuery("SELECT * FROM submissions")) {
-            r.next();assertEquals("GRADED",r.getString("status"));assertEquals(5,r.getBigDecimal("score").intValue());
-            assertNull(r.getObject("released_at"));assertNotNull(r.getObject("graded_at"));assertTrue(r.getString("answer").contains("selected_option_ids"));
+            r.next();assertEquals("RELEASED",r.getString("status"));assertEquals(5,r.getBigDecimal("score").intValue());
+            assertEquals(r.getObject("graded_at"),r.getObject("released_at"));assertNotNull(r.getObject("released_at"));assertNull(r.getObject("graded_by"));assertTrue(r.getString("answer").contains("selected_option_ids"));
         }
         service.submit(1,50,id,0,Map.of(51L,List.of("B")));
-        assertEquals(SubmissionStatus.GRADED,service.page(1,50,id).status());
+        assertEquals(SubmissionStatus.RELEASED,service.page(1,50,id).status());
         try(var s=connection.createStatement();var r=s.executeQuery("SELECT score FROM submissions")){r.next();assertEquals(5,r.getInt(1));}
         assertTrue(service.page(1,50,id).questions().isEmpty());
     }
@@ -119,7 +119,7 @@ class StudentObjectiveDatabaseTest {
         assertFalse(service.save(1,50,id,0,Map.of(51L,List.of("A","C"))).finished());
         sql("UPDATE submissions SET started_at=CURRENT_TIMESTAMP-INTERVAL '21 minutes',deadline_at=CURRENT_TIMESTAMP-INTERVAL '1 minute'");
         service.submit(1,50,id,0,Map.of(51L,List.of("B"),52L,List.of("A")));
-        assertEquals(SubmissionStatus.GRADED,service.page(1,50,id).status());
+        assertEquals(SubmissionStatus.RELEASED,service.page(1,50,id).status());
         try(var s=connection.createStatement();var r=s.executeQuery("SELECT submitted_at,deadline_at,score,answer FROM submissions")) {
             r.next();assertEquals(r.getObject(2),r.getObject(1));assertEquals(5,r.getInt(3));
             assertFalse(r.getString(4).contains("\"B\""));
@@ -155,7 +155,7 @@ class StudentObjectiveDatabaseTest {
         clock[0]=Instant.parse("2026-10-16T11:50:00Z");
         assertTrue(service.save(1,50,id,0,Map.of(51L,List.of("B"),52L,List.of("A"))).finished());
         try(var s=connection.createStatement();var r=s.executeQuery("SELECT score,submitted_at=deadline_at FROM submissions")){r.next();assertEquals(5,r.getInt(1));assertTrue(r.getBoolean(2));}
-        assertEquals(SubmissionStatus.GRADED,service.page(1,50,id).status());
+        assertEquals(SubmissionStatus.RELEASED,service.page(1,50,id).status());
     }
     @Test void scheduledClosureWorksWithoutBrowserAndNeverTouchesCancelledOrVoidWork() throws Exception {
         var service=service();long id=service.start(1,50);
@@ -177,7 +177,7 @@ class StudentObjectiveDatabaseTest {
         var service=service();long id=service.start(1,50);
         service.save(1,50,id,0,Map.of(52L,List.of("A")));
         sql("UPDATE submissions SET started_at=CURRENT_TIMESTAMP-INTERVAL '21 minutes',deadline_at=CURRENT_TIMESTAMP-INTERVAL '1 minute'");
-        assertEquals(SubmissionStatus.GRADED,service.page(1,50,id).status());
+        assertEquals(SubmissionStatus.RELEASED,service.page(1,50,id).status());
         try(var s=connection.createStatement();var r=s.executeQuery("SELECT score FROM submissions")){r.next();assertEquals(5,r.getInt(1));}
     }
     @Test void staleAutosaveOrManualSubmitCannotOverwriteNewerAnswers() throws Exception {
@@ -188,7 +188,7 @@ class StudentObjectiveDatabaseTest {
         assertThrows(ConcurrentModificationException.class,()->service.submit(1,50,id,0L,Map.of(51L,List.of("B"))));
         assertEquals(List.of("A","C"),service.page(1,50,id).selected().get(51L));
         service.submit(1,50,id,1L,Map.of(51L,List.of("A","C")));
-        assertEquals(SubmissionStatus.GRADED,service.page(1,50,id).status());
+        assertEquals(SubmissionStatus.RELEASED,service.page(1,50,id).status());
     }
     @Test void malformedLegacyAttemptDoesNotRollbackOtherAttemptsInTheSameAssignment() throws Exception {
         var service=service();long broken=service.start(1,50);
@@ -201,7 +201,7 @@ class StudentObjectiveDatabaseTest {
         sql("UPDATE submissions SET started_at=CURRENT_TIMESTAMP-INTERVAL '21 minutes',deadline_at=CURRENT_TIMESTAMP-INTERVAL '1 minute' WHERE submission_id="+valid);
         assertEquals(2,service.finishOverdue());
         try(var s=connection.createStatement();var r=s.executeQuery("SELECT score,status FROM submissions WHERE submission_id="+valid)) {
-            r.next();assertEquals(5,r.getInt(1));assertEquals("GRADED",r.getString(2));
+            r.next();assertEquals(5,r.getInt(1));assertEquals("RELEASED",r.getString(2));
         }
         try(var s=connection.createStatement();var r=s.executeQuery("SELECT * FROM submissions WHERE submission_id="+broken)) {
             r.next();assertEquals("SUBMITTED",r.getString("status"));assertNull(r.getObject("score"));assertNull(r.getObject("graded_at"));
@@ -230,7 +230,7 @@ class StudentObjectiveDatabaseTest {
         sql("UPDATE submissions SET answer='[{\"question_id\":51,\"selected_option_id\":null},{\"question_id\":52,\"selected_option_id\":\"A\"}]',started_at=CURRENT_TIMESTAMP-INTERVAL '21 minutes',deadline_at=CURRENT_TIMESTAMP-INTERVAL '1 minute'");
         assertEquals(1,service.finishOverdue());
         try(var s=connection.createStatement();var r=s.executeQuery("SELECT status,score FROM submissions WHERE submission_id="+legacy)) {
-            r.next();assertEquals("GRADED",r.getString(1));assertEquals(5,r.getInt(2));
+            r.next();assertEquals("RELEASED",r.getString(1));assertEquals(5,r.getInt(2));
         }
         long malformed=service.start(1,50);
         sql("UPDATE submissions SET answer='[{\"question_id\":51.5,\"selected_option_id\":\"A\"}]',started_at=CURRENT_TIMESTAMP-INTERVAL '21 minutes',deadline_at=CURRENT_TIMESTAMP-INTERVAL '1 minute' WHERE submission_id="+malformed);

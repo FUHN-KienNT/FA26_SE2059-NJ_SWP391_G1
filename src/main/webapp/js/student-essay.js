@@ -10,14 +10,23 @@
     const dialog = document.getElementById('diagram-dialog');
     const diagramStatus = document.getElementById('diagram-status');
     const frameHost = document.getElementById('diagram-frame');
+    const plantDialog = document.getElementById('plantuml-dialog');
+    const plantSource = document.getElementById('plantuml-source');
+    const plantStatus = document.getElementById('plantuml-status');
+    const plantPreview = document.getElementById('plantuml-preview');
+    const plantRender = document.getElementById('plantuml-render');
+    const plantApply = document.getElementById('plantuml-apply');
+    const plantUrl = new URL('diagrams/plantuml', url).href;
     const editorOrigin = 'https://embed.diagrams.net';
     let deadline = Number(form.dataset.deadline), serverTime = Number(form.dataset.serverTime), syncAt = performance.now();
     let dirty = true, submitting = false, blocked = false, completed = false, savePromise, debounce, activeEditor, frame, pendingXml;
+    let plantEditor, plantRequest, plantGeneration = 0, renderedPlantSource = '', renderedPlantImage = '';
     const now = () => serverTime + performance.now() - syncAt;
     const content = () => ({format: 'ams-essay-v2', answers: requirements.map(row => ({
         task_order: Number(row.dataset.task), requirement_order: Number(row.dataset.requirement),
         text: row.querySelector('.essay-text')?.value || '',
         diagram_xml: row.querySelector('.diagram-xml')?.value || '',
+        diagram_plantuml: row.querySelector('.diagram-plantuml')?.value || '',
         diagram_image: row.querySelector('.diagram-image')?.value || ''
     }))});
     function body(action) {
@@ -102,6 +111,7 @@
         }
     }
     function closeEditor(force = false) {
+        if (plantEditor && !closePlantEditor(force)) return false;
         if (!activeEditor) return true;
         if (!force && !confirm('Đóng trình vẽ? Thay đổi chưa nhấn Lưu trong trình vẽ sẽ không được giữ.')) return false;
         activeEditor = null; pendingXml = null; frame?.remove(); frame = null; dialog.close(); return true;
@@ -109,6 +119,8 @@
     function send(message) { frame?.contentWindow.postMessage(JSON.stringify(message), editorOrigin); }
     function openEditor(row) {
         if (blocked || submitting || now() >= deadline) return;
+        if (row.querySelector('.diagram-plantuml').value && !confirm('Yêu cầu này đang có sơ đồ PlantUML. Nếu lưu bằng draw.io, sơ đồ cũ sẽ được thay thế. Tiếp tục?')) return;
+        if (!closeEditor()) return;
         activeEditor = row; pendingXml = null; frameHost.replaceChildren();
         diagramStatus.textContent = 'Đang tải draw.io… Nhấn Lưu trong trình vẽ để đưa sơ đồ vào bài làm.';
         frame = document.createElement('iframe'); frame.title = 'Trình vẽ draw.io'; frame.referrerPolicy = 'no-referrer';
@@ -161,17 +173,90 @@
                 const png = await croppedPng(message.data);
                 if (row !== activeEditor || blocked || submitting || now() >= deadline) return;
                 row.querySelector('.diagram-xml').value = xml; row.querySelector('.diagram-image').value = png;
+                row.querySelector('.diagram-plantuml').value = '';
                 const preview = row.querySelector('.diagram-preview'); preview.src = png; preview.hidden = false;
                 row.querySelector('.remove-diagram').hidden = false; closeEditor(true); changed(); save();
             } catch (error) { diagramStatus.textContent = error.message; }
         } else if (message.event === 'exit') closeEditor(false);
     });
+    function clearPlantPreview() {
+        renderedPlantSource = ''; renderedPlantImage = ''; plantApply.disabled = true;
+        plantPreview.hidden = true; plantPreview.removeAttribute('src');
+    }
+    function closePlantEditor(force = false) {
+        if (!plantEditor) return true;
+        if (!force && plantSource.value !== plantEditor.querySelector('.diagram-plantuml').value
+                && !confirm('Đóng PlantUML? Nội dung chưa nhấn Đưa vào bài làm sẽ không được giữ.')) return false;
+        plantGeneration++; plantRequest?.abort(); plantRequest = null; plantEditor = null;
+        clearPlantPreview(); plantDialog.close(); return true;
+    }
+    function openPlantEditor(row) {
+        if (blocked || submitting || now() >= deadline) return;
+        if (row.querySelector('.diagram-xml').value && !confirm('Yêu cầu này đang có sơ đồ draw.io. Nếu đưa sơ đồ PlantUML vào bài làm, sơ đồ cũ sẽ được thay thế. Tiếp tục?')) return;
+        if (!closeEditor()) return;
+        plantEditor = row; plantGeneration++; clearPlantPreview(); plantRender.disabled = false;
+        const source = row.querySelector('.diagram-plantuml').value;
+        plantSource.value = source || '@startuml\nactor "Sinh viên" as Student\nparticipant "Hệ thống" as System\nStudent -> System: Nộp bài\nSystem --> Student: Xác nhận đã nhận bài\n@enduml';
+        if (source && row.querySelector('.diagram-image').value) {
+            renderedPlantSource = source; renderedPlantImage = row.querySelector('.diagram-image').value;
+            plantPreview.src = renderedPlantImage; plantPreview.hidden = false; plantApply.disabled = false;
+        }
+        plantStatus.textContent = 'Nhập mã PlantUML, nhấn Xem trước, rồi Đưa vào bài làm để lưu sơ đồ cho yêu cầu này.';
+        plantDialog.showModal(); plantSource.focus();
+    }
+    plantSource.addEventListener('input', () => {
+        plantGeneration++; plantRequest?.abort(); plantRequest = null; plantRender.disabled = false;
+        clearPlantPreview(); plantStatus.textContent = 'Mã đã thay đổi. Nhấn Xem trước để cập nhật sơ đồ.';
+    });
+    plantRender.addEventListener('click', async () => {
+        if (!plantEditor || blocked || submitting || now() >= deadline) return;
+        const row = plantEditor, source = plantSource.value, generation = ++plantGeneration;
+        clearPlantPreview();
+        if (!source.trim()) { plantStatus.textContent = 'Hãy nhập mã PlantUML.'; return; }
+        if (source.length > 20000) { plantStatus.textContent = 'Mã PlantUML không được vượt quá 20.000 ký tự.'; return; }
+        const controller = new AbortController(); plantRequest?.abort(); plantRequest = controller;
+        const timeout = setTimeout(() => controller.abort(), 20000);
+        const payload = new URLSearchParams();
+        for (const name of ['csrf', 'assignmentId', 'submissionId']) payload.set(name, form.elements[name].value);
+        payload.set('taskOrder', row.dataset.task); payload.set('requirementOrder', row.dataset.requirement); payload.set('source', source);
+        plantRender.disabled = true; plantStatus.textContent = 'Đang dựng sơ đồ…';
+        try {
+            const response = await fetch(plantUrl, {method: 'POST', body: payload, credentials: 'same-origin', cache: 'no-store', signal: controller.signal});
+            const data = response.headers.get('content-type')?.includes('application/json') ? await response.json() : null;
+            if (!response.ok || !data) throw new Error(data?.error || 'Không tạo được sơ đồ. Kiểm tra kết nối và đăng nhập rồi thử lại.');
+            if (typeof data.source !== 'string' || typeof data.image !== 'string') throw new Error('Máy chủ chưa trả về sơ đồ hợp lệ.');
+            const image = await croppedPng(data.image);
+            if (generation !== plantGeneration || row !== plantEditor || blocked || submitting || now() >= deadline) return;
+            // Retain exactly the source represented by this preview; edits invalidate it.
+            plantSource.value = data.source; renderedPlantSource = data.source; renderedPlantImage = image;
+            plantPreview.src = image; plantPreview.hidden = false; plantApply.disabled = false;
+            plantStatus.textContent = 'Đã tạo ảnh xem trước. Nhấn Đưa vào bài làm để lưu sơ đồ.';
+        } catch (error) {
+            if (generation === plantGeneration && row === plantEditor)
+                plantStatus.textContent = error.name === 'AbortError' ? 'Dựng sơ đồ quá lâu. Hãy rút gọn mã rồi thử lại.' : error.message;
+        } finally {
+            clearTimeout(timeout);
+            if (generation === plantGeneration && row === plantEditor) { plantRequest = null; plantRender.disabled = false; }
+        }
+    });
+    plantApply.addEventListener('click', () => {
+        if (!plantEditor || blocked || submitting || now() >= deadline || !renderedPlantImage || plantSource.value !== renderedPlantSource) return;
+        const row = plantEditor;
+        row.querySelector('.diagram-plantuml').value = renderedPlantSource;
+        row.querySelector('.diagram-xml').value = ''; row.querySelector('.diagram-image').value = renderedPlantImage;
+        const preview = row.querySelector('.diagram-preview'); preview.src = renderedPlantImage; preview.hidden = false;
+        row.querySelector('.remove-diagram').hidden = false; closePlantEditor(true); changed(); save();
+    });
+    document.getElementById('plantuml-close').addEventListener('click', () => closePlantEditor());
+    plantDialog.addEventListener('cancel', event => { event.preventDefault(); closePlantEditor(); });
     requirements.forEach(row => {
         row.querySelector('.essay-text')?.addEventListener('input', changed);
         row.querySelector('.open-diagram')?.addEventListener('click', () => openEditor(row));
+        row.querySelector('.open-plantuml')?.addEventListener('click', () => openPlantEditor(row));
         row.querySelector('.remove-diagram')?.addEventListener('click', () => {
             if (blocked || submitting || !confirm('Xóa sơ đồ khỏi yêu cầu này?')) return;
             row.querySelector('.diagram-xml').value = ''; row.querySelector('.diagram-image').value = '';
+            row.querySelector('.diagram-plantuml').value = '';
             row.querySelector('.diagram-preview').removeAttribute('src'); row.querySelector('.diagram-preview').hidden = true;
             row.querySelector('.remove-diagram').hidden = true; changed();
         });
@@ -180,7 +265,7 @@
     dialog.addEventListener('cancel', event => { event.preventDefault(); closeEditor(); });
     document.getElementById('essay-save').addEventListener('click', () => { dirty = true; save(); });
     form.addEventListener('submit', event => { event.preventDefault(); if (now() >= deadline || confirm('Nộp bài tự luận? Sau khi nộp bạn không thể sửa bài làm.')) finish(); });
-    window.addEventListener('beforeunload', event => { if ((dirty || savePromise || activeEditor) && !completed) { event.preventDefault(); event.returnValue = ''; } });
+    window.addEventListener('beforeunload', event => { if ((dirty || savePromise || activeEditor || plantEditor) && !completed) { event.preventDefault(); event.returnValue = ''; } });
     window.addEventListener('online', () => now() >= deadline ? finish() : save());
     function tick() {
         const seconds = Math.max(0, Math.ceil((deadline - now()) / 1000));

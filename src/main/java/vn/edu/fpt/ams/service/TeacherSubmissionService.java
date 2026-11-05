@@ -45,7 +45,8 @@ public class TeacherSubmissionService {
             long lastPage = Math.max(1, (count + TeacherSubmissionFilter.PAGE_SIZE - 1) / TeacherSubmissionFilter.PAGE_SIZE);
             TeacherSubmissionFilter effective = filter.withPage((int) Math.min(filter.page(), lastPage));
             return new TeacherSubmissionListPage(assignment, effective,
-                    dao.findForTeacher(connection, teacherId, assignmentId, effective), count);
+                    dao.findForTeacher(connection, teacherId, assignmentId, effective), count,
+                    dao.studentCounts(connection,teacherId,assignmentId));
         });
     }
 

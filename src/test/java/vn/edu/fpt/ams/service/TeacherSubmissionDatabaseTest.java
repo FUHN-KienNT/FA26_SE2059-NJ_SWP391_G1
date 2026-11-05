@@ -194,6 +194,13 @@ class TeacherSubmissionDatabaseTest {
         return snapshot.toString();
     }
 
+    @Test @Tag("database") void unsubmittedAttemptsRemainInRosterButCannotBeOpened() {
+        assertTrue(ids(null,null).containsAll(List.of(4L,5L,6L)));
+        for(long id:List.of(4L,5L,6L))
+            assertThrows(NoSuchElementException.class,()->service().detailPage(1,501,id));
+        assertNotNull(service().detailPage(1,501,1));
+    }
+
     @Test void filterNormalizesAllStatusesAndUnicodeCodePointLength() {
         assertEquals("Nguyễn", TeacherSubmissionFilter.from("  Nguyễn  "," all ").search());
         assertNull(TeacherSubmissionFilter.from(null,null).status());
@@ -235,6 +242,20 @@ class TeacherSubmissionDatabaseTest {
         assertEquals("A1",page.assignment().classCode());
         assertEquals(9,page.submissions().size()); assertEquals(9,page.totalCount());
         assertThrows(UnsupportedOperationException.class,()->page.submissions().clear());
+    }
+
+    @Test @Tag("database") void summaryCountsStudentsOnceByLatestAttemptAcrossFiltersAndPages() {
+        var all=service().listPage(1,501,TeacherSubmissionFilter.from(null,null));
+        assertEquals(6,all.totalStudents());
+        assertEquals(java.util.Map.of("NOT_STARTED",2L,"SUBMITTED",1L,"EXPIRED",1L,"VOID",1L,"IN_PROGRESS",1L),all.studentCounts());
+        var filtered=service().listPage(1,501,TeacherSubmissionFilter.from("50%_","NOT_STARTED","99"));
+        assertEquals(1,filtered.totalCount());
+        assertEquals(all.studentCounts(),filtered.studentCounts());
+        assertThrows(UnsupportedOperationException.class,()->all.studentCounts().put("NOT_STARTED",99L));
+        assertTrue(all.submissions().stream().filter(row->row.submission()!=null
+            && java.util.Set.of(1L,2L,3L,7L).contains(row.submission().submissionId())).allMatch(row->row.canViewWork()));
+        assertTrue(all.submissions().stream().filter(row->row.submission()==null
+            || java.util.Set.of(4L,5L,6L).contains(row.submission().submissionId())).noneMatch(row->row.canViewWork()));
     }
 
     @Test @Tag("database") void includesCurrentUnstartedStudentsWithoutInventingAttemptsOrDetailIds() {
@@ -344,7 +365,8 @@ class TeacherSubmissionDatabaseTest {
         ids(null,null);ids("alice","SUBMITTED");
         service().listPage(1,501,TeacherSubmissionFilter.from(null,"NOT_STARTED"));
         service().listPage(1,501,TeacherSubmissionFilter.from("50%_","NOT_STARTED","99"));
-        service().detailPage(1,501,3);service().detailPage(1,501,6);
+        service().detailPage(1,501,3);
+        assertThrows(NoSuchElementException.class,()->service().detailPage(1,501,6));
         assertEquals(before,snapshot());
     }
 

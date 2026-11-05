@@ -96,6 +96,21 @@ public class TeacherSubmissionDAO {
         }
     }
 
+    /** Latest attempt per student, independent of the current page and filters. */
+    public java.util.Map<String,Long> studentCounts(Connection connection,long teacherId,long assignmentId) throws SQLException {
+        String sql="SELECT work_status,count(*) FROM (SELECT COALESCE(sub.status,'NOT_STARTED') work_status,"
+                +" row_number() OVER(PARTITION BY student.user_id ORDER BY sub.attempt_number DESC NULLS LAST,sub.submission_id DESC NULLS LAST) rn "
+                +FROM_ROSTER+") roster WHERE rn=1 GROUP BY work_status";
+        try(var p=connection.prepareStatement(sql)) {
+            p.setLong(1,teacherId);p.setLong(2,assignmentId);
+            try(var r=p.executeQuery()) {
+                var result=new java.util.LinkedHashMap<String,Long>();
+                while(r.next())result.put(r.getString(1),r.getLong(2));
+                return result;
+            }
+        }
+    }
+
     private static String filterSql(TeacherSubmissionFilter filter) {
         // strpos treats percent, underscore and SQL-looking text as literal characters.
         String sql = filter.search().isEmpty() ? "" : " AND (strpos(lower(student.full_name), lower(?)) > 0"
@@ -119,7 +134,8 @@ public class TeacherSubmissionDAO {
 
     public Optional<TeacherSubmissionRow> findDetailForTeacher(Connection connection,
             long teacherId, long assignmentId, long submissionId) throws SQLException {
-        try (var statement = connection.prepareStatement(SELECT_OWNED + " AND sub.submission_id = ?")) {
+        try (var statement = connection.prepareStatement(SELECT_OWNED + " AND sub.submission_id = ?"
+                + " AND sub.submitted_at IS NOT NULL AND sub.status IN ('SUBMITTED','GRADED','RELEASED')")) {
             statement.setLong(1, teacherId);
             statement.setLong(2, assignmentId);
             statement.setLong(3, submissionId);

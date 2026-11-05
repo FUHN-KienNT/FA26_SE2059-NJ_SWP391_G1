@@ -1,0 +1,9 @@
+.submission-diagram-dialog{width:min(1100px,92vw);max-width:92vw;max-height:90vh;box-sizing:border-box;border:1px solid #c6d0db;border-radius:12px;padding:18px;color:#163353;background:white}
+.submission-diagram-dialog::backdrop{background:rgba(20,35,55,.65)}
+.submission-diagram-dialog>button,[data-diagram-zoom]{font:inherit;color:#174a78;background:#fff;border:1px solid #bfd0e4;border-radius:6px;padding:9px 14px;cursor:pointer}
+.submission-diagram-dialog>button{display:block;margin:0 0 14px auto}
+.submission-diagram-stage{overflow:auto;max-height:72vh}
+.submission-diagram-stage img{display:block;width:100%;height:auto;min-width:280px}
+.submission-diagram-dialog button:focus-visible,[data-diagram-zoom]:focus-visible{outline:3px solid #83aafa;outline-offset:3px}
+.result-diagram-figure{margin:16px 0}
+.result-diagram-figure figcaption{margin-top:10px}

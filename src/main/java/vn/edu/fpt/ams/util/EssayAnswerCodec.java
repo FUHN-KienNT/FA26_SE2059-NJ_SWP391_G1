@@ -15,7 +15,11 @@ import org.xml.sax.helpers.DefaultHandler;
 public final class EssayAnswerCodec {
     public static final String FORMAT="ams-essay-v2";
     public static final int MAX_PAYLOAD=1_500_000, MAX_IMAGE=262_144, MAX_XML=150_000;
-    public record Answer(int taskOrder,int requirementOrder,String text,String xml,String image) { }
+    public record Answer(int taskOrder,int requirementOrder,String text,String xml,String image,String plantuml) {
+        public Answer(int taskOrder,int requirementOrder,String text,String xml,String image) {
+            this(taskOrder,requirementOrder,text,xml,image,"");
+        }
+    }
     public record Content(String json,Map<String,Answer> answers) {
         public Content { answers=Map.copyOf(answers); }
     }
@@ -40,13 +44,16 @@ public final class EssayAnswerCodec {
                 var row=element.getAsJsonObject();int task=positive(row,"task_order"), requirement=positive(row,"requirement_order");
                 String key=key(task,requirement);var expected=allowed.get(key);
                 if(expected==null || answers.containsKey(key))throw bad("Câu trả lời bị trùng hoặc không thuộc đề bài của lượt làm này.");
-                String text=string(row,"text"),xml=string(row,"diagram_xml"),image=string(row,"diagram_image");
+                String text=string(row,"text"),xml=string(row,"diagram_xml"),image=string(row,"diagram_image"),plantuml=string(row,"diagram_plantuml");
                 if(text.codePointCount(0,text.length())>10_000)throw bad("Mỗi câu trả lời tối đa 10.000 ký tự.");
-                if("TEXT".equals(expected.answerType()) && (!xml.isBlank()||!image.isBlank()))throw bad("Yêu cầu này chỉ nhận câu trả lời bằng chữ.");
+                if("TEXT".equals(expected.answerType()) && (!xml.isBlank()||!image.isBlank()||!plantuml.isBlank()))throw bad("Yêu cầu này chỉ nhận câu trả lời bằng chữ.");
                 if("DIAGRAM".equals(expected.answerType()) && !text.isBlank())throw bad("Yêu cầu này chỉ nhận sơ đồ.");
-                if(xml.isBlank()!=image.isBlank())throw bad("Sơ đồ phải có cả dữ liệu chỉnh sửa và ảnh xem trước.");
-                if(!xml.isBlank()) { validateXml(xml); validateImage(image); }
-                answers.put(key,new Answer(task,requirement,text,xml,image));
+                if(!xml.isBlank()&&!plantuml.isBlank())throw bad("Mỗi yêu cầu chỉ lưu một sơ đồ draw.io hoặc PlantUML.");
+                if((xml.isBlank()&&plantuml.isBlank())!=image.isBlank())throw bad("Sơ đồ phải có cả dữ liệu chỉnh sửa và ảnh xem trước.");
+                if(!xml.isBlank()) validateXml(xml);
+                if(!plantuml.isBlank()) plantuml=PlantUmlSource.normalize(plantuml);
+                if(!image.isBlank()) validateImage(image);
+                answers.put(key,new Answer(task,requirement,text,xml,image,plantuml));
             }
         }
         JsonArray rows=new JsonArray();
@@ -54,7 +61,8 @@ public final class EssayAnswerCodec {
             String k=key(task.order(),r.order());
             var answer=answers.computeIfAbsent(k,x->new Answer(task.order(),r.order(),"","",""));
             JsonObject row=new JsonObject();row.addProperty("task_order",answer.taskOrder());row.addProperty("requirement_order",answer.requirementOrder());
-            row.addProperty("text",answer.text());row.addProperty("diagram_xml",answer.xml());row.addProperty("diagram_image",answer.image());rows.add(row);
+            row.addProperty("text",answer.text());row.addProperty("diagram_xml",answer.xml());row.addProperty("diagram_image",answer.image());
+            if(!answer.plantuml().isBlank())row.addProperty("diagram_plantuml",answer.plantuml());rows.add(row);
         }
         JsonObject root=new JsonObject();root.addProperty("format",FORMAT);root.add("answers",rows);
         String json=root.toString();if(json.getBytes(StandardCharsets.UTF_8).length>MAX_PAYLOAD)throw bad("Bài làm vượt giới hạn dung lượng 1.5 MB.");

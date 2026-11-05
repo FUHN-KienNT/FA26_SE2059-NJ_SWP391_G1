@@ -74,7 +74,7 @@
             <% } else { %>
             <ul class="student-result-list">
             <% for (var item : dashboard.results()) { %>
-                <li><div><h3><%=WebSupport.html(item.title())%></h3><p><%=WebSupport.html(item.classCode())%></p><small>Công bố: <%=WebSupport.html(AssignmentListView.deadline(item.releasedAt()))%> (UTC+07)</small></div><div class="student-score"><strong><%=WebSupport.html(item.score().stripTrailingZeros().toPlainString())%></strong><span>Điểm</span></div></li>
+                <li><div><h3><% if(item.assignmentId()>0&&item.submissionId()>0) { %><a href="${pageContext.request.contextPath}/student/results?assignmentId=<%=item.assignmentId()%>&amp;submissionId=<%=item.submissionId()%>"><%=WebSupport.html(item.title())%></a><% } else { %><%=WebSupport.html(item.title())%><% } %></h3><p><%=WebSupport.html(item.classCode())%> · Lượt <%=item.attemptNumber()%></p><small>Công bố: <%=WebSupport.html(AssignmentListView.deadline(item.releasedAt()))%> (UTC+07)</small></div><div class="student-score"><strong><%=WebSupport.html(item.score().stripTrailingZeros().toPlainString())%></strong><span>Điểm</span></div></li>
             <% } %>
             </ul><p class="student-panel-footnote">Hiển thị <%=dashboard.results().size()%> trong <%=dashboard.releasedResultCount()%> kết quả đã công bố.</p>
             <% } %>

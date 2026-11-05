@@ -124,7 +124,7 @@ public final class StudentDashboardDAO {
     }
 
     public List<ReleasedResult> results(Connection c, long student, Instant now) throws SQLException {
-        String sql = "SELECT a.title,c.class_code,sub.attempt_number,sub.score,sub.released_at "
+        String sql = "SELECT a.title,c.class_code,sub.attempt_number,sub.score,sub.released_at,a.assignment_id,sub.submission_id "
                 + OWNED_SUBMISSIONS
                 + " AND sub.status='RELEASED' AND sub.released_at<=? AND sub.score IS NOT NULL"
                 + " ORDER BY sub.released_at DESC,sub.submission_id DESC";
@@ -133,7 +133,7 @@ public final class StudentDashboardDAO {
             try (var r = p.executeQuery()) {
                 var out = new ArrayList<ReleasedResult>();
                 while (r.next()) out.add(new ReleasedResult(r.getString(1), r.getString(2),
-                        r.getInt(3), r.getBigDecimal(4), r.getObject(5, OffsetDateTime.class).toInstant()));
+                        r.getInt(3), r.getBigDecimal(4), r.getObject(5, OffsetDateTime.class).toInstant(),r.getLong(6),r.getLong(7)));
                 return out;
             }
         }

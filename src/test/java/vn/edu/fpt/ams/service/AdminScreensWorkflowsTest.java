@@ -369,9 +369,12 @@ class AdminScreensWorkflowsTest {
             .replace("TIMESTAMPTZ", "TIMESTAMP WITH TIME ZONE")
             .replace("btrim(", "trim(")
             .replace("'[]'::jsonb", "'[]'")
+            .replace("::jsonb", "")
             .replace("JSONB", "JSON")
             .replace("INTERVAL '48 hours'", "INTERVAL '48' HOUR")
-            .replaceAll("CHECK \\(jsonb_typeof\\([^)]*\\) = '(array|object)'\\)", "");
+            .replaceAll("CHECK \\(jsonb_typeof\\([^)]*\\) = '(array|object)'\\)", "")
+            // This PostgreSQL-only JSON envelope check is exercised by TeacherEvaluationDatabaseTest.
+            .replaceAll("(?s)CONSTRAINT ck_submissions_evaluation CHECK \\(.*?\\),\\s*", "");
     try (var c = db.open();
         var s = c.createStatement()) {
       for (String command : script.split(";")) {

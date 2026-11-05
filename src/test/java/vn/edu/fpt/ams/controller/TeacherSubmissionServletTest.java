@@ -163,8 +163,8 @@ class TeacherSubmissionServletTest {
             assertFalse(e.attributes.containsKey("submissionPage")); assertFalse(e.attributes.containsKey("submissionDetail"));
         }
     }
-    @Test void authenticatedPostIs405AndNeverReadsOrChangesSubmissions() throws Exception {
+    @Test void authenticatedPostWithoutCsrfNeverReadsOrChangesSubmissions() throws Exception {
         var e = new Exchange(); e.params.put("action","evaluate"); servlet(e,null).doPost(e.request,e.response);
-        assertEquals(405,e.status); assertEquals("GET, HEAD",e.headers.get("Allow")); assertFalse(e.called); assertNull(e.forward);
+        assertEquals(403,e.status); assertFalse(e.called); assertNull(e.forward);
     }
 }

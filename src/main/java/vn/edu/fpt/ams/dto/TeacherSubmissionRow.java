@@ -12,4 +12,9 @@ public record TeacherSubmissionRow(Submission submission, long studentId,
     }
 
     public boolean hasSubmission() { return submission != null; }
+    public boolean canViewWork() {
+        return submission != null && submission.submittedAt()!=null
+                && java.util.Set.of(vn.edu.fpt.ams.model.SubmissionStatus.SUBMITTED,
+                    vn.edu.fpt.ams.model.SubmissionStatus.GRADED,vn.edu.fpt.ams.model.SubmissionStatus.RELEASED).contains(submission.status());
+    }
 }

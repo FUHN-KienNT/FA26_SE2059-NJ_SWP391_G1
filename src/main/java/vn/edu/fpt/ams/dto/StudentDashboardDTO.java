@@ -26,5 +26,9 @@ public record StudentDashboardDTO(
     }
 
     public record ReleasedResult(String title, String classCode, int attemptNumber,
-            BigDecimal score, Instant releasedAt) {}
+            BigDecimal score, Instant releasedAt, long assignmentId, long submissionId) {
+        public ReleasedResult(String title,String classCode,int attemptNumber,BigDecimal score,Instant releasedAt) {
+            this(title,classCode,attemptNumber,score,releasedAt,0,0);
+        }
+    }
 }

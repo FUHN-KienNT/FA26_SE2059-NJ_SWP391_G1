@@ -93,8 +93,8 @@ public class StudentAssignmentServlet extends HttpServlet {
         String json=req.getParameter("essayContent");if(json!=null&&!json.isBlank())return json;
         Map<String,JsonObject> keyed=new LinkedHashMap<>();
         req.getParameterMap().forEach((name,values)->{
-            if(name.startsWith("text_")||name.startsWith("diagram_xml_")||name.startsWith("diagram_image_")) {
-                var matcher=java.util.regex.Pattern.compile("(text|diagram_xml|diagram_image)_([1-9][0-9]{0,3})_([1-9][0-9]{0,1})").matcher(name);
+            if(name.startsWith("text_")||name.startsWith("diagram_xml_")||name.startsWith("diagram_image_")||name.startsWith("diagram_plantuml_")) {
+                var matcher=java.util.regex.Pattern.compile("(text|diagram_xml|diagram_image|diagram_plantuml)_([1-9][0-9]{0,3})_([1-9][0-9]{0,1})").matcher(name);
                 if(!matcher.matches()||values.length!=1)
                     throw new IllegalArgumentException("Tham chiếu câu trả lời không hợp lệ.");
                 int task=Integer.parseInt(matcher.group(2)), requirement=Integer.parseInt(matcher.group(3));

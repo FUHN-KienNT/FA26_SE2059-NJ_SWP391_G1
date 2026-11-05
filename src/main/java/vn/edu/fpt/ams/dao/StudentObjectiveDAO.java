@@ -109,11 +109,12 @@ public class StudentObjectiveDAO {
     }
     public void submit(Connection connection,long id,Instant submittedAt,Instant gradedAt,ObjectiveAnswerGrader.Result grade) throws SQLException {
         try(var s=connection.prepareStatement("""
-                UPDATE submissions SET answer=?::jsonb,answer_revision=answer_revision+1,score=?,status='GRADED',submitted_at=?,graded_at=?
+                UPDATE submissions SET answer=?::jsonb,answer_revision=answer_revision+1,score=?,status='RELEASED',submitted_at=?,graded_at=?,released_at=?,graded_by=NULL
                 WHERE submission_id=? AND status='IN_PROGRESS'
                 """)) {
             s.setString(1,grade.answerJson());s.setBigDecimal(2,grade.score());
-            s.setObject(3,submittedAt.atOffset(ZoneOffset.UTC));s.setObject(4,gradedAt.atOffset(ZoneOffset.UTC));s.setLong(5,id);
+            s.setObject(3,submittedAt.atOffset(ZoneOffset.UTC));s.setObject(4,gradedAt.atOffset(ZoneOffset.UTC));
+            s.setObject(5,gradedAt.atOffset(ZoneOffset.UTC));s.setLong(6,id);
             if(s.executeUpdate()!=1) throw new SQLException("Lượt làm bài đã kết thúc.");
         }
     }

@@ -116,6 +116,14 @@
                             </dd>
                         </div>
                     </dl>
+                    <p><strong><%= data.totalStudents() %> sinh viên trong danh sách lớp</strong>. Thống kê theo lượt làm gần nhất; các lượt cũ vẫn được giữ trong bảng.</p>
+                    <div class="actions roster-summary" aria-label="Thống kê trạng thái sinh viên">
+                    <% for(String workStatus:java.util.List.of("NOT_STARTED","IN_PROGRESS","SUBMITTED","GRADED","RELEASED","EXPIRED","VOID")) {
+                        String workLabel="NOT_STARTED".equals(workStatus)?"Chưa làm":TeacherSubmissionView.statusLabel(SubmissionStatus.valueOf(workStatus)); %>
+                        <span class="roster-count"><%= escape(workLabel) %>: <strong><%= data.studentCounts().getOrDefault(workStatus,0L) %></strong></span>
+                    <% } %>
+                    </div>
+                    <p class="submission-note">Danh sách gồm sinh viên chưa làm, đang làm và đã nộp. Chỉ bài đã nộp mới mở được nội dung. Mỗi trang tối đa 12 dòng; dùng nút chuyển trang bên dưới để xem tiếp.</p>
                     <%
                         if (assignment.status() == AssignmentStatus.CANCELLED) {
                         %>
@@ -236,7 +244,7 @@
                                             <%
                                                 if (submission.score() == null) {
                                                 %>
-                                                Chưa chấm
+                                                <%= row.canViewWork()?"Chưa chấm":"—" %>
                                                 <%
                                                 }
                                                 else {
@@ -247,7 +255,9 @@
                                             %>
                                         </td>
                                         <td>
-                                            <a href="<%= escape(TeacherSubmissionNavigation.detailUrl(base, assignment.assignmentId(), submission.submissionId(), filters)) %>" aria-label="Xem bài làm của <%= escape(row.studentName()) %>, lượt làm <%= submission.attemptNumber() %>">Xem</a>
+                                            <% if(row.canViewWork()) { %>
+                                            <a href="<%= escape(TeacherSubmissionNavigation.detailUrl(base, assignment.assignmentId(), submission.submissionId(), filters)) %>" aria-label="Xem bài làm và đánh giá của <%= escape(row.studentName()) %>, lượt làm <%= submission.attemptNumber() %>"><%= assignment.responseType() == ResponseType.ESSAY && submission.status() == SubmissionStatus.SUBMITTED ? "Chấm bài" : assignment.responseType() == ResponseType.ESSAY && submission.status() == SubmissionStatus.GRADED ? "Công bố / xem đánh giá" : "Xem" %></a>
+                                            <% } else { %><span class="submission-unavailable">Chưa nộp bài</span><% } %>
                                         </td>
                                         <%
                                         }
