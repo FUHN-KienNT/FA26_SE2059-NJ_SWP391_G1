@@ -10,17 +10,32 @@ import vn.edu.fpt.ams.dto.StudentClassPage.AssignmentRow;
 public final class StudentClassView {
     private StudentClassView() {}
 
-    public static String pageUrl(String contextPath, long classId, StudentClassFilter filter, int page) {
-        return contextPath + "/student/classes?classId=" + classId
-                + "&q=" + encode(filter.search()) + "&responseType=" + encode(filter.responseType())
-                + "&status=" + encode(filter.status()) + "&page=" + page;
+    public static String pageUrl(
+            String contextPath, long classId, StudentClassFilter filter, int page) {
+        return contextPath
+                + "/student/classes?classId="
+                + classId
+                + "&q="
+                + encode(filter.search())
+                + "&responseType="
+                + encode(filter.responseType())
+                + "&status="
+                + encode(filter.status())
+                + "&page="
+                + page;
     }
 
     public static String assignmentUrl(String contextPath, long classId, AssignmentRow assignment) {
         if (!"PUBLISHED".equals(assignment.status())) return null;
-        return contextPath + "/student/assignments?assignmentId=" + assignment.assignmentId()
-                + (assignment.submissionId() > 0 ? "&submissionId=" + assignment.submissionId() : "")
-                + "&classId=" + classId;
+
+        return contextPath
+                + "/student/assignments?assignmentId="
+                + assignment.assignmentId()
+                + (assignment.submissionId() > 0
+                        ? "&submissionId=" + assignment.submissionId()
+                        : "")
+                + "&classId="
+                + classId;
     }
 
     public static String actionLabel(AssignmentRow assignment) {
@@ -46,9 +61,14 @@ public final class StudentClassView {
 
     public static String availability(AssignmentRow assignment, Instant now) {
         if ("CANCELLED".equals(assignment.status())) return "Đã hủy";
+
         if (assignment.availableFrom() == null || assignment.dueAt() == null) return "Chưa có lịch";
-        if (assignment.availableFrom() != null && now.isBefore(assignment.availableFrom())) return "Chưa mở";
+
+        if (assignment.availableFrom() != null && now.isBefore(assignment.availableFrom()))
+            return "Chưa mở";
+
         if (assignment.dueAt() != null && !now.isBefore(assignment.dueAt())) return "Đã đóng";
+
         return "Đang mở";
     }
 

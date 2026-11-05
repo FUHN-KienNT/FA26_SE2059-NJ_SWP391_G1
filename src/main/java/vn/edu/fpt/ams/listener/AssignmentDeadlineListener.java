@@ -13,19 +13,35 @@ import vn.edu.fpt.ams.service.StudentObjectiveService;
 public class AssignmentDeadlineListener implements ServletContextListener {
     private ScheduledExecutorService executor;
 
-    @Override public void contextInitialized(ServletContextEvent event) {
-        StudentObjectiveService service=new StudentObjectiveService();
-        executor=Executors.newSingleThreadScheduledExecutor(task->{
-            Thread thread=new Thread(task,"ams-assignment-deadlines");
-            thread.setDaemon(true);return thread;
-        });
-        executor.scheduleWithFixedDelay(()->{
-            try { service.finishOverdue(); }
-            catch(RuntimeException ex) { event.getServletContext().log("Không tự động nộp được một số bài tập; sẽ thử lại.",ex); }
-        },0,5,TimeUnit.SECONDS);
+    @Override
+    public void contextInitialized(ServletContextEvent event) {
+        StudentObjectiveService service = new StudentObjectiveService();
+
+        executor =
+                Executors.newSingleThreadScheduledExecutor(
+                        task -> {
+                            Thread thread = new Thread(task, "ams-assignment-deadlines");
+
+                            thread.setDaemon(true);
+
+                            return thread;
+                        });
+        executor.scheduleWithFixedDelay(
+                () -> {
+                    try {
+                        service.finishOverdue();
+                    } catch (RuntimeException ex) {
+                        event.getServletContext()
+                                .log("Không tự động nộp được một số bài tập; sẽ thử lại.", ex);
+                    }
+                },
+                0,
+                5,
+                TimeUnit.SECONDS);
     }
 
-    @Override public void contextDestroyed(ServletContextEvent event) {
-        if(executor!=null) executor.shutdownNow();
+    @Override
+    public void contextDestroyed(ServletContextEvent event) {
+        if (executor != null) executor.shutdownNow();
     }
 }

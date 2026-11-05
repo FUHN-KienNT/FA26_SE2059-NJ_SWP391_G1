@@ -17,7 +17,8 @@ import vn.edu.fpt.ams.util.Jdbc;
 public final class StudentClassDAO {
     // Each query scopes both the visible Assignment and the latest attempt to this student.
     // Historical attempts may belong to a former enrollment in this same Class/Subject Term.
-    private static final String VISIBLE_ASSIGNMENTS = """
+    private static final String VISIBLE_ASSIGNMENTS =
+            """
             WITH visible AS (
                 SELECT a.assignment_id,a.title,a.assignment_purpose,a.response_type,a.maximum_score,
                     a.available_from,a.due_at,a.status,
@@ -48,19 +49,26 @@ public final class StudentClassDAO {
             """;
 
     public boolean activeStudent(Connection c, long studentId) throws SQLException {
-        return Jdbc.scalar(c, "SELECT COUNT(*) FROM users WHERE user_id=?"
-                + " AND role='STUDENT' AND account_status='ACTIVE'", studentId) == 1;
+        return Jdbc.scalar(
+                        c,
+                        "SELECT COUNT(*) FROM users WHERE user_id=?"
+                                + " AND role='STUDENT' AND account_status='ACTIVE'",
+                        studentId)
+                == 1;
     }
 
     public Instant currentTime(Connection c) throws SQLException {
-        try (var p = c.prepareStatement("SELECT CURRENT_TIMESTAMP"); var r = p.executeQuery()) {
+        try (var p = c.prepareStatement("SELECT CURRENT_TIMESTAMP");
+                var r = p.executeQuery()) {
             r.next();
+
             return r.getObject(1, OffsetDateTime.class).toInstant();
         }
     }
 
     public List<ClassInfo> classes(Connection c, long studentId) throws SQLException {
-        String sql = """
+        String sql =
+                """
                 SELECT DISTINCT c.class_id,c.subject_term_id,c.class_code,c.class_name,
                     s.subject_code,s.subject_name,t.term_code,t.term_name,u.full_name,t.starts_at
                 FROM class_enrollments e
@@ -73,51 +81,94 @@ public final class StudentClassDAO {
                 WHERE r.student_id=? AND r.status='ACTIVE' AND e.status='ACTIVE' AND c.status='ACTIVE'
                 ORDER BY t.starts_at DESC,s.subject_code,c.class_code,c.class_id
                 """;
-        try (var p = Jdbc.statement(c, sql, studentId); var r = p.executeQuery()) {
+
+        try (var p = Jdbc.statement(c, sql, studentId);
+                var r = p.executeQuery()) {
             var out = new ArrayList<ClassInfo>();
-            while (r.next()) out.add(new ClassInfo(r.getLong(1), r.getLong(2), r.getString(3),
-                    r.getString(4), r.getString(5), r.getString(6), r.getString(7), r.getString(8), r.getString(9)));
+
+            while (r.next())
+                out.add(
+                        new ClassInfo(
+                                r.getLong(1),
+                                r.getLong(2),
+                                r.getString(3),
+                                r.getString(4),
+                                r.getString(5),
+                                r.getString(6),
+                                r.getString(7),
+                                r.getString(8),
+                                r.getString(9)));
+
             return out;
         }
     }
 
-    public Counts counts(Connection c, long studentId, long classId, Instant now) throws SQLException {
-        String sql = VISIBLE_ASSIGNMENTS + """
+    public Counts counts(Connection c, long studentId, long classId, Instant now)
+            throws SQLException {
+        String sql =
+                VISIBLE_ASSIGNMENTS
+                        + """
                 SELECT COUNT(*),
                     COUNT(*) FILTER (WHERE status='PUBLISHED' AND available_from<=? AND due_at>?),
                     COUNT(*) FILTER (WHERE work_status='NOT_STARTED'),
                     COUNT(*) FILTER (WHERE work_status IN ('SUBMITTED','GRADED','RELEASED'))
                 FROM visible
                 """;
+
         try (var p = Jdbc.statement(c, sql, now, studentId, classId, studentId, now, now);
-             var r = p.executeQuery()) {
+                var r = p.executeQuery()) {
             r.next();
+
             return new Counts(r.getLong(1), r.getLong(2), r.getLong(3), r.getLong(4));
         }
     }
 
-    public long count(Connection c, long studentId, long classId, Instant now, StudentClassFilter filter)
+    public long count(
+            Connection c, long studentId, long classId, Instant now, StudentClassFilter filter)
             throws SQLException {
         var args = arguments(studentId, classId, now);
         String sql = VISIBLE_ASSIGNMENTS + "SELECT COUNT(*) FROM visible" + where(filter, args);
+
         return Jdbc.scalar(c, sql, args.toArray());
     }
 
-    public List<AssignmentRow> assignments(Connection c, long studentId, long classId, Instant now,
-            StudentClassFilter filter) throws SQLException {
+    public List<AssignmentRow> assignments(
+            Connection c, long studentId, long classId, Instant now, StudentClassFilter filter)
+            throws SQLException {
         var args = arguments(studentId, classId, now);
-        String sql = VISIBLE_ASSIGNMENTS + """
+        String sql =
+                VISIBLE_ASSIGNMENTS
+                        + """
                 SELECT assignment_id,title,assignment_purpose,response_type,maximum_score,available_from,due_at,
                     status,submission_id,attempt_number,work_status,submitted_at
                 FROM visible
-                """ + where(filter, args) + " ORDER BY due_at ASC NULLS LAST,assignment_id DESC LIMIT ? OFFSET ?";
+                """
+                        + where(filter, args)
+                        + " ORDER BY due_at ASC NULLS LAST,assignment_id DESC LIMIT ? OFFSET ?";
+
         args.add(StudentClassFilter.PAGE_SIZE);
         args.add((long) (filter.page() - 1) * StudentClassFilter.PAGE_SIZE);
-        try (var p = Jdbc.statement(c, sql, args.toArray()); var r = p.executeQuery()) {
+
+        try (var p = Jdbc.statement(c, sql, args.toArray());
+                var r = p.executeQuery()) {
             var out = new ArrayList<AssignmentRow>();
-            while (r.next()) out.add(new AssignmentRow(r.getLong(1), r.getString(2), r.getString(3),
-                    r.getString(4), r.getBigDecimal(5), instant(r, 6), instant(r, 7), r.getString(8),
-                    r.getLong(9), r.getInt(10), r.getString(11), instant(r, 12)));
+
+            while (r.next())
+                out.add(
+                        new AssignmentRow(
+                                r.getLong(1),
+                                r.getString(2),
+                                r.getString(3),
+                                r.getString(4),
+                                r.getBigDecimal(5),
+                                instant(r, 6),
+                                instant(r, 7),
+                                r.getString(8),
+                                r.getLong(9),
+                                r.getInt(10),
+                                r.getString(11),
+                                instant(r, 12)));
+
             return out;
         }
     }
@@ -128,24 +179,29 @@ public final class StudentClassDAO {
 
     private static String where(StudentClassFilter filter, List<Object> args) {
         var sql = new StringBuilder(" WHERE 1=1");
+
         if (!filter.search().isEmpty()) {
             // POSITION treats %, _ and backslashes literally instead of as LIKE wildcards.
             sql.append(" AND POSITION(LOWER(?) IN LOWER(title))>0");
             args.add(filter.search());
         }
+
         if (!filter.responseType().isEmpty()) {
             sql.append(" AND response_type=?");
             args.add(filter.responseType());
         }
+
         if (!filter.status().isEmpty()) {
             sql.append(" AND work_status=?");
             args.add(filter.status());
         }
+
         return sql.toString();
     }
 
     private static Instant instant(ResultSet rows, int column) throws SQLException {
         var value = rows.getObject(column, OffsetDateTime.class);
+
         return value == null ? null : value.toInstant();
     }
 }

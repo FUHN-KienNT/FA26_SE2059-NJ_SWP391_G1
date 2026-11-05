@@ -23,19 +23,34 @@ public final class EssaySubmissionView {
     private EssaySubmissionView() {}
 
     /** Order 0 is a readable legacy task without a reliable identity; it is never paired. */
-    public record Item(int order, String title, String description, String answer, String points,
-                       List<RequirementAnswer> requirements) {
-        public Item { requirements = List.copyOf(requirements); }
+    public record Item(
+            int order,
+            String title,
+            String description,
+            String answer,
+            String points,
+            List<RequirementAnswer> requirements) {
+        public Item {
+            requirements = List.copyOf(requirements);
+        }
+
         public Item(int order, String title, String description, String answer, String points) {
             this(order, title, description, answer, points, List.of());
         }
+
         public Item(int order, String title, String description, String answer) {
             this(order, title, description, answer, null);
         }
     }
+
     /** Images are codec-verified PNG data URIs; all displayed strings still need HTML escaping. */
-    public record RequirementAnswer(int order, String title, String points, String answerType,
-                                    String answer, String image) {
+    public record RequirementAnswer(
+            int order,
+            String title,
+            String points,
+            String answerType,
+            String answer,
+            String image) {
         public String answerTypeLabel() {
             return switch (answerType) {
                 case "TEXT" -> "Văn bản";
@@ -45,9 +60,15 @@ public final class EssaySubmissionView {
             };
         }
     }
+
     public record UnmatchedAnswer(String reference, String text) {}
-    public record Essay(List<Item> items, String legacyContent, boolean structured,
-                        boolean invalid, List<UnmatchedAnswer> unmatched) {
+
+    public record Essay(
+            List<Item> items,
+            String legacyContent,
+            boolean structured,
+            boolean invalid,
+            List<UnmatchedAnswer> unmatched) {
         public Essay {
             items = List.copyOf(items);
             unmatched = List.copyOf(unmatched);
@@ -61,25 +82,34 @@ public final class EssaySubmissionView {
      */
     public static Essay read(String taskChecklistJson, String content) {
         Tasks tasks = tasks(taskChecklistJson);
+
         if (content == null || content.isBlank())
             return new Essay(tasks.items(), content, false, tasks.invalid(), List.of());
 
         JsonElement root;
+
         try {
             root = parse(content);
         } catch (RuntimeException ex) {
             String trimmed = content.stripLeading();
             boolean possibleJson = trimmed.startsWith("{") || trimmed.startsWith("[");
-            return new Essay(tasks.items(), content, false, tasks.invalid() || possibleJson, List.of());
+
+            return new Essay(
+                    tasks.items(), content, false, tasks.invalid() || possibleJson, List.of());
         }
-        if (root != null && root.isJsonObject()
+
+        if (root != null
+                && root.isJsonObject()
                 && EssayAnswerCodec.FORMAT.equals(text(root.getAsJsonObject().get("format"))))
             return requirements(taskChecklistJson, content, tasks);
-        if (root == null || !root.isJsonObject()
+
+        if (root == null
+                || !root.isJsonObject()
                 || !FORMAT.equals(text(root.getAsJsonObject().get("format"))))
             return new Essay(tasks.items(), content, false, tasks.invalid(), List.of());
 
         JsonElement answers = root.getAsJsonObject().get("answers");
+
         if (answers == null || !answers.isJsonArray())
             return new Essay(tasks.items(), content, false, true, List.of());
 
@@ -88,20 +118,30 @@ public final class EssaySubmissionView {
         List<UnmatchedAnswer> unmatched = new ArrayList<>();
         boolean invalid = tasks.invalid();
         int index = 0;
+
         for (JsonElement element : answers.getAsJsonArray()) {
             index++;
+
             if (!element.isJsonObject()) {
-                unmatched.add(new UnmatchedAnswer("Câu trả lời " + index + " (sai định dạng)", element.toString()));
+                unmatched.add(
+                        new UnmatchedAnswer(
+                                "Câu trả lời " + index + " (sai định dạng)", element.toString()));
                 invalid = true;
                 continue;
             }
+
             var object = element.getAsJsonObject();
             int order = order(object.get("task_order"));
+
             if (order > 0) counts.merge(order, 1, Integer::sum);
+
             String answer = text(object.get("text"));
+
             if (order == 0 || answer == null) {
-                unmatched.add(new UnmatchedAnswer("Câu trả lời " + index + " (tham chiếu hoặc nội dung không hợp lệ)",
-                        answer == null ? element.toString() : answer));
+                unmatched.add(
+                        new UnmatchedAnswer(
+                                "Câu trả lời " + index + " (tham chiếu hoặc nội dung không hợp lệ)",
+                                answer == null ? element.toString() : answer));
                 invalid = true;
             } else {
                 saved.add(new SavedAnswer(order, answer));
@@ -109,17 +149,35 @@ public final class EssaySubmissionView {
         }
 
         Map<Integer, String> paired = new HashMap<>();
+
         for (SavedAnswer answer : saved) {
-            if (counts.get(answer.order()) == 1 && tasks.counts().getOrDefault(answer.order(), 0) == 1
+            if (counts.get(answer.order()) == 1
+                    && tasks.counts().getOrDefault(answer.order(), 0) == 1
                     && tasks.items().stream().anyMatch(item -> item.order() == answer.order())) {
                 paired.put(answer.order(), answer.text());
             } else {
-                unmatched.add(new UnmatchedAnswer("Câu hỏi #" + answer.order() + " (không tồn tại hoặc không xác định được)", answer.text()));
+                unmatched.add(
+                        new UnmatchedAnswer(
+                                "Câu hỏi #"
+                                        + answer.order()
+                                        + " (không tồn tại hoặc không xác định được)",
+                                answer.text()));
                 invalid = true;
             }
         }
-        List<Item> items = tasks.items().stream().map(item -> new Item(item.order(), item.title(),
-                item.description(), item.order() == 0 ? null : paired.get(item.order()), item.points())).toList();
+
+        List<Item> items =
+                tasks.items().stream()
+                        .map(
+                                item ->
+                                        new Item(
+                                                item.order(),
+                                                item.title(),
+                                                item.description(),
+                                                item.order() == 0 ? null : paired.get(item.order()),
+                                                item.points()))
+                        .toList();
+
         return new Essay(items, null, true, invalid, unmatched);
     }
 
@@ -130,17 +188,35 @@ public final class EssaySubmissionView {
             List<EssayQuestions.Task> tasks = EssayQuestions.read(taskJson);
             var saved = EssayAnswerCodec.normalize(taskJson, content);
             List<Item> items = new ArrayList<>();
+
             for (var task : tasks) {
                 List<RequirementAnswer> requirements = new ArrayList<>();
+
                 for (var requirement : task.requirements()) {
-                    var answer = saved.answers().get(EssayAnswerCodec.key(task.order(), requirement.order()));
-                    requirements.add(new RequirementAnswer(requirement.order(), requirement.title(),
-                            requirement.points().stripTrailingZeros().toPlainString(), requirement.answerType(),
-                            answer.text(), answer.image()));
+                    var answer =
+                            saved.answers()
+                                    .get(EssayAnswerCodec.key(task.order(), requirement.order()));
+
+                    requirements.add(
+                            new RequirementAnswer(
+                                    requirement.order(),
+                                    requirement.title(),
+                                    requirement.points().stripTrailingZeros().toPlainString(),
+                                    requirement.answerType(),
+                                    answer.text(),
+                                    answer.image()));
                 }
-                items.add(new Item(task.order(), task.title(), null, null,
-                        task.points().stripTrailingZeros().toPlainString(), requirements));
+
+                items.add(
+                        new Item(
+                                task.order(),
+                                task.title(),
+                                null,
+                                null,
+                                task.points().stripTrailingZeros().toPlainString(),
+                                requirements));
             }
+
             return new Essay(items, null, true, false, List.of());
         } catch (RuntimeException ex) {
             // Never partly attach an invalid payload or render unverified diagram markup.
@@ -149,49 +225,78 @@ public final class EssaySubmissionView {
     }
 
     private record SavedAnswer(int order, String text) {}
+
     private record Tasks(List<Item> items, Map<Integer, Integer> counts, boolean invalid) {}
 
     private static Tasks tasks(String json) {
         List<Item> items = new ArrayList<>();
         Map<Integer, Integer> counts = new HashMap<>();
+
         if (json == null || json.isBlank()) return new Tasks(items, counts, false);
+
         boolean invalid = false;
+
         try {
             JsonElement root = parse(json);
+
             if (root == null || !root.isJsonArray()) return new Tasks(items, counts, true);
+
             for (JsonElement element : root.getAsJsonArray()) {
                 String title = text(element);
                 String description = null;
                 String points = null;
                 int order = 0;
+
                 if (element.isJsonObject()) {
                     var object = element.getAsJsonObject();
+
                     order = order(object.get("task_order"));
+
                     if (order > 0) counts.merge(order, 1, Integer::sum);
+
                     title = text(object.get("title"));
                     description = text(object.get("description"));
                     JsonElement rawDescription = object.get("description");
-                    if (rawDescription != null && !rawDescription.isJsonNull() && description == null) invalid = true;
+
+                    if (rawDescription != null
+                            && !rawDescription.isJsonNull()
+                            && description == null) invalid = true;
+
                     JsonElement savedPoints = object.get("maximum_points");
-                    if (savedPoints != null && savedPoints.isJsonPrimitive() && savedPoints.getAsJsonPrimitive().isNumber())
+
+                    if (savedPoints != null
+                            && savedPoints.isJsonPrimitive()
+                            && savedPoints.getAsJsonPrimitive().isNumber())
                         points = savedPoints.getAsBigDecimal().stripTrailingZeros().toPlainString();
                 }
+
                 if (order == 0) invalid = true;
-                if (title == null || title.isBlank()) { invalid = true; continue; }
+
+                if (title == null || title.isBlank()) {
+                    invalid = true;
+                    continue;
+                }
+
                 items.add(new Item(order, title, description, null, points));
             }
         } catch (RuntimeException ex) {
             invalid = true;
         }
+
         if (counts.values().stream().anyMatch(count -> count > 1)) invalid = true;
+
         // Unkeyed legacy tasks stay visible at the end, without inventing an answer identity.
-        items.sort(Comparator.comparingInt(item -> item.order() == 0 ? Integer.MAX_VALUE : item.order()));
+        items.sort(
+                Comparator.comparingInt(
+                        item -> item.order() == 0 ? Integer.MAX_VALUE : item.order()));
+
         return new Tasks(items, counts, invalid);
     }
 
     private static String text(JsonElement value) {
         return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isString()
-                ? value.getAsString() : null;
+                ? value.getAsString()
+                : null;
     }
 
     /** Gson objects overwrite duplicate property names, so reject those before reading any identity. */
@@ -199,7 +304,10 @@ public final class EssaySubmissionView {
         try (JsonReader reader = new JsonReader(new StringReader(json))) {
             reader.setStrictness(Strictness.STRICT);
             checkNames(reader, 0);
-            if (reader.peek() != JsonToken.END_DOCUMENT) throw new IllegalArgumentException("Unexpected trailing data");
+
+            if (reader.peek() != JsonToken.END_DOCUMENT)
+                throw new IllegalArgumentException("Unexpected trailing data");
+
             return JSON.fromJson(json, JsonElement.class);
         } catch (IOException ex) {
             throw new IllegalArgumentException("Invalid JSON", ex);
@@ -208,19 +316,26 @@ public final class EssaySubmissionView {
 
     private static void checkNames(JsonReader reader, int depth) throws IOException {
         if (depth > 64) throw new IllegalArgumentException("JSON is nested too deeply");
+
         switch (reader.peek()) {
             case BEGIN_OBJECT -> {
                 reader.beginObject();
                 var names = new HashSet<String>();
+
                 while (reader.hasNext()) {
-                    if (!names.add(reader.nextName())) throw new IllegalArgumentException("Duplicate JSON property");
+                    if (!names.add(reader.nextName()))
+                        throw new IllegalArgumentException("Duplicate JSON property");
+
                     checkNames(reader, depth + 1);
                 }
+
                 reader.endObject();
             }
             case BEGIN_ARRAY -> {
                 reader.beginArray();
+
                 while (reader.hasNext()) checkNames(reader, depth + 1);
+
                 reader.endArray();
             }
             case STRING, NUMBER -> reader.nextString();
@@ -231,10 +346,17 @@ public final class EssaySubmissionView {
     }
 
     private static int order(JsonElement value) {
-        if (value == null || !value.isJsonPrimitive() || !value.getAsJsonPrimitive().isNumber()) return 0;
+        if (value == null || !value.isJsonPrimitive() || !value.getAsJsonPrimitive().isNumber())
+            return 0;
+
         String number = value.getAsString();
+
         if (!number.matches("[1-9][0-9]*")) return 0;
-        try { return Integer.parseInt(number); }
-        catch (NumberFormatException ex) { return 0; }
+
+        try {
+            return Integer.parseInt(number);
+        } catch (NumberFormatException ex) {
+            return 0;
+        }
     }
 }

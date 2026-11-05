@@ -44,16 +44,23 @@ class StudentSubjectPostgresTest {
     @AfterEach void close()throws Exception{if(connection!=null)connection.close();}
     private long count(String table)throws Exception{return Jdbc.scalar(connection,"SELECT COUNT(*) FROM "+table);}
 
-    @Test void allCatalogShowsClosedOfferingsWithoutOpeningRegistration()throws Exception{
-        var all=service.list(1,"all","").offerings();
-        assertEquals(2,all.size());
-        assertEquals(1,service.list(1,"available","").offerings().size());
-        assertFalse(all.stream().filter(x->x.id()==2).findFirst().orElseThrow().canRegister());
-        assertThrows(RuntimeException.class,()->service.register(1,2));
-        assertEquals(0,count("subject_registrations"));
-        Jdbc.update(connection,"UPDATE subject_terms SET registration_enabled=FALSE WHERE subject_term_id=1");
-        assertEquals(2,service.list(1,"all","").offerings().size());
-        assertTrue(service.list(1,"available","").offerings().isEmpty());
+    @Test
+    void allCatalogShowsClosedOfferingsWithoutOpeningRegistration() throws Exception {
+        var all = service.list(1, "all", "").offerings();
+
+        assertEquals(2, all.size());
+        assertEquals(1, service.list(1, "available", "").offerings().size());
+        assertFalse(all.stream().filter(x -> x.id() == 2).findFirst().orElseThrow().canRegister());
+
+        assertThrows(RuntimeException.class, () -> service.register(1, 2));
+        assertEquals(0, count("subject_registrations"));
+
+        Jdbc.update(
+                connection,
+                "UPDATE subject_terms SET registration_enabled=FALSE WHERE subject_term_id=1");
+
+        assertEquals(2, service.list(1, "all", "").offerings().size());
+        assertTrue(service.list(1, "available", "").offerings().isEmpty());
     }
 
     @Test void availableSearchAndOwnHistoricalDetailsAreScoped()throws Exception{

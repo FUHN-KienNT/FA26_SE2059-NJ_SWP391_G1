@@ -11,25 +11,58 @@
 <header class="student-heading"><div><p class="student-eyebrow">MÔN HỌC CỦA BẠN</p><h1><%=enrolled?"Môn học đã đăng ký":"Đăng ký môn học"%></h1>
 <p>Xem môn học và đăng ký để được xếp vào lớp phù hợp. Dữ liệu học tập được giữ theo từng học kỳ.</p></div></header>
 <%@ include file="/WEB-INF/views/student/term-context.jspf" %>
+
 <nav class="student-tabs" aria-label="Danh sách môn học">
-<a href="${pageContext.request.contextPath}/student/subjects?view=all" <%=subjects.view().equals("all")?"aria-current=\"page\"":""%>>Tất cả môn học</a>
-<a href="${pageContext.request.contextPath}/student/subjects?view=available" <%=subjects.view().equals("available")?"aria-current=\"page\"":""%>>Mở / Sắp mở</a>
-<a href="${pageContext.request.contextPath}/student/subjects?view=enrolled" <%=enrolled?"aria-current=\"page\"":""%>>Đã đăng ký</a></nav>
+    <a href="${pageContext.request.contextPath}/student/subjects?view=all"
+       <%= subjects.view().equals("all") ? "aria-current=\"page\"" : "" %>>Tất cả môn học</a>
+    <a href="${pageContext.request.contextPath}/student/subjects?view=available"
+       <%= subjects.view().equals("available") ? "aria-current=\"page\"" : "" %>>Mở / Sắp mở</a>
+    <a href="${pageContext.request.contextPath}/student/subjects?view=enrolled"
+       <%= enrolled ? "aria-current=\"page\"" : "" %>>Đã đăng ký</a>
+</nav>
+
 <% if(enrolled){ %><p class="student-panel-footnote">Đăng ký được giữ theo học kỳ trên từng dòng, bao gồm các kỳ trước.</p><% } %>
 <section class="student-panel"><form class="student-subject-filter" method="get" action="${pageContext.request.contextPath}/student/subjects">
 <input type="hidden" name="view" value="<%=subjects.view()%>"><label for="subject-search">Tìm môn học<input id="subject-search" name="q" maxlength="100" value="<%=WebSupport.html(subjects.search())%>" placeholder="Mã hoặc tên môn học"></label>
 <button class="primary-button" type="submit">Tìm kiếm</button></form>
-<% if(subjects.offerings().isEmpty()){ %>
-<div class="student-empty"><p><%=enrolled?"Bạn chưa có đăng ký môn học phù hợp.":subjects.view().equals("all")?"Không có môn học phù hợp trong các học kỳ còn hiệu lực.":"Chưa có môn học mở hoặc sắp mở đăng ký phù hợp."%></p>
-<p><a href="${pageContext.request.contextPath}/student/subjects?view=all">Xem tất cả môn học và trạng thái đăng ký →</a></p><% if(!enrolled){ %><p>Chỉ môn được mở đăng ký, còn trong thời hạn và có lớp đủ chỗ mới có thể đăng ký.</p><% } %></div>
+
+<% if (subjects.offerings().isEmpty()) { %>
+    <div class="student-empty">
+        <p><%= enrolled
+                ? "Bạn chưa có đăng ký môn học phù hợp."
+                : subjects.view().equals("all")
+                        ? "Không có môn học phù hợp trong các học kỳ còn hiệu lực."
+                        : "Chưa có môn học mở hoặc sắp mở đăng ký phù hợp." %></p>
+        <p><a href="${pageContext.request.contextPath}/student/subjects?view=all">Xem tất cả môn học và trạng thái đăng ký →</a></p>
+
+        <% if (!enrolled) { %>
+            <p>Chỉ môn được mở đăng ký, còn trong thời hạn và có lớp đủ chỗ mới có thể đăng ký.</p>
+        <% } %>
+    </div>
 <% }else{ %><div class="student-table-wrap"><table class="<%=enrolled?"student-enrolled-table":"student-available-table"%>"><thead><tr><th>Môn học</th><th>Học kỳ</th><th><%=enrolled?"Lớp được xếp":"Chỗ còn trống"%></th><% if(!enrolled){ %><th>Lịch đăng ký (UTC+07)</th><% } %><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>
 <% for(var item:subjects.offerings()){ %><tr><td><strong><%=WebSupport.html(item.subjectCode())%></strong><small><%=WebSupport.html(item.subjectName())%></small></td>
 <td><%=WebSupport.html(item.termCode())%><small><%=WebSupport.html(item.termName())%></small><small><%=WebSupport.html(TermTimeline.label(studentTermsByCode.get(item.termCode()),calendarNow))%></small></td>
 <td><% if(enrolled){ %><%=item.classCode()==null?"Chưa có lớp đang tham gia":WebSupport.html(item.classCode())%><small><%=WebSupport.html(item.teacherName())%></small><% }else{ %><%=item.availableSeats()%><% } %></td>
 <% if(!enrolled){ %><td>Mở: <%=WebSupport.html(AssignmentListView.deadline(item.opensAt()))%><small>Đóng: <%=WebSupport.html(AssignmentListView.deadline(item.closesAt()))%></small></td><% } %>
 <td><span class="student-status"><%=enrolled&&!item.enrolled()?"Đăng ký đã ngừng hoạt động":item.stateLabel()%></span></td>
-<td><div class="student-subject-actions"><% if(item.registrationStatus()!=null || (item.enabled() && item.now().isBefore(item.closesAt()))){ %><a class="student-outline-button" href="${pageContext.request.contextPath}/student/subjects?id=<%=item.id()%>"><%=item.canRegister()?"Đăng ký môn học":"Xem chi tiết"%></a><% } else { %><span><%=item.enabled()?"Đã hết thời hạn đăng ký":"Chưa được mở đăng ký"%></span><% } %>
-<% if(enrolled && item.canViewClass()){ %><a class="student-outline-button" href="${pageContext.request.contextPath}/student/classes?classId=<%=item.classId()%>">Xem lớp và bài tập</a><% } %>
-<% if(!enrolled && item.now().isBefore(item.opensAt())){ %><button class="student-outline-button" type="button" disabled>Chưa mở đăng ký</button><% } %></div></td></tr><% } %>
+<td>
+    <div class="student-subject-actions">
+        <% if (item.registrationStatus() != null || (item.enabled() && item.now().isBefore(item.closesAt()))) { %>
+            <a class="student-outline-button"
+               href="${pageContext.request.contextPath}/student/subjects?id=<%= item.id() %>"><%= item.canRegister() ? "Đăng ký môn học" : "Xem chi tiết" %></a>
+        <% } else { %>
+            <span><%= item.enabled() ? "Đã hết thời hạn đăng ký" : "Chưa được mở đăng ký" %></span>
+        <% } %>
+
+        <% if (enrolled && item.canViewClass()) { %>
+            <a class="student-outline-button"
+               href="${pageContext.request.contextPath}/student/classes?classId=<%= item.classId() %>">Xem lớp và bài tập</a>
+        <% } %>
+
+        <% if (!enrolled && item.now().isBefore(item.opensAt())) { %>
+            <button class="student-outline-button" type="button" disabled>Chưa mở đăng ký</button>
+        <% } %>
+    </div>
+</td></tr><% } %>
 </tbody></table></div><p class="student-panel-footnote">Tìm thấy <%=subjects.offerings().size()%> môn học theo học kỳ.</p><% } %></section>
 </div></main></div></body></html>

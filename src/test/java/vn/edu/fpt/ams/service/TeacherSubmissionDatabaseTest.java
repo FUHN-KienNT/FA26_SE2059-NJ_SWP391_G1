@@ -26,34 +26,74 @@ import vn.edu.fpt.ams.util.DBConnection;
 class TeacherSubmissionDatabaseTest {
     private Connection connection;
 
-    @BeforeEach void setup(TestInfo test) throws SQLException {
+    @BeforeEach
+    void setup(TestInfo test) throws SQLException {
         if (!test.getTags().contains("database")) return;
-        Assumptions.assumeTrue(Boolean.getBoolean("assignment.db.tests"),
+
+        Assumptions.assumeTrue(
+                Boolean.getBoolean("assignment.db.tests"),
                 "Enable assignment.db.tests for PostgreSQL checks");
         connection = DBConnection.getConnection();
+
         try (var statement = connection.createStatement()) {
-            statement.execute("CREATE TEMP TABLE users (user_id BIGINT PRIMARY KEY, role TEXT, account_status TEXT, full_name TEXT, email TEXT)");
-            statement.execute("CREATE TEMP TABLE subjects (subject_id BIGINT PRIMARY KEY, subject_code TEXT, subject_name TEXT)");
-            statement.execute("CREATE TEMP TABLE academic_terms (term_id BIGINT PRIMARY KEY, term_code TEXT)");
-            statement.execute("CREATE TEMP TABLE subject_terms (subject_term_id BIGINT PRIMARY KEY, subject_id BIGINT, term_id BIGINT)");
-            statement.execute("CREATE TEMP TABLE subject_classes (class_id BIGINT PRIMARY KEY, subject_term_id BIGINT, teacher_id BIGINT, class_code TEXT, class_name TEXT, status TEXT)");
-            statement.execute("CREATE TEMP TABLE assignment_templates (template_id BIGINT PRIMARY KEY, title TEXT)");
-            statement.execute("CREATE TEMP TABLE subject_registrations (registration_id BIGINT PRIMARY KEY, student_id BIGINT, subject_term_id BIGINT, status TEXT)");
-            statement.execute("CREATE TEMP TABLE class_enrollments (enrollment_id BIGINT PRIMARY KEY, registration_id BIGINT, class_id BIGINT, status TEXT)");
-            statement.execute("CREATE TEMP TABLE submission_content_snapshots (submission_id BIGINT PRIMARY KEY, assignment_data JSONB NOT NULL, questions_data JSONB NOT NULL)");
+            statement.execute(
+                    "CREATE TEMP TABLE users (user_id BIGINT PRIMARY KEY, role TEXT, account_status TEXT, full_name TEXT, email TEXT)");
+            statement.execute(
+                    "CREATE TEMP TABLE subjects (subject_id BIGINT PRIMARY KEY, subject_code TEXT, subject_name TEXT)");
+            statement.execute(
+                    "CREATE TEMP TABLE academic_terms (term_id BIGINT PRIMARY KEY, term_code TEXT)");
+            statement.execute(
+                    "CREATE TEMP TABLE subject_terms (subject_term_id BIGINT PRIMARY KEY, subject_id BIGINT, term_id BIGINT)");
+            statement.execute(
+                    "CREATE TEMP TABLE subject_classes (class_id BIGINT PRIMARY KEY, subject_term_id BIGINT, teacher_id BIGINT, class_code TEXT, class_name TEXT, status TEXT)");
+            statement.execute(
+                    "CREATE TEMP TABLE assignment_templates (template_id BIGINT PRIMARY KEY, title TEXT)");
+            statement.execute(
+                    "CREATE TEMP TABLE subject_registrations (registration_id BIGINT PRIMARY KEY, student_id BIGINT, subject_term_id BIGINT, status TEXT)");
+            statement.execute(
+                    "CREATE TEMP TABLE class_enrollments (enrollment_id BIGINT PRIMARY KEY, registration_id BIGINT, class_id BIGINT, status TEXT)");
+            statement.execute(
+                    "CREATE TEMP TABLE submission_content_snapshots (submission_id BIGINT PRIMARY KEY, assignment_data JSONB NOT NULL, questions_data JSONB NOT NULL)");
+
             for (String table : List.of("assignments", "questions", "submissions")) {
-                String id = table.equals("assignments") ? "assignment_id"
-                        : table.equals("questions") ? "question_id" : "submission_id";
-                statement.execute("CREATE TEMP TABLE " + table + " (LIKE public." + table + " INCLUDING ALL)");
-                statement.execute("ALTER TABLE " + table + " ALTER COLUMN " + id + " DROP IDENTITY IF EXISTS");
-                statement.execute("CREATE TEMP SEQUENCE teacher_submission_" + table + "_ids START WITH 1000000");
-                statement.execute("ALTER TABLE " + table + " ALTER COLUMN " + id
-                        + " SET DEFAULT nextval('teacher_submission_" + table + "_ids')");
+                String id =
+                        table.equals("assignments")
+                                ? "assignment_id"
+                                : table.equals("questions") ? "question_id" : "submission_id";
+
+                statement.execute(
+                        "CREATE TEMP TABLE "
+                                + table
+                                + " (LIKE public."
+                                + table
+                                + " INCLUDING ALL)");
+                statement.execute(
+                        "ALTER TABLE "
+                                + table
+                                + " ALTER COLUMN "
+                                + id
+                                + " DROP IDENTITY IF EXISTS");
+                statement.execute(
+                        "CREATE TEMP SEQUENCE teacher_submission_"
+                                + table
+                                + "_ids START WITH 1000000");
+                statement.execute(
+                        "ALTER TABLE "
+                                + table
+                                + " ALTER COLUMN "
+                                + id
+                                + " SET DEFAULT nextval('teacher_submission_"
+                                + table
+                                + "_ids')");
             }
+
             statement.execute("SET search_path TO pg_temp");
-            statement.execute("ALTER TABLE assignments DROP CONSTRAINT IF EXISTS ck_assignments_draft_timestamps");
-            statement.execute("ALTER TABLE assignments ADD CONSTRAINT ck_assignments_draft_timestamps CHECK (status <> 'DRAFT' OR cancelled_at IS NULL)");
-            statement.execute("""
+            statement.execute(
+                    "ALTER TABLE assignments DROP CONSTRAINT IF EXISTS ck_assignments_draft_timestamps");
+            statement.execute(
+                    "ALTER TABLE assignments ADD CONSTRAINT ck_assignments_draft_timestamps CHECK (status <> 'DRAFT' OR cancelled_at IS NULL)");
+            statement.execute(
+                    """
                     INSERT INTO users VALUES
                       (1,'TEACHER','ACTIVE','Teacher A','a@example.test'),
                       (2,'TEACHER','ACTIVE','Teacher B','b@example.test'),
@@ -72,32 +112,38 @@ class TeacherSubmissionDatabaseTest {
                       (109,'STUDENT','ACTIVE','Inactive enrollment without work','inactive-enrollment@example.test'),
                       (110,'STUDENT','ACTIVE','Inactive registration without work','inactive-registration@example.test')
                     """);
-            statement.execute("INSERT INTO subjects VALUES (100,'SWP391','Project'),(200,'PRJ301','Java')");
+            statement.execute(
+                    "INSERT INTO subjects VALUES (100,'SWP391','Project'),(200,'PRJ301','Java')");
             statement.execute("INSERT INTO academic_terms VALUES (300,'FALL2026')");
             statement.execute("INSERT INTO subject_terms VALUES (1000,100,300),(2000,200,300)");
-            statement.execute("""
+            statement.execute(
+                    """
                     INSERT INTO subject_classes VALUES (10,1000,1,'A1','Owned','ACTIVE'),
                       (11,1000,1,'A2','Owned other class','ACTIVE'),
                       (20,2000,2,'B1','Foreign','ACTIVE'),
                       (30,1000,3,'INACTIVE','Inactive Teacher class','ACTIVE'),
                       (40,1000,4,'STUDENT','Wrong role class','ACTIVE')
                     """);
-            statement.execute("INSERT INTO assignment_templates VALUES (1,'Template'),(2,'Foreign template')");
-            statement.execute("""
+            statement.execute(
+                    "INSERT INTO assignment_templates VALUES (1,'Template'),(2,'Foreign template')");
+            statement.execute(
+                    """
                     INSERT INTO subject_registrations VALUES (1001,101,1000,'ACTIVE'),
                       (1002,102,1000,'ACTIVE'),(1003,103,1000,'INACTIVE'),(1004,104,1000,'ACTIVE'),
                       (2001,105,2000,'ACTIVE'),(3001,106,2000,'ACTIVE'),
                       (1007,107,1000,'ACTIVE'),(1008,108,1000,'ACTIVE'),
                       (1009,109,1000,'ACTIVE'),(1010,110,1000,'INACTIVE')
                     """);
-            statement.execute("""
+            statement.execute(
+                    """
                     INSERT INTO class_enrollments VALUES (100,1001,10,'ACTIVE'),(101,1002,10,'ACTIVE'),
                       (102,1003,10,'INACTIVE'),(103,1004,10,'ACTIVE'),(200,2001,20,'ACTIVE'),
                       (300,1001,11,'INACTIVE'),(400,3001,10,'ACTIVE'),
                       (107,1007,10,'ACTIVE'),(108,1008,10,'ACTIVE'),
                       (109,1009,10,'INACTIVE'),(110,1010,10,'ACTIVE')
                     """);
-            statement.execute("""
+            statement.execute(
+                    """
                     INSERT INTO assignments (assignment_id,class_id,template_id,title,assignment_purpose,
                       response_type,instructions,maximum_score,status,available_from,due_at,published_at,cancelled_at)
                     SELECT v.id,v.class_id,1,'Assignment '||v.id,'REGULAR',v.response_type,'Saved instructions',
@@ -109,14 +155,16 @@ class TeacherSubmissionDatabaseTest {
                       (601,20,'ESSAY','PUBLISHED'),(701,30,'ESSAY','PUBLISHED'),
                       (801,40,'ESSAY','PUBLISHED')) AS v(id,class_id,response_type,status)
                     """);
-            statement.execute("""
+            statement.execute(
+                    """
                     INSERT INTO questions (question_id,assignment_id,question_order,question_text,maximum_points,options)
                     VALUES (901,501,1,'Saved objective question',10,
                       '[{"option_id":11,"option_order":1,"option_text":"Correct","is_correct":true},
                         {"option_id":12,"option_order":2,"option_text":"Alternative","is_correct":false}]'::jsonb),
                       (903,503,1,'Cancelled objective question',10,'[]'::jsonb)
                     """);
-            statement.execute("""
+            statement.execute(
+                    """
                     INSERT INTO submissions (submission_id,assignment_id,enrollment_id,attempt_number,status,
                       started_at,deadline_at,submitted_at,content,submission_link,answer,score,feedback,
                       graded_by,graded_at,released_at)
@@ -143,7 +191,8 @@ class TeacherSubmissionDatabaseTest {
         }
     }
 
-    @AfterEach void close() throws SQLException {
+    @AfterEach
+    void close() throws SQLException {
         if (connection != null) connection.close();
     }
 
@@ -158,230 +207,430 @@ class TeacherSubmissionDatabaseTest {
     }
 
     private TeacherSubmissionService service(TeacherSubmissionDAO dao, AssignmentDAO assignments) {
-        Connection borrowed = (Connection) Proxy.newProxyInstance(Connection.class.getClassLoader(),
-                new Class<?>[]{Connection.class}, (proxy, method, arguments) -> {
-                    if (method.getName().equals("close")) return null;
-                    try { return method.invoke(connection, arguments); }
-                    catch (InvocationTargetException ex) { throw ex.getCause(); }
+        Connection borrowed =
+                (Connection)
+                        Proxy.newProxyInstance(
+                                Connection.class.getClassLoader(),
+                                new Class<?>[] {Connection.class},
+                                (proxy, method, arguments) -> {
+                                    if (method.getName().equals("close")) return null;
+
+                                    try {
+                                        return method.invoke(connection, arguments);
+                                    } catch (InvocationTargetException ex) {
+                                        throw ex.getCause();
+                                    }
+                                });
+
+        return new TeacherSubmissionService(
+                dao,
+                assignments,
+                () -> {
+                    writableFixture();
+
+                    return borrowed;
                 });
-        return new TeacherSubmissionService(dao, assignments, () -> {
-            writableFixture();
-            return borrowed;
-        });
     }
 
     private List<Long> ids(String search, String status) {
-        return service().listPage(1,501,TeacherSubmissionFilter.from(search,status)).submissions().stream()
+        return service()
+                .listPage(1, 501, TeacherSubmissionFilter.from(search, status))
+                .submissions()
+                .stream()
                 .filter(row -> row.hasSubmission())
-                .map(row -> row.submission().submissionId()).toList();
+                .map(row -> row.submission().submissionId())
+                .toList();
     }
 
     private void execute(String sql) throws SQLException {
         writableFixture();
-        try (var statement = connection.createStatement()) { statement.execute(sql); }
+
+        try (var statement = connection.createStatement()) {
+            statement.execute(sql);
+        }
     }
 
     private String snapshot() throws SQLException {
         writableFixture();
         StringBuilder snapshot = new StringBuilder();
-        for (String table : List.of("assignments","questions","submissions","class_enrollments",
-                "subject_registrations","users","subject_classes")) {
-            try (var statement = connection.createStatement(); var rows = statement.executeQuery(
-                    "SELECT jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text)::text FROM " + table + " t")) {
-                rows.next(); snapshot.append(table).append(':').append(rows.getString(1)).append('\n');
+
+        for (String table :
+                List.of(
+                        "assignments",
+                        "questions",
+                        "submissions",
+                        "class_enrollments",
+                        "subject_registrations",
+                        "users",
+                        "subject_classes")) {
+            try (var statement = connection.createStatement();
+                    var rows =
+                            statement.executeQuery(
+                                    "SELECT jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text)::text FROM "
+                                            + table
+                                            + " t")) {
+                rows.next();
+                snapshot.append(table).append(':').append(rows.getString(1)).append('\n');
             }
         }
+
         return snapshot.toString();
     }
 
-    @Test @Tag("database") void unsubmittedAttemptsRemainInRosterButCannotBeOpened() {
-        assertTrue(ids(null,null).containsAll(List.of(4L,5L,6L)));
-        for(long id:List.of(4L,5L,6L))
-            assertThrows(NoSuchElementException.class,()->service().detailPage(1,501,id));
-        assertNotNull(service().detailPage(1,501,1));
+    @Test
+    @Tag("database")
+    void unsubmittedAttemptsRemainInRosterButCannotBeOpened() {
+        assertTrue(ids(null, null).containsAll(List.of(4L, 5L, 6L)));
+
+        for (long id : List.of(4L, 5L, 6L))
+            assertThrows(NoSuchElementException.class, () -> service().detailPage(1, 501, id));
+
+        assertNotNull(service().detailPage(1, 501, 1));
     }
 
-    @Test void filterNormalizesAllStatusesAndUnicodeCodePointLength() {
-        assertEquals("Nguyễn", TeacherSubmissionFilter.from("  Nguyễn  "," all ").search());
-        assertNull(TeacherSubmissionFilter.from(null,null).status());
+    @Test
+    void filterNormalizesAllStatusesAndUnicodeCodePointLength() {
+        assertEquals("Nguyễn", TeacherSubmissionFilter.from("  Nguyễn  ", " all ").search());
+        assertNull(TeacherSubmissionFilter.from(null, null).status());
         assertNull(TeacherSubmissionFilter.from("", " ").status());
+
         for (SubmissionStatus status : SubmissionStatus.values())
-            assertEquals(status,TeacherSubmissionFilter.from(null," "+status.name().toLowerCase()+" ").status());
-        var notStarted=TeacherSubmissionFilter.from(null," not_started ");
-        assertTrue(notStarted.notStartedOnly()); assertNull(notStarted.status());
-        assertEquals("NOT_STARTED",notStarted.statusValue());
-        assertEquals(200, TeacherSubmissionFilter.from("😀".repeat(200),null).search().codePointCount(0,400));
-        assertThrows(IllegalArgumentException.class,()->TeacherSubmissionFilter.from("😀".repeat(201),null));
-        assertThrows(IllegalArgumentException.class,()->TeacherSubmissionFilter.from(null,"DELETED"));
+            assertEquals(
+                    status,
+                    TeacherSubmissionFilter.from(null, " " + status.name().toLowerCase() + " ")
+                            .status());
+
+        var notStarted = TeacherSubmissionFilter.from(null, " not_started ");
+
+        assertTrue(notStarted.notStartedOnly());
+        assertNull(notStarted.status());
+        assertEquals("NOT_STARTED", notStarted.statusValue());
+        assertEquals(
+                200,
+                TeacherSubmissionFilter.from("😀".repeat(200), null)
+                        .search()
+                        .codePointCount(0, 400));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> TeacherSubmissionFilter.from("😀".repeat(201), null));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> TeacherSubmissionFilter.from(null, "DELETED"));
     }
 
-    @Test void validatesActorIdsAndFilterBeforeOpeningDatabase() {
+    @Test
+    void validatesActorIdsAndFilterBeforeOpeningDatabase() {
         AtomicInteger openings = new AtomicInteger();
-        var service = new TeacherSubmissionService(new TeacherSubmissionDAO(),new AssignmentDAO(),()-> {
-            openings.incrementAndGet(); throw new SQLException("Must not connect");
-        });
-        assertThrows(SecurityException.class,()->service.listPage(0,501,TeacherSubmissionFilter.from(null,null)));
-        assertThrows(IllegalArgumentException.class,()->service.listPage(1,0,TeacherSubmissionFilter.from(null,null)));
-        assertThrows(NullPointerException.class,()->service.listPage(1,501,null));
-        assertThrows(IllegalArgumentException.class,()->service.detailPage(1,501,-1));
-        assertEquals(0,openings.get());
+        var service =
+                new TeacherSubmissionService(
+                        new TeacherSubmissionDAO(),
+                        new AssignmentDAO(),
+                        () -> {
+                            openings.incrementAndGet();
+                            throw new SQLException("Must not connect");
+                        });
+
+        assertThrows(
+                SecurityException.class,
+                () -> service.listPage(0, 501, TeacherSubmissionFilter.from(null, null)));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> service.listPage(1, 0, TeacherSubmissionFilter.from(null, null)));
+        assertThrows(NullPointerException.class, () -> service.listPage(1, 501, null));
+        assertThrows(IllegalArgumentException.class, () -> service.detailPage(1, 501, -1));
+        assertEquals(0, openings.get());
     }
 
-    @Test void databaseFailuresRemainGenericAtServiceBoundary() {
-        var service = new TeacherSubmissionService(new TeacherSubmissionDAO(),new AssignmentDAO(),()-> {
-            throw new SQLException("Private JDBC connection failure");
-        });
-        var error=assertThrows(IllegalStateException.class,()->service.listPage(1,501,TeacherSubmissionFilter.from(null,null)));
-        assertEquals("Không thể tải danh sách bài nộp.",error.getMessage());
-        assertInstanceOf(SQLException.class,error.getCause());
+    @Test
+    void databaseFailuresRemainGenericAtServiceBoundary() {
+        var service =
+                new TeacherSubmissionService(
+                        new TeacherSubmissionDAO(),
+                        new AssignmentDAO(),
+                        () -> {
+                            throw new SQLException("Private JDBC connection failure");
+                        });
+        var error =
+                assertThrows(
+                        IllegalStateException.class,
+                        () -> service.listPage(1, 501, TeacherSubmissionFilter.from(null, null)));
+
+        assertEquals("Không thể tải danh sách bài nộp.", error.getMessage());
+        assertInstanceOf(SQLException.class, error.getCause());
     }
 
-    @Test @Tag("database") void ownedListGroupsStudentsAndOrdersTheirAttemptsNewestFirst() {
-        assertEquals(List.of(4L,1L,5L,2L,7L,6L,3L),ids(null,null));
-        var page=service().listPage(1,501,TeacherSubmissionFilter.from(null,null));
-        assertEquals("A1",page.assignment().classCode());
-        assertEquals(9,page.submissions().size()); assertEquals(9,page.totalCount());
-        assertThrows(UnsupportedOperationException.class,()->page.submissions().clear());
+    @Test
+    @Tag("database")
+    void ownedListGroupsStudentsAndOrdersTheirAttemptsNewestFirst() {
+        assertEquals(List.of(4L, 1L, 5L, 2L, 7L, 6L, 3L), ids(null, null));
+        var page = service().listPage(1, 501, TeacherSubmissionFilter.from(null, null));
+
+        assertEquals("A1", page.assignment().classCode());
+        assertEquals(9, page.submissions().size());
+        assertEquals(9, page.totalCount());
+        assertThrows(UnsupportedOperationException.class, () -> page.submissions().clear());
     }
 
-    @Test @Tag("database") void summaryCountsStudentsOnceByLatestAttemptAcrossFiltersAndPages() {
-        var all=service().listPage(1,501,TeacherSubmissionFilter.from(null,null));
-        assertEquals(6,all.totalStudents());
-        assertEquals(java.util.Map.of("NOT_STARTED",2L,"SUBMITTED",1L,"EXPIRED",1L,"VOID",1L,"IN_PROGRESS",1L),all.studentCounts());
-        var filtered=service().listPage(1,501,TeacherSubmissionFilter.from("50%_","NOT_STARTED","99"));
-        assertEquals(1,filtered.totalCount());
-        assertEquals(all.studentCounts(),filtered.studentCounts());
-        assertThrows(UnsupportedOperationException.class,()->all.studentCounts().put("NOT_STARTED",99L));
-        assertTrue(all.submissions().stream().filter(row->row.submission()!=null
-            && java.util.Set.of(1L,2L,3L,7L).contains(row.submission().submissionId())).allMatch(row->row.canViewWork()));
-        assertTrue(all.submissions().stream().filter(row->row.submission()==null
-            || java.util.Set.of(4L,5L,6L).contains(row.submission().submissionId())).noneMatch(row->row.canViewWork()));
+    @Test
+    @Tag("database")
+    void summaryCountsStudentsOnceByLatestAttemptAcrossFiltersAndPages() {
+        var all = service().listPage(1, 501, TeacherSubmissionFilter.from(null, null));
+
+        assertEquals(6, all.totalStudents());
+        assertEquals(
+                java.util.Map.of(
+                        "NOT_STARTED",
+                        2L,
+                        "SUBMITTED",
+                        1L,
+                        "EXPIRED",
+                        1L,
+                        "VOID",
+                        1L,
+                        "IN_PROGRESS",
+                        1L),
+                all.studentCounts());
+        var filtered =
+                service()
+                        .listPage(
+                                1, 501, TeacherSubmissionFilter.from("50%_", "NOT_STARTED", "99"));
+
+        assertEquals(1, filtered.totalCount());
+        assertEquals(all.studentCounts(), filtered.studentCounts());
+        assertThrows(
+                UnsupportedOperationException.class,
+                () -> all.studentCounts().put("NOT_STARTED", 99L));
+        assertTrue(
+                all.submissions().stream()
+                        .filter(
+                                row ->
+                                        row.submission() != null
+                                                && java.util.Set.of(1L, 2L, 3L, 7L)
+                                                        .contains(row.submission().submissionId()))
+                        .allMatch(row -> row.canViewWork()));
+        assertTrue(
+                all.submissions().stream()
+                        .filter(
+                                row ->
+                                        row.submission() == null
+                                                || java.util.Set.of(4L, 5L, 6L)
+                                                        .contains(row.submission().submissionId()))
+                        .noneMatch(row -> row.canViewWork()));
     }
 
-    @Test @Tag("database") void includesCurrentUnstartedStudentsWithoutInventingAttemptsOrDetailIds() {
-        var page=service().listPage(1,501,TeacherSubmissionFilter.from(null,"NOT_STARTED"));
-        assertEquals(2,page.totalCount());
-        assertEquals(List.of(107L,108L),page.submissions().stream().map(row -> row.studentId()).toList());
-        for (var row:page.submissions()) {
-            assertFalse(row.hasSubmission()); assertNull(row.submission()); assertNull(row.graderName());
-            assertNull(row.assignmentSnapshot()); assertNull(row.questionsSnapshot());
-            assertThrows(NoSuchElementException.class,()->service().detailPage(1,501,row.studentId()));
+    @Test
+    @Tag("database")
+    void includesCurrentUnstartedStudentsWithoutInventingAttemptsOrDetailIds() {
+        var page = service().listPage(1, 501, TeacherSubmissionFilter.from(null, "NOT_STARTED"));
+
+        assertEquals(2, page.totalCount());
+        assertEquals(
+                List.of(107L, 108L),
+                page.submissions().stream().map(row -> row.studentId()).toList());
+
+        for (var row : page.submissions()) {
+            assertFalse(row.hasSubmission());
+            assertNull(row.submission());
+            assertNull(row.graderName());
+            assertNull(row.assignmentSnapshot());
+            assertNull(row.questionsSnapshot());
+            assertThrows(
+                    NoSuchElementException.class,
+                    () -> service().detailPage(1, 501, row.studentId()));
         }
-        assertEquals(1,service().listPage(1,501,TeacherSubmissionFilter.from("50%_","NOT_STARTED")).totalCount());
-        assertEquals(1,service().listPage(1,501,TeacherSubmissionFilter.from("PENDING@EXAMPLE.TEST","NOT_STARTED")).totalCount());
-        assertEquals(0,service().listPage(1,501,TeacherSubmissionFilter.from("' OR 1=1 --","NOT_STARTED")).totalCount());
+
+        assertEquals(
+                1,
+                service()
+                        .listPage(1, 501, TeacherSubmissionFilter.from("50%_", "NOT_STARTED"))
+                        .totalCount());
+        assertEquals(
+                1,
+                service()
+                        .listPage(
+                                1,
+                                501,
+                                TeacherSubmissionFilter.from("PENDING@EXAMPLE.TEST", "NOT_STARTED"))
+                        .totalCount());
+        assertEquals(
+                0,
+                service()
+                        .listPage(
+                                1, 501, TeacherSubmissionFilter.from("' OR 1=1 --", "NOT_STARTED"))
+                        .totalCount());
     }
 
-    @Test @Tag("database") void searchesStudentNameOrEmailLiterallyWithCaseInsensitiveMatching() {
-        assertEquals(List.of(4L,1L),ids("  ALICE  ",null));
-        assertEquals(List.of(6L,3L),ids("quang@EXAMPLE.test",null));
-        assertEquals(List.of(4L,1L),ids("100%_",null));
-        assertEquals(List.of(4L,1L),ids("%",null));
-        assertEquals(List.of(4L,1L),ids("_",null));
-        assertEquals(List.of(7L),ids("' OR 1=1 --",null));
-        assertEquals(List.of(),ids("does not exist",null));
+    @Test
+    @Tag("database")
+    void searchesStudentNameOrEmailLiterallyWithCaseInsensitiveMatching() {
+        assertEquals(List.of(4L, 1L), ids("  ALICE  ", null));
+        assertEquals(List.of(6L, 3L), ids("quang@EXAMPLE.test", null));
+        assertEquals(List.of(4L, 1L), ids("100%_", null));
+        assertEquals(List.of(4L, 1L), ids("%", null));
+        assertEquals(List.of(4L, 1L), ids("_", null));
+        assertEquals(List.of(7L), ids("' OR 1=1 --", null));
+        assertEquals(List.of(), ids("does not exist", null));
     }
 
-    @Test @Tag("database") void filtersAllSixStatusesAndCombinesWithSearch() {
-        assertEquals(List.of(6L),ids(null,"IN_PROGRESS"));
-        assertEquals(List.of(1L,7L),ids(null,"SUBMITTED"));
-        assertEquals(List.of(2L),ids(null,"GRADED"));
-        assertEquals(List.of(3L),ids(null,"RELEASED"));
-        assertEquals(List.of(4L),ids(null,"EXPIRED"));
-        assertEquals(List.of(5L),ids(null,"VOID"));
-        assertEquals(List.of(1L),ids("alice"," submitted "));
-        assertEquals(ids(null,null),ids(" "," ALL "));
+    @Test
+    @Tag("database")
+    void filtersAllSixStatusesAndCombinesWithSearch() {
+        assertEquals(List.of(6L), ids(null, "IN_PROGRESS"));
+        assertEquals(List.of(1L, 7L), ids(null, "SUBMITTED"));
+        assertEquals(List.of(2L), ids(null, "GRADED"));
+        assertEquals(List.of(3L), ids(null, "RELEASED"));
+        assertEquals(List.of(4L), ids(null, "EXPIRED"));
+        assertEquals(List.of(5L), ids(null, "VOID"));
+        assertEquals(List.of(1L), ids("alice", " submitted "));
+        assertEquals(ids(null, null), ids(" ", " ALL "));
     }
 
-    @Test @Tag("database") void foreignAndMissingAssignmentsHaveSameNotFoundBehavior() {
-        var service=service();
-        var foreign=assertThrows(NoSuchElementException.class,()->service.listPage(1,601,TeacherSubmissionFilter.from(null,null)));
-        var missing=assertThrows(NoSuchElementException.class,()->service.listPage(1,999,TeacherSubmissionFilter.from(null,null)));
-        assertEquals(foreign.getMessage(),missing.getMessage());
-        assertEquals(9,service.detailPage(2,601,9).row().submission().submissionId());
-        assertThrows(NoSuchElementException.class,()->service.listPage(6,501,TeacherSubmissionFilter.from(null,null)));
+    @Test
+    @Tag("database")
+    void foreignAndMissingAssignmentsHaveSameNotFoundBehavior() {
+        var service = service();
+        var foreign =
+                assertThrows(
+                        NoSuchElementException.class,
+                        () -> service.listPage(1, 601, TeacherSubmissionFilter.from(null, null)));
+        var missing =
+                assertThrows(
+                        NoSuchElementException.class,
+                        () -> service.listPage(1, 999, TeacherSubmissionFilter.from(null, null)));
+
+        assertEquals(foreign.getMessage(), missing.getMessage());
+        assertEquals(9, service.detailPage(2, 601, 9).row().submission().submissionId());
+        assertThrows(
+                NoSuchElementException.class,
+                () -> service.listPage(6, 501, TeacherSubmissionFilter.from(null, null)));
     }
 
-    @Test @Tag("database") void requiresCurrentActiveTeacherRole() throws SQLException {
-        for(long actor:List.of(3L,4L,5L,999L)) {
-            assertThrows(SecurityException.class,()->service().listPage(actor,501,TeacherSubmissionFilter.from(null,null)));
-            assertThrows(SecurityException.class,()->service().detailPage(actor,501,1));
+    @Test
+    @Tag("database")
+    void requiresCurrentActiveTeacherRole() throws SQLException {
+        for (long actor : List.of(3L, 4L, 5L, 999L)) {
+            assertThrows(
+                    SecurityException.class,
+                    () -> service().listPage(actor, 501, TeacherSubmissionFilter.from(null, null)));
+            assertThrows(SecurityException.class, () -> service().detailPage(actor, 501, 1));
         }
+
         execute("UPDATE users SET account_status='INACTIVE' WHERE user_id=1");
-        assertThrows(SecurityException.class,()->service().listPage(1,501,TeacherSubmissionFilter.from(null,null)));
+        assertThrows(
+                SecurityException.class,
+                () -> service().listPage(1, 501, TeacherSubmissionFilter.from(null, null)));
     }
 
-    @Test @Tag("database") void reassignmentImmediatelyChangesWhoCanReadOnNextRequest() throws SQLException {
-        assertEquals(9,service().listPage(1,501,TeacherSubmissionFilter.from(null,null)).submissions().size());
+    @Test
+    @Tag("database")
+    void reassignmentImmediatelyChangesWhoCanReadOnNextRequest() throws SQLException {
+        assertEquals(
+                9,
+                service()
+                        .listPage(1, 501, TeacherSubmissionFilter.from(null, null))
+                        .submissions()
+                        .size());
         execute("UPDATE subject_classes SET teacher_id=2 WHERE class_id=10");
-        assertThrows(NoSuchElementException.class,()->service().detailPage(1,501,1));
-        assertEquals(1,service().detailPage(2,501,1).row().submission().submissionId());
+        assertThrows(NoSuchElementException.class, () -> service().detailPage(1, 501, 1));
+        assertEquals(1, service().detailPage(2, 501, 1).row().submission().submissionId());
     }
 
-    @Test @Tag("database") void preservesInactiveHistoricalStudentEnrollmentRegistrationAndClass() throws SQLException {
+    @Test
+    @Tag("database")
+    void preservesInactiveHistoricalStudentEnrollmentRegistrationAndClass() throws SQLException {
         execute("UPDATE subject_classes SET status='INACTIVE' WHERE class_id=10");
-        var detail=service().detailPage(1,501,3);
-        assertEquals("Nguyễn Quang",detail.row().studentName());
-        assertEquals("quang@example.test",detail.row().studentEmail());
-        assertEquals(SubmissionStatus.RELEASED,detail.row().submission().status());
-        assertEquals("Teacher B",detail.row().graderName());
-        assertTrue(ids(null,null).contains(6L));
+        var detail = service().detailPage(1, 501, 3);
+
+        assertEquals("Nguyễn Quang", detail.row().studentName());
+        assertEquals("quang@example.test", detail.row().studentEmail());
+        assertEquals(SubmissionStatus.RELEASED, detail.row().submission().status());
+        assertEquals("Teacher B", detail.row().graderName());
+        assertTrue(ids(null, null).contains(6L));
     }
 
-    @Test @Tag("database") void rejectsCrossAssignmentCrossClassAndWrongTermSubmissionIds() {
-        for(long submission:List.of(8L,9L,10L,11L,999L))
-            assertThrows(NoSuchElementException.class,()->service().detailPage(1,501,submission));
-        assertEquals(8,service().detailPage(1,502,8).row().submission().submissionId());
-        assertFalse(ids(null,null).contains(10L));
-        assertFalse(ids(null,null).contains(11L));
+    @Test
+    @Tag("database")
+    void rejectsCrossAssignmentCrossClassAndWrongTermSubmissionIds() {
+        for (long submission : List.of(8L, 9L, 10L, 11L, 999L))
+            assertThrows(
+                    NoSuchElementException.class, () -> service().detailPage(1, 501, submission));
+
+        assertEquals(8, service().detailPage(1, 502, 8).row().submission().submissionId());
+        assertFalse(ids(null, null).contains(10L));
+        assertFalse(ids(null, null).contains(11L));
     }
 
-    @Test @Tag("database") void requiresPublishedAssignmentOrAcceptedHistoricalSubmission() {
-        assertThrows(NoSuchElementException.class, () -> service().listPage(1,503,TeacherSubmissionFilter.from(null,null)));
-        assertThrows(NoSuchElementException.class, () -> service().detailPage(1,503,12));
-        assertThrows(NoSuchElementException.class, () -> service().detailPage(1,504,13));
-        assertEquals(8,service().detailPage(1,502,8).row().submission().submissionId());
+    @Test
+    @Tag("database")
+    void requiresPublishedAssignmentOrAcceptedHistoricalSubmission() {
+        assertThrows(
+                NoSuchElementException.class,
+                () -> service().listPage(1, 503, TeacherSubmissionFilter.from(null, null)));
+        assertThrows(NoSuchElementException.class, () -> service().detailPage(1, 503, 12));
+        assertThrows(NoSuchElementException.class, () -> service().detailPage(1, 504, 13));
+        assertEquals(8, service().detailPage(1, 502, 8).row().submission().submissionId());
     }
 
-    @Test @Tag("database") void detailRetainsSavedWorkEvaluationAndObjectiveQuestionContext() {
-        var detail=service().detailPage(1,501,3);
-        var submission=detail.row().submission();
-        assertEquals(103,detail.row().studentId());
-        assertEquals("Saved content 3",submission.content());
-        assertEquals("https://example.test/work/3",submission.submissionLink());
+    @Test
+    @Tag("database")
+    void detailRetainsSavedWorkEvaluationAndObjectiveQuestionContext() {
+        var detail = service().detailPage(1, 501, 3);
+        var submission = detail.row().submission();
+
+        assertEquals(103, detail.row().studentId());
+        assertEquals("Saved content 3", submission.content());
+        assertEquals("https://example.test/work/3", submission.submissionLink());
         assertTrue(submission.answer().contains("selected_option_id"));
-        assertEquals("8.50",submission.score().toPlainString());
-        assertEquals("Saved feedback",submission.feedback());
-        assertEquals(2L,submission.gradedBy());
+        assertEquals("8.50", submission.score().toPlainString());
+        assertEquals("Saved feedback", submission.feedback());
+        assertEquals(2L, submission.gradedBy());
         assertNotNull(submission.gradedAt());
         assertNotNull(submission.releasedAt());
-        assertEquals(901,detail.assignment().questions().get(0).questionId());
+        assertEquals(901, detail.assignment().questions().get(0).questionId());
         assertTrue(detail.assignment().questions().get(0).options().contains("option_id"));
-        assertTrue(service().detailPage(1,502,8).assignment().questions().isEmpty());
+        assertTrue(service().detailPage(1, 502, 8).assignment().questions().isEmpty());
     }
 
-    @Test @Tag("database") void listAndDetailLeaveEveryAcademicRowUnchanged() throws SQLException {
-        String before=snapshot();
-        ids(null,null);ids("alice","SUBMITTED");
-        service().listPage(1,501,TeacherSubmissionFilter.from(null,"NOT_STARTED"));
-        service().listPage(1,501,TeacherSubmissionFilter.from("50%_","NOT_STARTED","99"));
-        service().detailPage(1,501,3);
-        assertThrows(NoSuchElementException.class,()->service().detailPage(1,501,6));
-        assertEquals(before,snapshot());
+    @Test
+    @Tag("database")
+    void listAndDetailLeaveEveryAcademicRowUnchanged() throws SQLException {
+        String before = snapshot();
+
+        ids(null, null);
+        ids("alice", "SUBMITTED");
+        service().listPage(1, 501, TeacherSubmissionFilter.from(null, "NOT_STARTED"));
+        service().listPage(1, 501, TeacherSubmissionFilter.from("50%_", "NOT_STARTED", "99"));
+        service().detailPage(1, 501, 3);
+        assertThrows(NoSuchElementException.class, () -> service().detailPage(1, 501, 6));
+        assertEquals(before, snapshot());
     }
 
-    @Test @Tag("database") void allQueriesRunInsideOneReadOnlyRepeatableReadTransaction() {
-        List<Connection> seen=new ArrayList<>();
-        var dao=new TeacherSubmissionDAO() {
-            @Override public List<vn.edu.fpt.ams.dto.TeacherSubmissionRow> findForTeacher(Connection c,
-                    long teacher,long assignment,TeacherSubmissionFilter filter) throws SQLException {
-                assertTrue(c.isReadOnly());
-                assertFalse(c.getAutoCommit());
-                assertEquals(Connection.TRANSACTION_REPEATABLE_READ,c.getTransactionIsolation());
-                seen.add(c);return super.findForTeacher(c,teacher,assignment,filter);
-            }
-        };
-        service(dao,new AssignmentDAO()).listPage(1,501,TeacherSubmissionFilter.from(null,null));
-        assertEquals(1,seen.size());
+    @Test
+    @Tag("database")
+    void allQueriesRunInsideOneReadOnlyRepeatableReadTransaction() {
+        List<Connection> seen = new ArrayList<>();
+        var dao =
+                new TeacherSubmissionDAO() {
+                    @Override
+                    public List<vn.edu.fpt.ams.dto.TeacherSubmissionRow> findForTeacher(
+                            Connection c,
+                            long teacher,
+                            long assignment,
+                            TeacherSubmissionFilter filter)
+                            throws SQLException {
+                        assertTrue(c.isReadOnly());
+                        assertFalse(c.getAutoCommit());
+                        assertEquals(
+                                Connection.TRANSACTION_REPEATABLE_READ,
+                                c.getTransactionIsolation());
+                        seen.add(c);
+
+                        return super.findForTeacher(c, teacher, assignment, filter);
+                    }
+                };
+
+        service(dao, new AssignmentDAO())
+                .listPage(1, 501, TeacherSubmissionFilter.from(null, null));
+        assertEquals(1, seen.size());
     }
 }

@@ -41,20 +41,31 @@ public final class StudentSubjectDAO {
             """;
 
     public List<Offering> list(Connection c, long student, boolean enrolled) throws SQLException {
-        return list(c,student,enrolled?"enrolled":"available");
+        return list(c, student, enrolled ? "enrolled" : "available");
     }
+
     public List<Offering> list(Connection c, long student, String view) throws SQLException {
-        String condition = switch(view) {
+        String condition = switch (view) {
             case "all" -> "s.status='ACTIVE' AND t.is_active=TRUE AND t.ends_at>statement_timestamp()";
             case "enrolled" -> "r.registration_id IS NOT NULL";
             case "available" -> VISIBLE;
             default -> throw new IllegalArgumentException("Danh sách môn học không hợp lệ.");
         };
-        try(var p=Jdbc.statement(c, SELECT + " WHERE " + condition
-                + " ORDER BY t.starts_at DESC,s.subject_code,st.subject_term_id",student);var r=p.executeQuery()) {
-            var out=new ArrayList<Offering>(); while(r.next()) out.add(map(r)); return out;
+
+        try (var p = Jdbc.statement(
+                        c,
+                        SELECT + " WHERE " + condition
+                                + " ORDER BY t.starts_at DESC,s.subject_code,st.subject_term_id",
+                        student);
+                var r = p.executeQuery()) {
+            var out = new ArrayList<Offering>();
+
+            while (r.next()) out.add(map(r));
+
+            return out;
         }
     }
+
     public Offering detail(Connection c,long student,long offering) throws SQLException {
         try(var p=Jdbc.statement(c,SELECT+" WHERE st.subject_term_id=? AND (r.registration_id IS NOT NULL OR ("+VISIBLE+"))",student,offering);
                 var r=p.executeQuery()) {

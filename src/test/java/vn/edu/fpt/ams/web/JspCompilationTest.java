@@ -10,7 +10,8 @@ class JspCompilationTest {
   void enrollmentViewCompilesWithTomcatDefaults() throws Exception {
     var compiler = new JspC();
     compiler.setUriroot(Path.of("src/main/webapp").toAbsolutePath().toString());
-    compiler.setJspFiles("WEB-INF/views/enrollments/detail.jsp,WEB-INF/views/submissions/detail.jsp,WEB-INF/views/student/result.jsp");
+    compiler.setJspFiles(
+        "WEB-INF/views/enrollments/detail.jsp,WEB-INF/views/submissions/detail.jsp,WEB-INF/views/student/result.jsp");
     compiler.setOutputDir(Path.of("target/jsp-default-test").toAbsolutePath().toString());
     compiler.setClassPath(
         System.getProperty("surefire.test.class.path", System.getProperty("java.class.path")));

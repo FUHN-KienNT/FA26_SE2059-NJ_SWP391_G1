@@ -1,36 +1,254 @@
-.submission-page .requirement-evaluation{display:grid;grid-template-columns:minmax(150px,1fr) minmax(0,2fr);gap:20px;border-top:1px solid #dce2e8;margin-top:20px;padding-top:20px}
-.submission-page .requirement-evaluation label,.submission-page .evaluation-overall-feedback label{line-height:1.5;margin-bottom:7px}
-.submission-page .requirement-evaluation label span,.submission-page .evaluation-overall-feedback label span{font-weight:400}
-.submission-page .evaluation-score-control{display:flex;align-items:center;gap:10px;white-space:nowrap}
-.submission-page .evaluation-score-control input{width:105px;margin:0}
-.submission-page .evaluation-score-control input:invalid{border-color:#b34242}
-.submission-page .requirement-evaluation small,.submission-page .evaluation-overall-feedback small{display:block;font-size:12px;line-height:1.5;margin-top:7px;color:#526176}
-.submission-page .requirement-evaluation textarea,.submission-page .evaluation-overall-feedback textarea{display:block;box-sizing:border-box;resize:vertical;width:100%;min-height:90px;border:1px solid #c6d0db;border-radius:5px;padding:10px;background:#fff;color:#253246;font:inherit;line-height:1.6}
-.submission-page textarea:focus-visible{outline:3px solid #92bce1;outline-offset:3px}
-.submission-page .evaluation-readonly{grid-column:1/-1;margin:0;display:grid;grid-template-columns:150px minmax(0,1fr);gap:9px 18px;line-height:1.6}
-.submission-page .evaluation-readonly dt{font-size:13px;font-weight:600;color:#526176}
-.submission-page .evaluation-readonly dd{margin:0;overflow-wrap:anywhere}
-.submission-page .legacy-rubric-requirement{border-top:1px solid #dce2e8;margin-top:22px;padding-top:18px}
-.submission-page .legacy-rubric-requirement h3{font-size:16px;margin:0 0 10px}
-.submission-page .legacy-rubric-requirement>p{margin:8px 0;line-height:1.6}
-.submission-page .evaluation-total{display:flex;align-items:center;justify-content:space-between;gap:20px;background:#f4f8fc;border:1px solid #dce2e8;border-radius:6px;padding:18px}
-.submission-page .evaluation-total span{font-size:13px;color:#526176}
-.submission-page .evaluation-total p{margin-top:5px;line-height:1.5}
-.submission-page .evaluation-total output{font-size:26px;font-weight:700;color:#253246}
-.submission-page .evaluation-total .evaluation-progress{font-size:13px}
-.submission-page .evaluation-overall-feedback{margin-top:24px}
-.submission-page .evaluation-question-totals{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:16px 0;border-bottom:1px solid #dce2e8}
-.submission-page .evaluation-question-totals dd{margin:0;text-align:right;font-weight:600}
-.submission-page .evaluation-actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:20px}
-.submission-page .evaluation-notice{border:1px solid #dce2e8;border-radius:6px;padding:16px 18px;margin:0 0 20px;line-height:1.6;overflow-wrap:anywhere}
-.submission-page .evaluation-notice p{color:inherit;margin:0}
-.submission-page .evaluation-notice a{display:inline-block;margin-top:8px;text-decoration:underline}
-.submission-page .evaluation-error{border-color:#d49a9a;background:#fff7f7;color:#8e2525}
-.submission-page .evaluation-success{border-color:#96bca7;background:#f2faf5;color:#23583a}
-.submission-page .evaluation-release{margin-top:24px;padding:20px;border:1px solid #bacbd9;border-radius:6px;background:#f4f8fc}
-.submission-page .evaluation-release h3{font-size:17px;margin:0 0 9px}
-.submission-page .evaluation-release p{line-height:1.6}
-.submission-page .evaluation-release-confirm{display:flex;align-items:flex-start;gap:10px;line-height:1.6;margin:18px 0}
-.submission-page .evaluation-release-confirm input{width:18px;height:18px;flex-shrink:0;margin:2px 0 0;padding:0}
-.submission-page .evaluation-readonly+.evaluation-notice{margin-top:18px}
-@media(max-width:720px){.submission-page .requirement-evaluation{grid-template-columns:1fr}.submission-page .evaluation-total{align-items:flex-start;flex-direction:column;gap:10px}.submission-page .evaluation-readonly{grid-template-columns:1fr;gap:4px}.submission-page .evaluation-readonly dd{margin-bottom:10px}.submission-page .evaluation-actions .button,.submission-page .evaluation-release .button{width:100%;white-space:normal;text-align:center}}
+.submission-page .requirement-evaluation {
+    display: grid;
+    grid-template-columns: minmax(150px, 1fr) minmax(0, 2fr);
+    gap: 20px;
+    border-top: 1px solid #dce2e8;
+    margin-top: 20px;
+    padding-top: 20px
+}
+
+.submission-page .requirement-evaluation label,
+.submission-page .evaluation-overall-feedback label {
+    line-height: 1.5;
+    margin-bottom: 7px
+}
+
+.submission-page .requirement-evaluation label span,
+.submission-page .evaluation-overall-feedback label span {
+    font-weight: 400
+}
+
+.submission-page .evaluation-score-control {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    white-space: nowrap
+}
+
+.submission-page .evaluation-score-control input {
+    width: 105px;
+    margin: 0
+}
+
+.submission-page .evaluation-score-control input:invalid {
+    border-color: #b34242
+}
+
+.submission-page .requirement-evaluation small,
+.submission-page .evaluation-overall-feedback small {
+    display: block;
+    font-size: 12px;
+    line-height: 1.5;
+    margin-top: 7px;
+    color: #526176
+}
+
+.submission-page .requirement-evaluation textarea,
+.submission-page .evaluation-overall-feedback textarea {
+    display: block;
+    box-sizing: border-box;
+    resize: vertical;
+    width: 100%;
+    min-height: 90px;
+    border: 1px solid #c6d0db;
+    border-radius: 5px;
+    padding: 10px;
+    background: #fff;
+    color: #253246;
+    font: inherit;
+    line-height: 1.6
+}
+
+.submission-page textarea:focus-visible {
+    outline: 3px solid #92bce1;
+    outline-offset: 3px
+}
+
+.submission-page .evaluation-readonly {
+    grid-column: 1/-1;
+    margin: 0;
+    display: grid;
+    grid-template-columns: 150px minmax(0, 1fr);
+    gap: 9px 18px;
+    line-height: 1.6
+}
+
+.submission-page .evaluation-readonly dt {
+    font-size: 13px;
+    font-weight: 600;
+    color: #526176
+}
+
+.submission-page .evaluation-readonly dd {
+    margin: 0;
+    overflow-wrap: anywhere
+}
+
+.submission-page .legacy-rubric-requirement {
+    border-top: 1px solid #dce2e8;
+    margin-top: 22px;
+    padding-top: 18px
+}
+
+.submission-page .legacy-rubric-requirement h3 {
+    font-size: 16px;
+    margin: 0 0 10px
+}
+
+.submission-page .legacy-rubric-requirement > p {
+    margin: 8px 0;
+    line-height: 1.6
+}
+
+.submission-page .evaluation-total {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    background: #f4f8fc;
+    border: 1px solid #dce2e8;
+    border-radius: 6px;
+    padding: 18px
+}
+
+.submission-page .evaluation-total span {
+    font-size: 13px;
+    color: #526176
+}
+
+.submission-page .evaluation-total p {
+    margin-top: 5px;
+    line-height: 1.5
+}
+
+.submission-page .evaluation-total output {
+    font-size: 26px;
+    font-weight: 700;
+    color: #253246
+}
+
+.submission-page .evaluation-total .evaluation-progress {
+    font-size: 13px
+}
+
+.submission-page .evaluation-overall-feedback {
+    margin-top: 24px
+}
+
+.submission-page .evaluation-question-totals {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    padding: 16px 0;
+    border-bottom: 1px solid #dce2e8
+}
+
+.submission-page .evaluation-question-totals dd {
+    margin: 0;
+    text-align: right;
+    font-weight: 600
+}
+
+.submission-page .evaluation-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 20px
+}
+
+.submission-page .evaluation-notice {
+    border: 1px solid #dce2e8;
+    border-radius: 6px;
+    padding: 16px 18px;
+    margin: 0 0 20px;
+    line-height: 1.6;
+    overflow-wrap: anywhere
+}
+
+.submission-page .evaluation-notice p {
+    color: inherit;
+    margin: 0
+}
+
+.submission-page .evaluation-notice a {
+    display: inline-block;
+    margin-top: 8px;
+    text-decoration: underline
+}
+
+.submission-page .evaluation-error {
+    border-color: #d49a9a;
+    background: #fff7f7;
+    color: #8e2525
+}
+
+.submission-page .evaluation-success {
+    border-color: #96bca7;
+    background: #f2faf5;
+    color: #23583a
+}
+
+.submission-page .evaluation-release {
+    margin-top: 24px;
+    padding: 20px;
+    border: 1px solid #bacbd9;
+    border-radius: 6px;
+    background: #f4f8fc
+}
+
+.submission-page .evaluation-release h3 {
+    font-size: 17px;
+    margin: 0 0 9px
+}
+
+.submission-page .evaluation-release p {
+    line-height: 1.6
+}
+
+.submission-page .evaluation-release-confirm {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    line-height: 1.6;
+    margin: 18px 0
+}
+
+.submission-page .evaluation-release-confirm input {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    margin: 2px 0 0;
+    padding: 0
+}
+
+.submission-page .evaluation-readonly + .evaluation-notice {
+    margin-top: 18px
+}
+
+@media(max-width:720px) {
+    .submission-page .requirement-evaluation {
+        grid-template-columns: 1fr
+    }
+
+    .submission-page .evaluation-total {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 10px
+    }
+
+    .submission-page .evaluation-readonly {
+        grid-template-columns: 1fr;
+        gap: 4px
+    }
+
+    .submission-page .evaluation-readonly dd {
+        margin-bottom: 10px
+    }
+
+    .submission-page .evaluation-actions .button,
+    .submission-page .evaluation-release .button {
+        width: 100%;
+        white-space: normal;
+        text-align: center
+    }
+}
