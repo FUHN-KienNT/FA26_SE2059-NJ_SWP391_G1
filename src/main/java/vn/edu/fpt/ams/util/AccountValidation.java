@@ -18,4 +18,12 @@ public final class AccountValidation {
       throw new IllegalArgumentException("Full name requires 1–50 characters without digits");
     return s;
   }
+
+  public static String studentName(String value) {
+    String name = value == null ? "" : value.strip();
+    if (name.isBlank() || name.codePointCount(0, name.length()) > 50
+        || name.codePoints().anyMatch(Character::isISOControl))
+      throw new IllegalArgumentException("Tên sinh viên cần từ 1 đến 50 ký tự hợp lệ.");
+    return name;
+  }
 }

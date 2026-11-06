@@ -67,7 +67,15 @@ public class GoogleCallbackServlet extends HttpServlet {
         req.getSession().removeAttribute("userId"); req.getSession().removeAttribute("role"); req.getSession().removeAttribute("accountStatus");
         req.getSession().setAttribute("pendingStudentId", account.userId());
         req.getSession().setAttribute("pendingStudentInvitation", invitation);
-        try { verification.send(account.userId()); } catch (IllegalArgumentException cooldown) { /* Existing email can still be used. */ }
+        String message;
+        try {
+          message = verification.send(account.userId())
+              ? "Đã gửi email xác nhận. Vui lòng kiểm tra cả thư mục Spam."
+              : "Chưa gửi được email xác nhận. Bạn có thể gửi lại hoặc liên hệ quản trị viên kiểm tra SMTP.";
+        } catch (IllegalArgumentException cooldown) {
+          message = "Email xác nhận đã được yêu cầu gần đây. Vui lòng kiểm tra hộp thư hoặc chờ 60 giây để gửi lại.";
+        }
+        req.getSession().setAttribute("studentVerificationNotice", message);
         res.sendRedirect(req.getContextPath() + "/auth/student-verification"); return;
       }
       req.getSession().removeAttribute("pendingStudentInvitation");
