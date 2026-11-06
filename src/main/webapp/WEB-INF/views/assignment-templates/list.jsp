@@ -26,6 +26,10 @@
             <h1>
                 Mẫu bài tập
             </h1>
+            <% if(session.getAttribute("notice")!=null){ %>
+                <p role="status"><%=WebSupport.html(vn.edu.fpt.ams.util.Vietnamese.label(session.getAttribute("notice")))%></p>
+                <% session.removeAttribute("notice"); %>
+            <% } %>
             <div class="template-toolbar">
             <form method="get" class="template-filters">
                 <label>
@@ -125,7 +129,19 @@
                                         <a class="ams-button" href="?mode=edit&amp;id=<%=t.templateId()%>" aria-label="Sửa mẫu <%=WebSupport.html(t.title())%>">Sửa</a>
                                     <% } %>
                                     <% if(primary){ %>
-                                        <a class="ams-button template-status-action" href="?mode=status&amp;id=<%=t.templateId()%>" aria-label="Đổi trạng thái mẫu <%=WebSupport.html(t.title())%>"><%=t.status()==TemplateStatus.ACTIVE?"Vô hiệu hóa":"Kích hoạt"%></a>
+                                        <form method="post" class="template-status-form"
+                                            data-confirm="<%=t.status()==TemplateStatus.ACTIVE?"Vô hiệu hóa mẫu bài tập này? Giáo viên không thể chọn mẫu này để tạo bài tập mới. Các bài tập đã tạo giữ nguyên nội dung.":"Kích hoạt lại mẫu bài tập này để giáo viên có thể sử dụng?"%>">
+                                            <input type="hidden" name="csrf" value="<%=WebSupport.csrf(request)%>">
+                                            <input type="hidden" name="action" value="status">
+                                            <input type="hidden" name="id" value="<%=t.templateId()%>">
+                                            <input type="hidden" name="status" value="<%=t.status()==TemplateStatus.ACTIVE?"INACTIVE":"ACTIVE"%>">
+                                            <input type="hidden" name="returnTo" value="list">
+                                            <input type="hidden" name="subjectId" value="<%=selected%>">
+                                            <input type="hidden" name="keyword" value="<%=WebSupport.html(request.getParameter("keyword"))%>">
+                                            <input type="hidden" name="filterStatus" value="<%=WebSupport.html(request.getParameter("status"))%>">
+                                            <input type="hidden" name="page" value="<%=pageData.page()%>">
+                                            <button type="submit" class="ams-button template-status-action"><%=t.status()==TemplateStatus.ACTIVE?"Vô hiệu hóa":"Kích hoạt"%></button>
+                                        </form>
                                     <% } %>
                                 </div>
                             </td>

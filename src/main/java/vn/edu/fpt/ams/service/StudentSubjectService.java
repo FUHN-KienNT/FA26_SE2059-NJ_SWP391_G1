@@ -19,18 +19,34 @@ public class StudentSubjectService {
             return new MasterDataDAO().findTerms(c,null,null);
         });
     }
-    public Page list(long student,String view,String search){
-        String mode=view==null||view.isBlank()?"available":view;
-        if(!mode.equals("available")&&!mode.equals("enrolled"))throw new IllegalArgumentException("Danh sách môn học không hợp lệ.");
-        String query=search==null?"":search.strip();
-        if(query.length()>100)throw new IllegalArgumentException("Từ khóa tìm kiếm không được quá 100 ký tự.");
-        return Jdbc.transaction(connections,c->{
-            c.setReadOnly(true);requireStudent(c,student);
-            var rows=dao.list(c,student,mode.equals("enrolled"));
-            String key=query.toLowerCase(Locale.ROOT);
-            return new Page(rows.stream().filter(x->(x.subjectCode()+" "+x.subjectName()).toLowerCase(Locale.ROOT).contains(key)).toList(),mode,query);
+
+    public Page list(long student, String view, String search) {
+        String mode = view == null || view.isBlank() ? "all" : view;
+        if (!java.util.Set.of("all", "available", "enrolled").contains(mode))
+            throw new IllegalArgumentException("Danh sách môn học không hợp lệ.");
+
+        String query = search == null ? "" : search.strip();
+        if (query.length() > 100)
+            throw new IllegalArgumentException("Từ khóa tìm kiếm không được quá 100 ký tự.");
+
+        return Jdbc.transaction(connections, c -> {
+            c.setReadOnly(true);
+            requireStudent(c, student);
+
+            var rows = dao.list(c, student, mode);
+            String key = query.toLowerCase(Locale.ROOT);
+
+            return new Page(
+                    rows.stream()
+                            .filter(x -> (x.subjectCode() + " " + x.subjectName())
+                                    .toLowerCase(Locale.ROOT)
+                                    .contains(key))
+                            .toList(),
+                    mode,
+                    query);
         });
     }
+
     public Offering detail(long student,long offering){
         positive(offering);
         return Jdbc.transaction(connections,c->{c.setReadOnly(true);requireStudent(c,student);return dao.detail(c,student,offering);});

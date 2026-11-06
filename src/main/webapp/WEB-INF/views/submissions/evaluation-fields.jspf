@@ -1,0 +1,49 @@
+<%@ page pageEncoding="UTF-8" %>
+
+<%
+    String gradingKey = gradingTaskOrder + "_" + gradingRequirement.order();
+    String gradingScoreName = "score_" + gradingKey;
+    String gradingFeedbackName = "requirementFeedback_" + gradingKey;
+    SubmissionEvaluation.Mark gradingMark =
+            evaluation.mark(gradingTaskOrder, gradingRequirement.order());
+    String gradingSavedScore =
+            gradingMark == null || gradingMark.score() == null
+                    ? ""
+                    : gradingMark.score().stripTrailingZeros().toPlainString();
+    String gradingScore = evaluationValue(request, gradingScoreName, gradingSavedScore);
+    String gradingFeedback =
+            evaluationValue(
+                    request,
+                    gradingFeedbackName,
+                    gradingMark == null ? "" : gradingMark.feedback());
+%>
+
+<div class="requirement-evaluation">
+    <% if (evaluationEditable) { %>
+        <div class="evaluation-score-field">
+            <label for="<%= gradingScoreName %>">Điểm yêu cầu <%= gradingRequirement.order() %></label>
+            <div class="evaluation-score-control">
+                <input id="<%= gradingScoreName %>" name="<%= gradingScoreName %>" form="evaluation-form"
+                    type="text" inputmode="decimal" autocomplete="off" pattern="[0-9]{1,3}(\.[0-9]{1,2})?"
+                    value="<%= escape(gradingScore) %>" data-evaluation-score
+                    data-maximum="<%= gradingRequirement.points().toPlainString() %>" aria-describedby="hint_<%= gradingKey %>">
+                <span>/ <%= escape(TeacherSubmissionView.score(gradingRequirement.points())) %></span>
+            </div>
+            <small id="hint_<%= gradingKey %>">Để trống nếu chưa chấm. Điểm 0 được tính là đã chấm.</small>
+        </div>
+        <div class="evaluation-feedback-field">
+            <label for="<%= gradingFeedbackName %>">Nhận xét yêu cầu <%= gradingRequirement.order() %> <span>(không bắt buộc)</span></label>
+            <textarea id="<%= gradingFeedbackName %>" name="<%= gradingFeedbackName %>" form="evaluation-form"
+                  rows="3" maxlength="2000" aria-describedby="feedback_hint_<%= gradingKey %>"><%= escape(gradingFeedback) %></textarea>
+            <small id="feedback_hint_<%= gradingKey %>">Tối đa 2000 ký tự.</small>
+        </div>
+    <% } else { %>
+        <dl class="evaluation-readonly">
+            <dt>Điểm yêu cầu <%= gradingRequirement.order() %></dt>
+            <dd><%= gradingSavedScore.isEmpty() ? "Chưa chấm" : escape(gradingSavedScore) %> / <%= escape(TeacherSubmissionView.score(gradingRequirement.points())) %></dd>
+            <dt>Nhận xét</dt>
+            <dd class="content-text"><%= gradingMark == null || gradingMark.feedback() == null || gradingMark.feedback().isBlank() ? "Chưa có nhận xét." : escape(gradingMark.feedback()) %></dd>
+        </dl>
+    <% } %>
+
+</div>

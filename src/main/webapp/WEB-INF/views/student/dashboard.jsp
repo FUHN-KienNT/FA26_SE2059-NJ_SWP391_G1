@@ -38,12 +38,12 @@
         <% if (dashboard.classes().isEmpty()) { %>
             <div class="student-empty"><p>Bạn chưa tham gia lớp đang hoạt động nào. Các số liệu được tính từ đăng ký và lớp của riêng bạn.</p><a href="${pageContext.request.contextPath}/student/subjects">Xem và đăng ký môn học →</a><p>Hoặc liên hệ giảng viên để được thêm vào lớp hoặc nhận lời mời.</p></div>
         <% } else { %>
-        <div class="student-table-wrap"><table class="student-class-table"><thead><tr><th>Môn học</th><th>Lớp</th><th>Học kỳ</th><th>Giảng viên</th></tr></thead><tbody>
+        <div class="student-table-wrap"><table class="student-class-table"><thead><tr><th>Môn học</th><th>Lớp</th><th>Học kỳ</th><th>Giảng viên</th><th>Thao tác</th></tr></thead><tbody>
         <% for (var item : dashboard.classes()) { %>
-            <tr><td><strong><%=WebSupport.html(item.subjectCode())%></strong><small><%=WebSupport.html(item.subjectName())%></small></td><td><%=WebSupport.html(item.classCode())%></td><td><%=WebSupport.html(item.termCode())%><small><%=WebSupport.html(item.termName())%></small></td><td><%=item.teacherName() == null ? "Chưa phân công" : WebSupport.html(item.teacherName())%></td></tr>
+            <tr><td><strong><%=WebSupport.html(item.subjectCode())%></strong><small><%=WebSupport.html(item.subjectName())%></small></td><td><a href="${pageContext.request.contextPath}/student/classes?classId=<%=item.classId()%>"><%=WebSupport.html(item.classCode())%></a></td><td><%=WebSupport.html(item.termCode())%><small><%=WebSupport.html(item.termName())%></small></td><td><%=item.teacherName() == null ? "Chưa phân công" : WebSupport.html(item.teacherName())%></td><td><a class="student-outline-button" href="${pageContext.request.contextPath}/student/classes?classId=<%=item.classId()%>">Xem lớp</a></td></tr>
         <% } %>
         </tbody></table></div>
-        <p class="student-panel-footnote">Hiển thị <%=dashboard.classes().size()%> trong <%=dashboard.classCount()%> lớp.</p>
+        <p class="student-panel-footnote">Hiển thị <%=dashboard.classes().size()%> trong <%=dashboard.classCount()%> lớp. <a href="${pageContext.request.contextPath}/student/classes">Xem tất cả lớp của tôi</a></p>
         <% } %>
     </section>
 
@@ -55,7 +55,7 @@
             <% } else { %>
             <ul class="student-assignment-list">
             <% for (var item : dashboard.openAssignments()) { %>
-                <li><div class="student-item-title"><h3><%=WebSupport.html(item.title())%></h3><span class="student-response"><%=item.hasAssignmentPage() ? "Trắc nghiệm" : "Tự luận"%></span></div>
+                <li><div class="student-item-title"><h3><%=WebSupport.html(item.title())%></h3><span class="student-response"><%="OBJECTIVE".equals(item.responseType()) ? "Trắc nghiệm" : "Tự luận"%></span></div>
                     <p><%=WebSupport.html(item.classCode())%></p><div class="student-item-bottom"><span>Hạn nộp: <%=WebSupport.html(AssignmentListView.deadline(item.dueAt()))%></span>
                     <% if (item.hasAssignmentPage()) { %><a href="${pageContext.request.contextPath}/student/assignments?assignmentId=<%=item.assignmentId()%>">Xem bài <span aria-hidden="true">→</span></a><% } %>
                     </div>
@@ -64,7 +64,7 @@
             </ul>
             <% } %>
             <p class="student-panel-footnote">Hiển thị <%=dashboard.openAssignments().size()%> bài đang mở. Tổng số bài thường đã công bố: <%=dashboard.assignmentCount()%>.</p>
-            <a class="student-panel-link" href="${pageContext.request.contextPath}/student/assignments">Danh sách bài tập trắc nghiệm <span aria-hidden="true">→</span></a>
+            <a class="student-panel-link" href="${pageContext.request.contextPath}/student/assignments">Danh sách bài tập <span aria-hidden="true">→</span></a>
         </section>
 
         <section class="student-panel" id="student-results" aria-labelledby="student-results-title">
@@ -74,7 +74,25 @@
             <% } else { %>
             <ul class="student-result-list">
             <% for (var item : dashboard.results()) { %>
-                <li><div><h3><%=WebSupport.html(item.title())%></h3><p><%=WebSupport.html(item.classCode())%></p><small>Công bố: <%=WebSupport.html(AssignmentListView.deadline(item.releasedAt()))%> (UTC+07)</small></div><div class="student-score"><strong><%=WebSupport.html(item.score().stripTrailingZeros().toPlainString())%></strong><span>Điểm</span></div></li>
+                <li>
+                    <div>
+                        <h3>
+                            <% if (item.assignmentId() > 0 && item.submissionId() > 0) { %>
+                                <a href="${pageContext.request.contextPath}/student/results?assignmentId=<%= item.assignmentId() %>&amp;submissionId=<%= item.submissionId() %>"><%= WebSupport.html(item.title()) %></a>
+                            <% } else { %>
+                                <%= WebSupport.html(item.title()) %>
+                            <% } %>
+                        </h3>
+
+                        <p><%= WebSupport.html(item.classCode()) %> · Lượt <%= item.attemptNumber() %></p>
+                        <small>Công bố: <%= WebSupport.html(AssignmentListView.deadline(item.releasedAt())) %> (UTC+07)</small>
+                    </div>
+
+                    <div class="student-score">
+                        <strong><%= WebSupport.html(item.score().stripTrailingZeros().toPlainString()) %></strong>
+                        <span>Điểm</span>
+                    </div>
+                </li>
             <% } %>
             </ul><p class="student-panel-footnote">Hiển thị <%=dashboard.results().size()%> trong <%=dashboard.releasedResultCount()%> kết quả đã công bố.</p>
             <% } %>

@@ -85,7 +85,7 @@ public final class StudentDashboardDAO {
     public List<ClassOverview> classes(Connection c, long student) throws SQLException {
         String sql = """
                 SELECT DISTINCT s.subject_code,s.subject_name,c.class_code,t.term_code,t.term_name,
-                    u.full_name,t.starts_at
+                    u.full_name,t.starts_at,c.class_id
                 FROM class_enrollments e
                 JOIN subject_registrations r ON r.registration_id=e.registration_id
                 JOIN subject_classes c ON c.class_id=e.class_id AND c.subject_term_id=r.subject_term_id
@@ -100,7 +100,7 @@ public final class StudentDashboardDAO {
             p.setMaxRows(PREVIEW_LIMIT);
             try (var r = p.executeQuery()) {
                 var out = new ArrayList<ClassOverview>();
-                while (r.next()) out.add(new ClassOverview(r.getString(1), r.getString(2),
+                while (r.next()) out.add(new ClassOverview(r.getLong("class_id"), r.getString(1), r.getString(2),
                         r.getString(3), r.getString(4), r.getString(5), r.getString(6)));
                 return out;
             }
@@ -124,16 +124,27 @@ public final class StudentDashboardDAO {
     }
 
     public List<ReleasedResult> results(Connection c, long student, Instant now) throws SQLException {
-        String sql = "SELECT a.title,c.class_code,sub.attempt_number,sub.score,sub.released_at "
+        String sql = "SELECT a.title,c.class_code,sub.attempt_number,sub.score,sub.released_at,a.assignment_id,sub.submission_id "
                 + OWNED_SUBMISSIONS
                 + " AND sub.status='RELEASED' AND sub.released_at<=? AND sub.score IS NOT NULL"
                 + " ORDER BY sub.released_at DESC,sub.submission_id DESC";
+
         try (var p = Jdbc.statement(c, sql, student, now)) {
             p.setMaxRows(PREVIEW_LIMIT);
+
             try (var r = p.executeQuery()) {
                 var out = new ArrayList<ReleasedResult>();
-                while (r.next()) out.add(new ReleasedResult(r.getString(1), r.getString(2),
-                        r.getInt(3), r.getBigDecimal(4), r.getObject(5, OffsetDateTime.class).toInstant()));
+
+                while (r.next())
+                    out.add(new ReleasedResult(
+                            r.getString(1),
+                            r.getString(2),
+                            r.getInt(3),
+                            r.getBigDecimal(4),
+                            r.getObject(5, OffsetDateTime.class).toInstant(),
+                            r.getLong(6),
+                            r.getLong(7)));
+
                 return out;
             }
         }

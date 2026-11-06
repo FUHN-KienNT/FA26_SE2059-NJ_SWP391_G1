@@ -29,9 +29,10 @@ class StudentDashboardServiceTest {
         assertEquals(4, view.assignmentCount());
         assertEquals(5, view.submittedAttemptCount());
         assertEquals(List.of("OWN_CLASS"), view.classes().stream().map(x -> x.classCode()).toList());
+        assertEquals(List.of(10L), view.classes().stream().map(x -> x.classId()).toList());
         assertEquals(List.of("Open Objective", "Open Essay"), view.openAssignments().stream().map(x -> x.title()).toList());
         assertTrue(view.openAssignments().get(0).hasAssignmentPage());
-        assertFalse(view.openAssignments().get(1).hasAssignmentPage());
+        assertTrue(view.openAssignments().get(1).hasAssignmentPage());
         assertTrue(view.openAssignments().stream().allMatch(x -> x.dueAt().isAfter(view.asOf())));
     }
 

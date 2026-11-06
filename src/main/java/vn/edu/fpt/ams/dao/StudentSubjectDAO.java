@@ -23,7 +23,7 @@ public final class StudentSubjectDAO {
                 t.term_code,t.term_name,(t.is_active=TRUE AND t.ends_at>statement_timestamp()) AS is_active,
                 (t.is_active=TRUE AND t.starts_at<=statement_timestamp() AND t.ends_at>statement_timestamp()) AS is_current,st.registration_enabled,
                 st.registration_opens_at,st.registration_closes_at,r.status registration_status,
-                own.class_code,own.class_name,teacher.full_name,own.status class_status,
+                own.class_id,own.class_code,own.class_name,teacher.full_name,own.status class_status,
                 (SELECT COALESCE(SUM(GREATEST(0,c.capacity-(
             """ + OCCUPIED + "))),0) FROM subject_classes c WHERE c.subject_term_id=st.subject_term_id AND "
             + ELIGIBLE_CLASS + ") available_seats,statement_timestamp() server_now " + """
@@ -41,11 +41,31 @@ public final class StudentSubjectDAO {
             """;
 
     public List<Offering> list(Connection c, long student, boolean enrolled) throws SQLException {
-        try(var p=Jdbc.statement(c, SELECT + " WHERE " + (enrolled ? "r.registration_id IS NOT NULL" : VISIBLE)
-                + " ORDER BY t.starts_at DESC,s.subject_code,st.subject_term_id",student);var r=p.executeQuery()) {
-            var out=new ArrayList<Offering>(); while(r.next()) out.add(map(r)); return out;
+        return list(c, student, enrolled ? "enrolled" : "available");
+    }
+
+    public List<Offering> list(Connection c, long student, String view) throws SQLException {
+        String condition = switch (view) {
+            case "all" -> "s.status='ACTIVE' AND t.is_active=TRUE AND t.ends_at>statement_timestamp()";
+            case "enrolled" -> "r.registration_id IS NOT NULL";
+            case "available" -> VISIBLE;
+            default -> throw new IllegalArgumentException("Danh sách môn học không hợp lệ.");
+        };
+
+        try (var p = Jdbc.statement(
+                        c,
+                        SELECT + " WHERE " + condition
+                                + " ORDER BY t.starts_at DESC,s.subject_code,st.subject_term_id",
+                        student);
+                var r = p.executeQuery()) {
+            var out = new ArrayList<Offering>();
+
+            while (r.next()) out.add(map(r));
+
+            return out;
         }
     }
+
     public Offering detail(Connection c,long student,long offering) throws SQLException {
         try(var p=Jdbc.statement(c,SELECT+" WHERE st.subject_term_id=? AND (r.registration_id IS NOT NULL OR ("+VISIBLE+"))",student,offering);
                 var r=p.executeQuery()) {
@@ -59,7 +79,8 @@ public final class StudentSubjectDAO {
                 r.getBoolean("is_active"),r.getBoolean("is_current"),r.getBoolean("registration_enabled"),
                 r.getTimestamp("registration_opens_at").toInstant(),r.getTimestamp("registration_closes_at").toInstant(),
                 r.getString("registration_status"),r.getString("class_code"),r.getString("class_name"),
-                r.getString("full_name"),r.getString("class_status"),r.getLong("available_seats"),r.getTimestamp("server_now").toInstant());
+                r.getString("full_name"),r.getString("class_status"),r.getLong("available_seats"),r.getTimestamp("server_now").toInstant(),
+                r.getObject("class_id", Long.class));
     }
 
     public record Context(long subject,long term) {}

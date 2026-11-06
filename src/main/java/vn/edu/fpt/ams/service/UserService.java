@@ -138,13 +138,15 @@ public class UserService {
     update(actor, id, name, email, role, eligible, null);
   }
   public void update(long actor, long id, String name, String email, UserRole role, Set<Long> eligible, AccountStatus target) {
-    String n = AccountValidation.name(name), e = AccountValidation.email(email);
+    String e = AccountValidation.email(email);
     Jdbc.transaction(
         connections,
         c -> {
           lockUsers(c);
           Access.admin(c, actor);
           UserAccount old = users.findById(c, id).orElseThrow();
+          String n = old.role() == UserRole.STUDENT
+              ? AccountValidation.studentName(name) : AccountValidation.name(name);
           if (role == null) throw new IllegalArgumentException("Role is required");
           if (old.role() == UserRole.STUDENT) {
             if (role != UserRole.STUDENT || !old.email().equals(e))

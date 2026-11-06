@@ -214,6 +214,19 @@ class AdminScreensWorkflowsTest {
     sql("UPDATE users SET email_verified=TRUE WHERE user_id=?", account.userId());
   }
   @Test
+  void adminCanEditGoogleStudentWithNumberedNameWithoutChangingIdentity() {
+    var student = google.signIn(new Identity("numbered-edit", "numbered-edit@test.edu", "Student 123"), null);
+    users.update(1, student.userId(), "Student 456", student.email(), UserRole.STUDENT, Set.of(), AccountStatus.ACTIVE);
+    var changed = users.detail(1, student.userId());
+    assertEquals("Student 456", changed.fullName());
+    assertEquals(student.googleSubject(), changed.googleSubject());
+    assertNull(changed.passwordHash());
+    assertThrows(IllegalArgumentException.class, () -> users.update(1, student.userId(),
+        "Student 456", "other@test.edu", UserRole.STUDENT, Set.of()));
+    assertThrows(IllegalArgumentException.class, () -> users.update(1, student.userId(),
+        " ", student.email(), UserRole.STUDENT, Set.of()));
+  }
+  @Test
   void templateEditSavesContentAndStatusAtomicallyWithPrimaryPermission() {
     long id=templates.createTemplate(2,new AssignmentTemplate(0,1,"Before","Instructions",BigDecimal.TEN,TemplateStatus.ACTIVE,null,null));
     var changed=new AssignmentTemplate(id,1,"After","Updated instructions",BigDecimal.TEN,TemplateStatus.ACTIVE,null,null);
@@ -369,9 +382,12 @@ class AdminScreensWorkflowsTest {
             .replace("TIMESTAMPTZ", "TIMESTAMP WITH TIME ZONE")
             .replace("btrim(", "trim(")
             .replace("'[]'::jsonb", "'[]'")
+            .replace("::jsonb", "")
             .replace("JSONB", "JSON")
             .replace("INTERVAL '48 hours'", "INTERVAL '48' HOUR")
-            .replaceAll("CHECK \\(jsonb_typeof\\([^)]*\\) = '(array|object)'\\)", "");
+            .replaceAll("CHECK \\(jsonb_typeof\\([^)]*\\) = '(array|object)'\\)", "")
+            // This PostgreSQL-only JSON envelope check is exercised by TeacherEvaluationDatabaseTest.
+            .replaceAll("(?s)CONSTRAINT ck_submissions_evaluation CHECK \\(.*?\\),\\s*", "");
     try (var c = db.open();
         var s = c.createStatement()) {
       for (String command : script.split(";")) {

@@ -341,11 +341,17 @@ CREATE TABLE submissions (
   submission_link VARCHAR(2048),
   answer JSONB NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(answer) = 'array'),
   answer_revision BIGINT NOT NULL DEFAULT 0 CHECK (answer_revision >= 0),
+  evaluation JSONB NOT NULL DEFAULT '{"format":"ams-evaluation-v1","marks":[]}'::jsonb,
+  evaluation_revision BIGINT NOT NULL DEFAULT 0 CHECK (evaluation_revision >= 0),
   score NUMERIC(10,2) CHECK (score >= 0),
   feedback TEXT,
   graded_by BIGINT REFERENCES users(user_id),
   graded_at TIMESTAMPTZ,
   released_at TIMESTAMPTZ,
+  CONSTRAINT ck_submissions_evaluation CHECK (
+    jsonb_typeof(evaluation) = 'object'
+    AND evaluation->>'format' IS NOT DISTINCT FROM 'ams-evaluation-v1'
+    AND jsonb_typeof(evaluation->'marks') IS NOT DISTINCT FROM 'array'),
   UNIQUE (enrollment_id, assignment_id, attempt_number),
   CHECK (deadline_at > started_at),
   CHECK (submitted_at IS NULL OR submitted_at BETWEEN started_at AND deadline_at),

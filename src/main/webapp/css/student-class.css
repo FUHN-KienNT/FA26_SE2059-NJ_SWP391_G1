@@ -1,0 +1,389 @@
+/* My Class Detail extends the existing student dashboard and shared AMS shell. */
+.student-class .class-breadcrumb {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 20px;
+    color: #526987;
+    font-size: 13px;
+}
+
+.student-class .class-breadcrumb a {
+    color: #245bd8;
+}
+
+.student-class .class-switch {
+    width: min(100%, 410px);
+    margin: 0;
+    flex-shrink: 0;
+}
+
+.student-class .class-switch > label {
+    display: block;
+    margin: 0 0 8px;
+    color: #526987;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.student-class .class-switch > div {
+    display: flex;
+    gap: 8px;
+}
+
+.student-class .class-switch select {
+    flex: 1;
+    min-width: 0;
+}
+
+.student-class .class-switch button {
+    white-space: nowrap;
+}
+
+.student-class .class-info {
+    margin-bottom: 20px;
+}
+
+.student-class .class-info h2 {
+    margin: 0 0 18px;
+    font-size: 16px;
+    color: #1d3456;
+}
+
+.student-class .class-info dl {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 22px;
+    margin: 0;
+}
+
+.student-class .class-info dt {
+    margin-bottom: 7px;
+    color: #526987;
+    font-size: 12px;
+}
+
+.student-class .class-info dd {
+    margin: 0;
+    color: #1d3456;
+    font-size: 14px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.student-class .class-info small {
+    display: block;
+    margin-top: 5px;
+    color: #526987;
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.5;
+}
+
+.student-class .class-summary .student-summary-card {
+    border-top: 3px solid #bdd0f5;
+}
+
+.student-class .class-summary .student-summary-card:nth-child(2) {
+    border-top-color: #82b5f0;
+}
+
+.student-class .class-summary .student-summary-card:nth-child(3) {
+    border-top-color: #e7c17d;
+}
+
+.student-class .class-summary .student-summary-card:nth-child(4) {
+    border-top-color: #80c6a7;
+}
+
+.student-class .class-summary h2 {
+    min-height: 0;
+    color: #526987;
+}
+
+.student-class .class-summary p {
+    color: #526987;
+}
+
+.student-class .class-filters {
+    display: grid;
+    grid-template-columns: minmax(180px, 1.6fr) minmax(150px, 1fr) minmax(180px, 1fr) auto;
+    gap: 14px;
+    align-items: end;
+    margin: 0 0 24px;
+}
+
+.student-class .class-filters label {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+    color: #526987;
+    font-size: 12px;
+    font-weight: 600;
+    min-width: 0;
+}
+
+.student-class .class-filters input,
+.student-class .class-filters select,
+.student-class .class-switch select {
+    width: 100%;
+    max-width: none;
+    min-height: 44px;
+    padding: 10px 12px;
+    border: 1px solid #cfdbed;
+    border-radius: 8px;
+    background: #fff;
+    color: #263d5d;
+    font: inherit;
+    box-sizing: border-box;
+}
+
+.student-class .class-filter-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    min-height: 44px;
+}
+
+.student-class .class-filter-actions .ams-button {
+    white-space: nowrap;
+}
+
+.student-class .class-reset {
+    color: #526987;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.student-class .class-table-wrap {
+    border: 1px solid #e2e8f2;
+    border-radius: 8px;
+}
+
+.student-class .class-assignment-table {
+    width: 100%;
+    min-width: 960px;
+    table-layout: fixed;
+    margin: 0;
+}
+
+.student-class .class-assignment-table th,
+.student-class .class-assignment-table td {
+    padding: 16px 12px;
+    text-align: left;
+    vertical-align: top;
+    overflow-wrap: anywhere;
+    font-size: 12px;
+    color: #2b4263;
+}
+
+.student-class .class-assignment-table thead th {
+    font-weight: 600;
+    background: #f1f5fb;
+    color: #526987;
+    line-height: 1.5;
+}
+
+.student-class .class-assignment-table th:nth-child(1) {
+    width: 20%;
+}
+
+.student-class .class-assignment-table th:nth-child(2) {
+    width: 12%;
+}
+
+.student-class .class-assignment-table th:nth-child(3) {
+    width: 7%;
+}
+
+.student-class .class-assignment-table th:nth-child(4) {
+    width: 18%;
+}
+
+.student-class .class-assignment-table th:nth-child(5) {
+    width: 13%;
+}
+
+.student-class .class-assignment-table th:nth-child(6) {
+    width: 16%;
+}
+
+.student-class .class-assignment-table th:nth-child(7) {
+    width: 14%;
+}
+
+.student-class .class-assignment-table .class-assignment-title {
+    background: #fff;
+    font-weight: 600;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.student-class .class-assignment-table small {
+    display: block;
+    margin-top: 7px;
+    font-size: 11px;
+    color: #526987;
+    line-height: 1.5;
+}
+
+.student-class .class-time-label {
+    color: #526987;
+}
+
+.student-class .class-status {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+.student-class .class-status.blue {
+    color: #1d4eb3;
+    background: #eaf1ff;
+}
+
+.student-class .class-status.green {
+    color: #16633f;
+    background: #e8f6ee;
+}
+
+.student-class .class-status.amber {
+    color: #82591a;
+    background: #fff4df;
+}
+
+.student-class .class-status.muted {
+    color: #526174;
+    background: #edf0f5;
+}
+
+.student-class .class-assignment-action {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    min-height: 40px;
+    color: #245bd8;
+    font-weight: 600;
+    line-height: 1.5;
+    text-decoration: none;
+}
+
+.student-class .class-assignment-action:hover {
+    text-decoration: underline;
+}
+
+.student-class .class-unavailable {
+    display: inline-block;
+    padding-top: 5px;
+    color: #526987;
+    line-height: 1.5;
+}
+
+.student-class .class-list-footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-top: 18px;
+}
+
+.student-class .class-list-footer p {
+    color: #526987;
+    font-size: 12px;
+    margin: 0;
+}
+
+.student-class .class-pagination {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.student-class .class-pagination a,
+.student-class .class-pagination span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 38px;
+    min-height: 40px;
+    padding: 6px 10px;
+    box-sizing: border-box;
+    border: 1px solid #d7e3f6;
+    border-radius: 7px;
+    text-decoration: none;
+    color: #245bd8;
+    font-size: 12px;
+}
+
+.student-class .class-pagination [aria-current] {
+    background: #2563eb;
+    color: white;
+    border-color: #2563eb;
+    font-weight: 600;
+}
+
+.student-class .student-panel-footnote,
+.student-class .student-empty {
+    color: #526987;
+}
+
+.student-class .class-visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+.student-class a:focus-visible,
+.student-class button:focus-visible,
+.student-class input:focus-visible,
+.student-class select:focus-visible,
+.student-class .class-table-wrap:focus-visible {
+    outline: 3px solid #2563eb;
+    outline-offset: 3px;
+}
+
+@media (max-width: 1350px) {
+    .student-class .class-filters {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 850px) {
+    .student-class .class-info dl {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 560px) {
+
+    .student-class .class-filters,
+    .student-class .class-info dl {
+        grid-template-columns: 1fr;
+    }
+
+    .student-class .class-info dl {
+        gap: 18px;
+    }
+
+    .student-class .class-switch {
+        width: 100%;
+    }
+
+    .student-class .class-assignments .student-panel-heading {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .student-class .class-table-wrap {
+        margin-inline: -6px;
+    }
+}

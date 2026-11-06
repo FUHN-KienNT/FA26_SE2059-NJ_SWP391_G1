@@ -10,7 +10,8 @@ import org.junit.jupiter.api.Assumptions;
 import jakarta.servlet.ServletContextEvent;
 
 class AssignmentDatabaseLifecycleTest {
-    @Test void loadsDriverWhenTomcatInitializedJdbcBeforeWebapp() throws Exception {
+    @Test
+    void loadsDriverWhenTomcatInitializedJdbcBeforeWebapp() throws Exception {
         Assumptions.assumeTrue(Boolean.getBoolean("assignment.db.tests"));
         DriverManager.getDrivers();
         URL[] urls = {
@@ -18,6 +19,7 @@ class AssignmentDatabaseLifecycleTest {
             ServletContextEvent.class.getProtectionDomain().getCodeSource().getLocation(),
             org.postgresql.Driver.class.getProtectionDomain().getCodeSource().getLocation()
         };
+
         try (var loader = new URLClassLoader(urls, ClassLoader.getPlatformClassLoader())) {
             var db = loader.loadClass(DBConnection.class.getName());
             var connect = db.getMethod("getConnection");
@@ -26,12 +28,20 @@ class AssignmentDatabaseLifecycleTest {
             var eventType = loader.loadClass(ServletContextEvent.class.getName());
             var lifecycle = loader.loadClass(AssignmentDatabaseLifecycle.class.getName());
             var listener = lifecycle.getConstructor().newInstance();
-            lifecycle.getMethod("contextInitialized", eventType).invoke(listener, new Object[]{null});
-            try (Connection c = (Connection) connect.invoke(null); var s = c.createStatement();
-                 var r = s.executeQuery("SELECT 1")) {
-                assertTrue(r.next()); assertEquals(1, r.getInt(1));
+
+            lifecycle
+                    .getMethod("contextInitialized", eventType)
+                    .invoke(listener, new Object[] {null});
+
+            try (Connection c = (Connection) connect.invoke(null);
+                    var s = c.createStatement();
+                    var r = s.executeQuery("SELECT 1")) {
+                assertTrue(r.next());
+                assertEquals(1, r.getInt(1));
             } finally {
-                lifecycle.getMethod("contextDestroyed", eventType).invoke(listener, new Object[]{null});
+                lifecycle
+                        .getMethod("contextDestroyed", eventType)
+                        .invoke(listener, new Object[] {null});
             }
         }
     }
