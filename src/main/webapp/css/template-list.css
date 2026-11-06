@@ -10,6 +10,8 @@
 .template-footer .pagination{display:flex;gap:6px;align-items:center}
 .template-footer button:disabled{opacity:.45;cursor:default}
 .template-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.template-status-form{margin:0}
+.ams-ui .template-actions button.template-status-action{background:white;color:#9a4a08;border-color:#f0d0a7}
 .ams-ui .template-actions .ams-button{padding:6px 10px;font-size:13px;white-space:nowrap;color:var(--ams-brand);border-color:#cbdaf7}
 .ams-ui .template-actions .template-status-action{color:#9a4a08;border-color:#f0d0a7}
 @media(max-width:1050px){.template-toolbar{flex-wrap:wrap}.template-filters{flex-basis:100%}.template-footer{flex-wrap:wrap}}

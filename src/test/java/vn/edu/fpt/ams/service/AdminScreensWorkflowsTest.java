@@ -214,6 +214,19 @@ class AdminScreensWorkflowsTest {
     sql("UPDATE users SET email_verified=TRUE WHERE user_id=?", account.userId());
   }
   @Test
+  void adminCanEditGoogleStudentWithNumberedNameWithoutChangingIdentity() {
+    var student = google.signIn(new Identity("numbered-edit", "numbered-edit@test.edu", "Student 123"), null);
+    users.update(1, student.userId(), "Student 456", student.email(), UserRole.STUDENT, Set.of(), AccountStatus.ACTIVE);
+    var changed = users.detail(1, student.userId());
+    assertEquals("Student 456", changed.fullName());
+    assertEquals(student.googleSubject(), changed.googleSubject());
+    assertNull(changed.passwordHash());
+    assertThrows(IllegalArgumentException.class, () -> users.update(1, student.userId(),
+        "Student 456", "other@test.edu", UserRole.STUDENT, Set.of()));
+    assertThrows(IllegalArgumentException.class, () -> users.update(1, student.userId(),
+        " ", student.email(), UserRole.STUDENT, Set.of()));
+  }
+  @Test
   void templateEditSavesContentAndStatusAtomicallyWithPrimaryPermission() {
     long id=templates.createTemplate(2,new AssignmentTemplate(0,1,"Before","Instructions",BigDecimal.TEN,TemplateStatus.ACTIVE,null,null));
     var changed=new AssignmentTemplate(id,1,"After","Updated instructions",BigDecimal.TEN,TemplateStatus.ACTIVE,null,null);
