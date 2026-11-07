@@ -12,9 +12,14 @@ import vn.edu.fpt.ams.util.WebSupport;
 public class TemplateServlet extends HttpServlet {
   private final TemplateService service;
 
-  public TemplateServlet() { this(new TemplateService()); }
+  public TemplateServlet() {
+    this(new TemplateService());
+  }
 
-  TemplateServlet(TemplateService service) { this.service = service; }
+  TemplateServlet(TemplateService service) {
+    this.service = service;
+  }
+
   private static java.math.BigDecimal parseScore(String score) {
     if (score == null || !score.strip().matches("[0-9]{1,3}"))
       throw new IllegalArgumentException("Điểm tối đa phải là số nguyên từ 1 đến 100.");
@@ -27,6 +32,10 @@ public class TemplateServlet extends HttpServlet {
   @Override
   protected void doGet(HttpServletRequest req, HttpServletResponse res)
       throws ServletException, IOException {
+    if (req.getServletPath().startsWith("/teacher/")) {
+      res.sendRedirect(req.getContextPath() + "/teacher/enrollments");
+      return;
+    }
     String view = "/WEB-INF/views/assignment-templates/list.jsp";
     try {
       long actor = WebSupport.actor(req);
@@ -40,6 +49,11 @@ public class TemplateServlet extends HttpServlet {
               ? (subjects.isEmpty() ? 0 : subjects.keySet().iterator().next())
               : WebSupport.id(raw);
       String mode = req.getParameter("mode");
+      if ("status".equals(mode)) {
+        res.sendRedirect(req.getContextPath() + "/expert/templates?mode=edit&id="
+            + WebSupport.id(req.getParameter("id")));
+        return;
+      }
       if ("view".equals(mode)
           || "create".equals(mode)
           || "edit".equals(mode)
@@ -64,9 +78,13 @@ public class TemplateServlet extends HttpServlet {
         }
         WebSupport.csrf(req);
       } else {
-        var page = service.page(actor, subject, req.getParameter("keyword"),
-            WebSupport.option(TemplateStatus.class, req.getParameter("status")),
-            WebSupport.page(req.getParameter("page")));
+        var page =
+            service.page(
+                actor,
+                subject,
+                req.getParameter("keyword"),
+                WebSupport.option(TemplateStatus.class, req.getParameter("status")),
+                WebSupport.page(req.getParameter("page")));
         req.setAttribute("templates", page.items());
         req.setAttribute("templatePage", page);
         if (!teacher && subject != 0)
@@ -93,25 +111,34 @@ public class TemplateServlet extends HttpServlet {
       String action = req.getParameter("action");
       String listDestination = null;
       if ("status".equals(action) && "list".equals(req.getParameter("returnTo"))) {
-        long subject = service.findTemplate(actor, WebSupport.id(req.getParameter("id"))).subjectId();
+        long subject =
+            service.findTemplate(actor, WebSupport.id(req.getParameter("id"))).subjectId();
         String keyword = req.getParameter("keyword");
         if (keyword != null && keyword.length() > 200)
           throw new IllegalArgumentException("Từ khóa tìm kiếm tối đa 200 ký tự.");
-        TemplateStatus filter = WebSupport.option(TemplateStatus.class, req.getParameter("filterStatus"));
-        listDestination = "/expert/templates?subjectId=" + subject
-            + "&page=" + WebSupport.page(req.getParameter("page"))
-            + "&keyword=" + java.net.URLEncoder.encode(keyword == null ? "" : keyword, java.nio.charset.StandardCharsets.UTF_8)
-            + "&status=" + (filter == null ? "" : filter.name());
+        TemplateStatus filter =
+            WebSupport.option(TemplateStatus.class, req.getParameter("filterStatus"));
+        listDestination =
+            "/expert/templates?subjectId="
+                + subject
+                + "&page="
+                + WebSupport.page(req.getParameter("page"))
+                + "&keyword="
+                + java.net.URLEncoder.encode(
+                    keyword == null ? "" : keyword, java.nio.charset.StandardCharsets.UTF_8)
+                + "&status="
+                + (filter == null ? "" : filter.name());
       }
       if ("status".equals(action)) {
         id = WebSupport.id(req.getParameter("id"));
         service.changeStatus(
-            actor, id, WebSupport.option(TemplateStatus.class, req.getParameter("status")));
+            actor, id, WebSupport.option(TemplateStatus.class, req.getParameter("targetStatus")));
       } else {
         long subject = WebSupport.id(req.getParameter("subjectId"));
         String score = req.getParameter("maximumScore");
         if (score == null || score.isBlank())
-          throw new IllegalArgumentException("Vui lòng nhập điểm tối đa là số nguyên từ 1 đến 100.");
+          throw new IllegalArgumentException(
+              "Vui lòng nhập điểm tối đa là số nguyên từ 1 đến 100.");
         var template =
             new AssignmentTemplate(
                 "create".equals(action) ? 0 : WebSupport.id(req.getParameter("id")),
@@ -124,19 +151,24 @@ public class TemplateServlet extends HttpServlet {
                 null);
         if ("create".equals(action)) id = service.createTemplate(actor, template);
         else if ("update".equals(action)) {
-          service.updateTemplate(actor, template,
-              WebSupport.option(TemplateStatus.class, req.getParameter("status")));
+          service.updateTemplate(
+              actor, template, WebSupport.option(TemplateStatus.class, req.getParameter("status")));
           id = template.templateId();
         } else throw new IllegalArgumentException("Unknown action");
       }
       req.getSession()
-          .setAttribute("notice", "status".equals(action)
-              ? ("INACTIVE".equals(req.getParameter("status"))
-                  ? "Đã vô hiệu hóa mẫu bài tập. Các bài tập đã tạo giữ nguyên nội dung."
-                  : "Đã kích hoạt mẫu bài tập.")
-              : "Template saved; existing Assignments remain unchanged");
-      res.sendRedirect(req.getContextPath() + (listDestination != null
-          ? listDestination : "/expert/templates?mode=view&id=" + id));
+          .setAttribute(
+              "notice",
+              "status".equals(action)
+                  ? ("INACTIVE".equals(req.getParameter("targetStatus"))
+                      ? "Đã vô hiệu hóa mẫu bài tập. Các bài tập đã tạo giữ nguyên nội dung."
+                      : "Đã kích hoạt mẫu bài tập.")
+                  : "Template saved; existing Assignments remain unchanged");
+      res.sendRedirect(
+          req.getContextPath()
+              + (listDestination != null
+                  ? listDestination
+                  : "/expert/templates?mode=view&id=" + id));
     } catch (IllegalArgumentException e) {
       try {
         long actor = WebSupport.actor(req);
@@ -157,7 +189,7 @@ public class TemplateServlet extends HttpServlet {
         req.setAttribute("teacherView", false);
         req.setAttribute(
             "primary", service.responsibility(actor, subject) == ResponsibilityType.PRIMARY);
-        req.setAttribute("mode", create ? "create" : "status".equals(action) ? "status" : "edit");
+        req.setAttribute("mode", create ? "create" : "edit");
         req.setAttribute("error", e.getMessage());
         req.setAttribute("submitted", !"status".equals(action));
         res.setStatus(400);

@@ -1,6 +1,6 @@
 package vn.edu.fpt.ams.service;
-import vn.edu.fpt.ams.dao.*;
 
+import vn.edu.fpt.ams.dao.*;
 import vn.edu.fpt.ams.dao.UserDAO;
 import vn.edu.fpt.ams.model.*;
 import vn.edu.fpt.ams.util.*;
@@ -32,8 +32,7 @@ public class AuthenticationService {
     return Jdbc.transaction(
         connections,
         c -> {
-          long id =
-              AuthenticationDAO.lockUserIdByEmail(c, normalized);
+          long id = AuthenticationDAO.lockUserIdByEmail(c, normalized);
           UserAccount user = id == 0 ? null : new UserDAO().findById(c, id).orElseThrow();
           String hash =
               user == null || user.passwordHash() == null ? DUMMY_HASH : user.passwordHash();

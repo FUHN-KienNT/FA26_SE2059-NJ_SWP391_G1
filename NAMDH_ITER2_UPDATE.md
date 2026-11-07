@@ -1,5 +1,15 @@
 # Cập nhật Iteration 2 — NamDH
 
+## Bổ sung Iter3 — mật khẩu và hồ sơ staff
+
+Database đã có cần chạy `database/migrations/007-staff-password-reset.sql` trước khi triển khai. Migration bổ sung bảng token, không thay mật khẩu hiện có. Cấu hình SMTP và `app.baseUrl` dùng lại như luồng xác nhận Student.
+
+- Trang đăng nhập có **Quên mật khẩu?**. Email gửi liên kết dùng một lần, hạn 30 phút. Gửi lại tối thiểu 60 giây; kết quả hiển thị không tiết lộ email có tồn tại hay không.
+- Header có **Hồ sơ cá nhân** cho Admin, Expert và Teacher: cập nhật họ tên, xem email/vai trò và đổi mật khẩu với mật khẩu hiện tại.
+- Mật khẩu mới cần 8–128 ký tự, chữ hoa, chữ thường, chữ số, không có khoảng trắng và khác mật khẩu cũ. Chỉ lưu hash; token reset cũng được hash.
+- Đổi/đặt lại mật khẩu sẽ làm phiên staff dùng thông tin cũ phải đăng nhập lại khi gửi request tiếp theo. Student tiếp tục dùng Google.
+- Email/vai trò của hồ sơ chỉ đọc, không cho staff tự thay đổi danh tính/quyền. Admin vẫn quản lý tại User Detail.
+
 ## Cập nhật database hiện có
 
 Chạy `database/migrations/003-student-email-verification.sql` trên database AMS trước khi chạy ứng dụng mới. Script bổ sung `users.email_verified` và bảng `student_email_verifications`, giữ nguyên dữ liệu hiện có. Student cũ được coi là đã xác nhận; Student tạo mới qua Google phải xác nhận email trước khi vào AMS.

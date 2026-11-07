@@ -37,9 +37,15 @@
             <h1>
                 <%=create?"Tạo tài khoản nội bộ":"Chi tiết tài khoản"%>
             </h1>
-            <% if(noStaffRoles){ %>
-            <p role="alert">Không có vai trò nhân sự đang hoạt động. Vui lòng kích hoạt một vai trò trong Cài đặt hệ thống trước khi tạo tài khoản.</p>
-            <% } %>
+            <%
+                if(noStaffRoles){
+                %>
+                <p role="alert">
+                    Không có vai trò nhân sự đang hoạt động. Vui lòng kích hoạt một vai trò trong Cài đặt hệ thống trước khi tạo tài khoản.
+                </p>
+                <%
+                }
+            %>
             <%
                 if(session.getAttribute("notice")!=null){
                 %>
@@ -94,7 +100,40 @@
                     </label>
                     <label>
                         Vai trò
-                        <select name="role" required <%=read?"disabled":""%>><% if(create){ %><option value="" <%=role==null||role.isBlank()?"selected":""%>>Chọn vai trò</option><% } if(!create&&u.role()==UserRole.STUDENT){ %><option value="STUDENT">Sinh viên</option><% } else { if(!create&&roleOptions.stream().noneMatch(s->s.value().equals(u.role().name()))){ %><option value="<%=u.role().name()%>" <%=u.role().name().equals(role)?"selected":""%>><%=vn.edu.fpt.ams.util.Vietnamese.label(u.role())%> (vai trò hiện tại)</option><% } for(var option:roleOptions){ %><option value="<%=option.value()%>" <%=option.value().equals(role)?"selected":""%>><%=WebSupport.html(option.name())%></option><% } } %></select>
+                        <select name="role" required <%=read?"disabled":""%>>
+                            <%
+                                if(create){
+                                %>
+                                <option value="" <%=role==null||role.isBlank()?"selected":""%>>
+                                    Chọn vai trò
+                                </option>
+                                <%
+                                }
+                                if(!create&&u.role()==UserRole.STUDENT){
+                                %>
+                                <option value="STUDENT">
+                                    Sinh viên
+                                </option>
+                                <%
+                                }
+                                else {
+                                    if(!create&&roleOptions.stream().noneMatch(s->s.value().equals(u.role().name()))){
+                                    %>
+                                    <option value="<%=u.role().name()%>" <%=u.role().name().equals(role)?"selected":""%>>
+                                        <%=vn.edu.fpt.ams.util.Vietnamese.label(u.role())%> (vai trò hiện tại)
+                                    </option>
+                                    <%
+                                    }
+                                    for(var option:roleOptions){
+                                    %>
+                                    <option value="<%=option.value()%>" <%=option.value().equals(role)?"selected":""%>>
+                                        <%=WebSupport.html(option.name())%>
+                                    </option>
+                                    <%
+                                    }
+                                }
+                            %>
+                        </select>
                     </label>
                     <div class="user-status" role="group" aria-labelledby="user-status-label">
                         <span id="user-status-label">Trạng thái</span>
@@ -172,7 +211,7 @@
                         Môn học phụ trách
                     </h2>
                     <p class="muted">
-                        Hiển thị tất cả môn học. Chọn Phân công tại môn chưa phụ trách để mở màn quản lý phân công chuyên gia.
+                        <%=create ? "Chọn vai trò tại các môn muốn phân công. Tài khoản và phân công sẽ được lưu cùng lúc." : "Hiển thị tất cả môn học. Chọn Phân công để mở màn quản lý phân công chuyên gia."%>
                     </p>
                     <%
                         var expertSubjects=(java.util.List<vn.edu.fpt.ams.dto.ExpertSubjectDTO>)request.getAttribute("expertSubjects");
@@ -185,11 +224,22 @@
                         }
                         else {
                         %>
-                        <label for="expert-subject-search">Tìm môn học</label>
-                        <input type="search" id="expert-subject-search" placeholder="Nhập mã hoặc tên môn học…" aria-controls="expert-subject-table" autocomplete="off">
-                        <% if(create){ %>
-                            <p class="muted">Lưu tài khoản trước để có thể phân công môn học.</p>
-                        <% } %>
+                        <label for="expert-subject-search">
+                            Tìm môn học
+                        </label>
+                        <input
+                            type="search"
+                            id="expert-subject-search" placeholder="Nhập mã hoặc tên môn học…" aria-controls="expert-subject-table"
+                            autocomplete="off">
+                        <%
+                            if(create){
+                            %>
+                            <p class="muted">
+                                Có thể để Chưa phân công và bổ sung sau. Mỗi môn có 1–2 chuyên gia chính và tối đa 2 chuyên gia hỗ trợ.
+                            </p>
+                            <%
+                            }
+                        %>
                         <div class="ams-table-wrap expert-subject-scroll" tabindex="0" role="region" aria-label="Danh sách môn học phụ trách">
                             <table id="expert-subject-table">
                                 <thead>
@@ -223,23 +273,48 @@
                                                 <%=WebSupport.html(assignment.name())%>
                                             </td>
                                             <td>
-                                                <%=assignment.responsibility()==null?"—":assignment.responsibility()==ResponsibilityType.PRIMARY?"Chuyên gia chính":"Chuyên gia hỗ trợ"%>
+                                                <% if (create) {
+                                                    String fieldName = "expertAssignment_" + assignment.subjectId();
+                                                    String selectedAssignment = submitted ? request.getParameter(fieldName) : "";
+                                                %>
+                                                    <select data-expert-assignment data-subject-active="<%=subjects.containsKey(assignment.subjectId())%>" name="<%=fieldName%>" aria-label="Vai trò phụ trách môn <%=WebSupport.html(assignment.code())%>"
+                                                        <%=subjects.containsKey(assignment.subjectId()) ? "" : "disabled"%>>
+                                                        <option value="">Chưa phân công</option>
+                                                        <option value="PRIMARY" <%="PRIMARY".equals(selectedAssignment) ? "selected" : ""%>>Chuyên gia chính</option>
+                                                        <option value="SUPPORTING" <%="SUPPORTING".equals(selectedAssignment) ? "selected" : ""%>>Chuyên gia hỗ trợ</option>
+                                                    </select>
+                                                <% } else { %>
+                                                    <%=assignment.responsibility()==null?"—":assignment.responsibility()==ResponsibilityType.PRIMARY?"Chuyên gia chính":"Chuyên gia hỗ trợ"%>
+                                                <% } %>
                                             </td>
                                             <td>
                                                 <span class="status-badge <%=assignment.active()?"active":"inactive"%>"><%=assignment.responsibility()==null?"Chưa phân công":assignment.active()?"Đang phụ trách":"Đã kết thúc"%></span>
                                             </td>
                                             <td>
-                                                <% if(create){ %>
-                                                    <span class="muted">Lưu tài khoản trước</span>
-                                                <% } else { %>
-                                                    <a data-manage-assignment data-subject-id="<%=assignment.subjectId()%>" href="${pageContext.request.contextPath}/admin/subjects?mode=experts&amp;id=<%=assignment.subjectId()%>&amp;returnUserId=<%=u.userId()%>"><%=assignment.active()?"Quản lý phân công":"Phân công"%></a>
-                                                <% } %>
+                                                <%
+                                                    if(create){
+                                                    %>
+                                                    <span class="muted"><%=subjects.containsKey(assignment.subjectId()) ? "Lưu cùng tài khoản" : "Môn ngừng hoạt động"%></span>
+                                                    <%
+                                                    }
+                                                    else {
+                                                    %>
+                                                    <a data-manage-assignment
+                                                        data-subject-id="<%=assignment.subjectId()%>"
+                                                        href="${pageContext.request.contextPath}/admin/subjects?mode=experts&amp;id=<%=assignment.subjectId()%>&amp;returnUserId=<%=u.userId()%>"><%=assignment.active()?"Quản lý phân công":"Phân công"%></a>
+                                                    <%
+                                                    }
+                                                %>
                                             </td>
                                         </tr>
                                         <%
                                         }
                                     %>
-                                    <tr id="expert-subject-empty" hidden><td colspan="5">Không tìm thấy môn học phù hợp.</td></tr>
+                                    <tr id="expert-subject-empty" hidden>
+                                        <td colspan="5">
+                                            Không tìm thấy môn học phù hợp.
+                                        </td>
+                                    </tr>
                                 </tbody>
                             </table>
                         </div>

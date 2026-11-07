@@ -244,6 +244,23 @@ public class SubjectService {
         });
   }
 
+  /** Add a newly created Expert without committing the caller's account transaction. */
+  void assignNewExpert(Connection connection, long subjectId, long expertId,
+      ResponsibilityType responsibility) throws SQLException {
+    Subject subject = subjects.findById(connection, subjectId, true)
+        .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy môn học đã chọn."));
+    if (subject.status() != SubjectStatus.ACTIVE)
+      throw new IllegalArgumentException("Chỉ có thể phân công môn học đang hoạt động.");
+    Map<Long, ResponsibilityType> desired = new java.util.HashMap<>();
+    for (var existing : subjectExperts.findBySubjectId(connection, subjectId, true)) {
+      if (existing.active()) desired.put(existing.expertId(), existing.responsibilityType());
+    }
+    desired.put(expertId, responsibility);
+    validateExpertCounts(desired);
+    validateEligibleExperts(connection, desired.keySet());
+    synchronizeExperts(connection, subjectId, desired);
+  }
+
   /** UC16 preserves the Subject and history; deactivation also closes new registration. */
   public void changeStatus(long actor, long subjectId, SubjectStatus target) {
     if (target == null) throw new IllegalArgumentException("Vui lòng chọn trạng thái môn học.");

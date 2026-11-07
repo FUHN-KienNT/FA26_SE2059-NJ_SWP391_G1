@@ -26,152 +26,203 @@
             <h1>
                 Mẫu bài tập
             </h1>
-            <% if(session.getAttribute("notice")!=null){ %>
-                <p role="status"><%=WebSupport.html(vn.edu.fpt.ams.util.Vietnamese.label(session.getAttribute("notice")))%></p>
-                <% session.removeAttribute("notice"); %>
-            <% } %>
-            <div class="template-toolbar">
-            <form method="get" class="template-filters">
-                <label>
-                    Môn học
-                    <select name="subjectId">
-                        <%
-                            for(var s:subjects.entrySet()){
-                            %>
-                            <option value="<%=s.getKey()%>" <%=s.getKey()==selected?"selected":""%>>
-                                <%=WebSupport.html(s.getValue())%>
-                            </option>
-                            <%
-                            }
-                        %>
-                    </select>
-                </label>
-                <label>
-                    Tiêu đề
-                    <input name="keyword" placeholder="Tìm theo tiêu đề mẫu…" maxlength="200" value="<%=WebSupport.html(request.getParameter("keyword"))%>">
-                </label>
+            <%
+                if(session.getAttribute("notice")!=null){
+                %>
+                <p role="status">
+                    <%=WebSupport.html(vn.edu.fpt.ams.util.Vietnamese.label(session.getAttribute("notice")))%>
+                </p>
                 <%
-                    if(!teacher){
-                    %>
+                    session.removeAttribute("notice");
+                %>
+                <%
+                }
+            %>
+            <div class="template-toolbar">
+                <form method="get" class="template-filters">
                     <label>
-                        Trạng thái
-                        <select name="status">
-                            <option value="">
-                                Tất cả trạng thái
-                            </option>
+                        Môn học
+                        <select name="subjectId">
                             <%
-                                for(var s:TemplateStatus.values()){
+                                for(var s:subjects.entrySet()){
                                 %>
-                                <option value="<%=s.name()%>" <%=s.name().equals(request.getParameter("status"))?"selected":""%>>
-                                    <%=vn.edu.fpt.ams.util.Vietnamese.label(s)%>
+                                <option value="<%=s.getKey()%>" <%=s.getKey()==selected?"selected":""%>>
+                                    <%=WebSupport.html(s.getValue())%>
                                 </option>
                                 <%
                                 }
                             %>
                         </select>
                     </label>
+                    <label>
+                        Tiêu đề
+                        <input
+                            name="keyword" placeholder="Tìm theo tiêu đề mẫu…"
+                            maxlength="200"
+                            value="<%=WebSupport.html(request.getParameter("keyword"))%>">
+                    </label>
                     <%
-                    }
-                %>
-                <button>
-                    Lọc
-                </button>
-            </form>
-            <%
-                if(primary){
-                %>
-                <p>
-                    <a class="ams-button ams-button-primary template-create" href="?mode=create&amp;subjectId=<%=selected%>">+ Tạo mẫu bài tập</a>
-                </p>
-                <%
-                }
-            %>
-            </div>
-            <div class="ams-table-wrap"><table>
-                <thead>
-                    <tr>
-                        <th>
-                            Tiêu đề
-                        </th>
-                        <th>
-                            Điểm tối đa
-                        </th>
-                        <th>
+                        if(!teacher){
+                        %>
+                        <label>
                             Trạng thái
-                        </th>
-                        <th>
-                            Cập nhật (UTC)
-                        </th>
-                        <th>Thao tác</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <%
-                        for(var t:templates){
-                        %>
-                        <tr>
-                            <td>
-                                <a href="?mode=view&amp;id=<%=t.templateId()%>"><%=WebSupport.html(t.title())%></a>
-                            </td>
-                            <td>
-                                <%=t.maximumScore()%>
-                            </td>
-                            <td>
-                                <%=vn.edu.fpt.ams.util.Vietnamese.label(t.status())%>
-                            </td>
-                            <td>
-                                <%=WebSupport.html(t.updatedAt())%>
-                            </td>
-                            <td>
-                                <div class="template-actions">
-                                    <a class="ams-button" href="?mode=view&amp;id=<%=t.templateId()%>" aria-label="Xem mẫu <%=WebSupport.html(t.title())%>">Xem</a>
-                                    <% if(!teacher){ %>
-                                        <a class="ams-button" href="?mode=edit&amp;id=<%=t.templateId()%>" aria-label="Sửa mẫu <%=WebSupport.html(t.title())%>">Sửa</a>
-                                    <% } %>
-                                    <% if(primary){ %>
-                                        <form method="post" class="template-status-form"
-                                            data-confirm="<%=t.status()==TemplateStatus.ACTIVE?"Vô hiệu hóa mẫu bài tập này? Giáo viên không thể chọn mẫu này để tạo bài tập mới. Các bài tập đã tạo giữ nguyên nội dung.":"Kích hoạt lại mẫu bài tập này để giáo viên có thể sử dụng?"%>">
-                                            <input type="hidden" name="csrf" value="<%=WebSupport.csrf(request)%>">
-                                            <input type="hidden" name="action" value="status">
-                                            <input type="hidden" name="id" value="<%=t.templateId()%>">
-                                            <input type="hidden" name="status" value="<%=t.status()==TemplateStatus.ACTIVE?"INACTIVE":"ACTIVE"%>">
-                                            <input type="hidden" name="returnTo" value="list">
-                                            <input type="hidden" name="subjectId" value="<%=selected%>">
-                                            <input type="hidden" name="keyword" value="<%=WebSupport.html(request.getParameter("keyword"))%>">
-                                            <input type="hidden" name="filterStatus" value="<%=WebSupport.html(request.getParameter("status"))%>">
-                                            <input type="hidden" name="page" value="<%=pageData.page()%>">
-                                            <button type="submit" class="ams-button template-status-action"><%=t.status()==TemplateStatus.ACTIVE?"Vô hiệu hóa":"Kích hoạt"%></button>
-                                        </form>
-                                    <% } %>
-                                </div>
-                            </td>
-                        </tr>
-                        <%
-                        }
-                        if(templates.isEmpty()){
-                        %>
-                        <tr>
-                            <td colspan="5">
-                                Không có mẫu bài tập phù hợp.
-                            </td>
-                        </tr>
+                            <select name="status">
+                                <option value="">
+                                    Tất cả trạng thái
+                                </option>
+                                <%
+                                    for(var s:TemplateStatus.values()){
+                                    %>
+                                    <option value="<%=s.name()%>" <%=s.name().equals(request.getParameter("status"))?"selected":""%>>
+                                        <%=vn.edu.fpt.ams.util.Vietnamese.label(s)%>
+                                    </option>
+                                    <%
+                                    }
+                                %>
+                            </select>
+                        </label>
                         <%
                         }
                     %>
-                </tbody>
-            </table>
+                    <button>
+                        Lọc
+                    </button>
+                </form>
+                <%
+                    if(primary){
+                    %>
+                    <p>
+                        <a
+                            class="ams-button ams-button-primary template-create"
+                            href="?mode=create&amp;subjectId=<%=selected%>">+ Tạo mẫu bài tập</a>
+                    </p>
+                    <%
+                    }
+                %>
+            </div>
+            <div class="ams-table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>
+                                Tiêu đề
+                            </th>
+                            <th>
+                                Điểm tối đa
+                            </th>
+                            <th>
+                                Trạng thái
+                            </th>
+                            <th>
+                                Cập nhật (UTC)
+                            </th>
+                            <th>
+                                Thao tác
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <%
+                            for(var t:templates){
+                            %>
+                            <tr>
+                                <td>
+                                    <a href="?mode=view&amp;id=<%=t.templateId()%>"><%=WebSupport.html(t.title())%></a>
+                                </td>
+                                <td>
+                                    <%=t.maximumScore()%>
+                                </td>
+                                <td>
+                                    <%=vn.edu.fpt.ams.util.Vietnamese.label(t.status())%>
+                                </td>
+                                <td>
+                                    <%=WebSupport.html(t.updatedAt())%>
+                                </td>
+                                <td>
+                                    <div class="template-actions">
+                                        <a
+                                            class="ams-button"
+                                            href="?mode=view&amp;id=<%=t.templateId()%>" aria-label="Xem mẫu <%=WebSupport.html(t.title())%>">Xem</a>
+                                        <%
+                                            if(!teacher){
+                                            %>
+                                            <a
+                                                class="ams-button"
+                                                href="?mode=edit&amp;id=<%=t.templateId()%>" aria-label="Sửa mẫu <%=WebSupport.html(t.title())%>">Sửa</a>
+                                            <%
+                                            }
+                                        %>
+                                        <%
+                                            if(primary){
+                                            %>
+                                            <form method="post" action="${pageContext.request.contextPath}/expert/templates" class="template-status-form"
+                                            data-confirm="<%=t.status()==TemplateStatus.ACTIVE?"Vô hiệu hóa mẫu bài tập này? Giáo viên không thể chọn mẫu này để tạo bài tập mới. Các bài tập đã tạo giữ nguyên nội dung.":"Kích hoạt lại mẫu bài tập này để giáo viên có thể sử dụng?"%>">
+                                                <input type="hidden" name="csrf" value="<%=WebSupport.csrf(request)%>">
+                                                <input type="hidden" name="action" value="status">
+                                                <input type="hidden" name="id" value="<%=t.templateId()%>">
+                                                <input
+                                                    type="hidden"
+                                                    name="targetStatus"
+                                                    value="<%=t.status()==TemplateStatus.ACTIVE?"INACTIVE":"ACTIVE"%>">
+                                                <input type="hidden" name="returnTo" value="list">
+                                                <input type="hidden" name="subjectId" value="<%=selected%>">
+                                                <input
+                                                    type="hidden"
+                                                    name="keyword"
+                                                    value="<%=WebSupport.html(request.getParameter("keyword"))%>">
+                                                <input
+                                                    type="hidden"
+                                                    name="filterStatus"
+                                                    value="<%=WebSupport.html(request.getParameter("status"))%>">
+                                                <input type="hidden" name="page" value="<%=pageData.page()%>">
+                                                <button type="submit" class="ams-button template-status-action">
+                                                    <%=t.status()==TemplateStatus.ACTIVE?"Vô hiệu hóa":"Kích hoạt"%>
+                                                </button>
+                                            </form>
+                                            <%
+                                            }
+                                        %>
+                                    </div>
+                                </td>
+                            </tr>
+                            <%
+                            }
+                            if(templates.isEmpty()){
+                            %>
+                            <tr>
+                                <td colspan="5">
+                                    Không có mẫu bài tập phù hợp.
+                                </td>
+                            </tr>
+                            <%
+                            }
+                        %>
+                    </tbody>
+                </table>
             </div>
             <div class="template-footer">
-                <p class="muted">Hiển thị <%=pageData.total()==0?0:(pageData.page()-1)*pageData.pageSize()+1%>–<%=(pageData.page()-1)*pageData.pageSize()+templates.size()%> trong <%=pageData.total()%> mẫu bài tập · <%=pageData.pageSize()%> mẫu mỗi trang</p>
+                <p class="muted">
+                    Hiển thị <%=pageData.total()==0?0:(pageData.page()-1)*pageData.pageSize()+1%>–<%=(pageData.page()-1)*pageData.pageSize()+templates.size()%> trong <%=pageData.total()%> mẫu bài tập · <%=pageData.pageSize()%> mẫu mỗi trang
+                </p>
                 <form method="get" class="pagination" aria-label="Phân trang mẫu bài tập">
                     <input type="hidden" name="subjectId" value="<%=selected%>">
                     <input type="hidden" name="keyword" value="<%=WebSupport.html(request.getParameter("keyword"))%>">
                     <input type="hidden" name="status" value="<%=WebSupport.html(request.getParameter("status"))%>">
-                    <button name="page" value="<%=pageData.page()-1%>" <%=pageData.page()==1?"disabled":""%>>Trước</button>
-                    <% for(long number=Math.max(1,pageData.page()-2); number<=Math.min(pageData.pages(),pageData.page()+2);number++){ %>
-                        <button name="page" value="<%=number%>" <%=number==pageData.page()?"aria-current=\"page\"":""%>><%=number%></button>
-                    <% } %>
-                    <button name="page" value="<%=pageData.page()+1%>" <%=pageData.page()>=pageData.pages()?"disabled":""%>>Sau</button>
+                    <button name="page" value="<%=pageData.page()-1%>" <%=pageData.page()==1?"disabled":""%>>
+                        Trước
+                    </button>
+                    <%
+                        for(long number=Math.max(1,pageData.page()-2); number<=Math.min(pageData.pages(),pageData.page()+2);number++){
+                        %>
+                        <button name="page" value="<%=number%>" <%=number==pageData.page()?"aria-current=\"page\"":""%>>
+                            <%=number%>
+                        </button>
+                        <%
+                        }
+                    %>
+                    <button name="page" value="<%=pageData.page()+1%>" <%=pageData.page()>=pageData.pages()?"disabled":""%>>
+                        Sau
+                    </button>
                 </form>
             </div>
         </main>
