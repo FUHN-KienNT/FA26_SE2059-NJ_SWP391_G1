@@ -1,8 +1,8 @@
 package vn.edu.fpt.ams.service;
-import vn.edu.fpt.ams.dao.*;
 
 import java.sql.*;
 import java.time.Instant;
+import vn.edu.fpt.ams.dao.*;
 import vn.edu.fpt.ams.dao.UserDAO;
 import vn.edu.fpt.ams.integration.GoogleIdentityClient.Identity;
 import vn.edu.fpt.ams.model.*;
@@ -29,10 +29,8 @@ public class GoogleAccountService {
         connections,
         c -> {
           UserAdministrationDAO.lockUsers(c);
-          long bySubject =
-              GoogleEnrollmentDAO.findUserIdByGoogleSubject(c, identity.subject());
-          long byEmail =
-              GoogleEnrollmentDAO.findUserIdByEmail(c, email);
+          long bySubject = GoogleEnrollmentDAO.findUserIdByGoogleSubject(c, identity.subject());
+          long byEmail = GoogleEnrollmentDAO.findUserIdByEmail(c, email);
           if (byEmail != 0 && byEmail != bySubject)
             throw new SecurityException("Google identity conflicts with an existing account");
           long id = bySubject;
@@ -66,10 +64,14 @@ public class GoogleAccountService {
 
   /** Google display names can contain digits; email/subject establish identity. */
   private static String googleDisplayName(String raw, String email) {
-    String name = raw == null ? "" : raw.codePoints()
-        .filter(cp -> !Character.isISOControl(cp))
-        .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
-        .toString().strip();
+    String name =
+        raw == null
+            ? ""
+            : raw.codePoints()
+                .filter(cp -> !Character.isISOControl(cp))
+                .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
+                .toString()
+                .strip();
     if (name.isBlank()) name = email.substring(0, email.indexOf('@'));
     // Fit the existing VARCHAR(50), without splitting Unicode surrogate pairs.
     if (name.codePointCount(0, name.length()) > 50)
@@ -82,13 +84,15 @@ public class GoogleAccountService {
     long classId = GoogleEnrollmentDAO.findInvitedClassId(c, token);
     if (classId == 0) throw new IllegalArgumentException("Invitation not found");
     var placement = GoogleEnrollmentDAO.findClassForUpdate(c, classId);
-    if (placement == null || !"ACTIVE".equals(placement.status()) || !placement.registrationEnabled())
+    if (placement == null
+        || !"ACTIVE".equals(placement.status())
+        || !placement.registrationEnabled())
       throw new IllegalArgumentException("Class is not accepting enrollment");
     long term = placement.term();
     int capacity = placement.capacity();
     long teacher = placement.teacher();
-    if (GoogleEnrollmentDAO.countEligibleOfferingTeachers(c, term, teacher)
-        != 1) throw new IllegalArgumentException("Class Teacher or offering is ineligible");
+    if (GoogleEnrollmentDAO.countEligibleOfferingTeachers(c, term, teacher) != 1)
+      throw new IllegalArgumentException("Class Teacher or offering is ineligible");
     var invitation = GoogleEnrollmentDAO.findInvitationForUpdate(c, token);
     if (invitation == null) throw new IllegalArgumentException("Invitation not found");
     long invitationId = invitation.id();
@@ -102,22 +106,16 @@ public class GoogleAccountService {
             + GoogleEnrollmentDAO.countPendingInvitations(c, classId);
     if (occupied > capacity)
       throw new IllegalArgumentException("Class capacity changed; contact the Teacher");
-    if (GoogleEnrollmentDAO.countConflictingInvitations(c, term, email, invitationId)
-        > 0) throw new IllegalArgumentException("Conflicting invitation in this Subject Term");
-    long registration =
-        GoogleEnrollmentDAO.findRegistrationId(c, student, term);
-    if (registration == 0)
-      registration =
-          GoogleEnrollmentDAO.insertRegistration(c, student, term);
-    else
-      GoogleEnrollmentDAO.reactivateRegistration(c, registration);
-    long enrollment =
-        GoogleEnrollmentDAO.findActiveEnrollmentId(c, registration);
+    if (GoogleEnrollmentDAO.countConflictingInvitations(c, term, email, invitationId) > 0)
+      throw new IllegalArgumentException("Conflicting invitation in this Subject Term");
+    long registration = GoogleEnrollmentDAO.findRegistrationId(c, student, term);
+    if (registration == 0) registration = GoogleEnrollmentDAO.insertRegistration(c, student, term);
+    else GoogleEnrollmentDAO.reactivateRegistration(c, registration);
+    long enrollment = GoogleEnrollmentDAO.findActiveEnrollmentId(c, registration);
     if (enrollment != 0)
       throw new IllegalArgumentException(
           "Student already has an active placement in this Subject Term");
-    enrollment =
-        GoogleEnrollmentDAO.insertInvitationEnrollment(c, registration, classId);
+    enrollment = GoogleEnrollmentDAO.insertInvitationEnrollment(c, registration, classId);
     GoogleEnrollmentDAO.acceptInvitation(c, student, enrollment, invitationId);
   }
 }

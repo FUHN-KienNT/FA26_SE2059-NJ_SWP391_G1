@@ -10,7 +10,7 @@ boolean baoSettings = "/admin/settings".equals(baoPath);
 <header class="ams-header ams-admin-header">
 <button class="ams-menu-toggle" type="button" aria-controls="ams-navigation" aria-expanded="true" aria-label="Ẩn hoặc hiện menu">☰</button>
 <a class="ams-brand" href="${pageContext.request.contextPath}/home"><span class="ams-logo" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m2 8 10-5 10 5-10 5-10-5Z"/><path d="M6 10v6c4 3 8 3 12 0v-6M22 8v8"/></svg></span><strong>AMS</strong><span>Hệ thống quản lý bài tập</span></a>
-<form class="ams-account" method="post" action="${pageContext.request.contextPath}/auth/signout"><span>Quản trị viên</span><input type="hidden" name="csrf" value="<%=vn.edu.fpt.ams.util.WebSupport.csrf(request)%>"><button type="submit">Đăng xuất</button></form>
+<form class="ams-account" method="post" action="${pageContext.request.contextPath}/auth/signout"><a href="${pageContext.request.contextPath}/admin/profile">Hồ sơ cá nhân</a><span>Quản trị viên</span><input type="hidden" name="csrf" value="<%=vn.edu.fpt.ams.util.WebSupport.csrf(request)%>"><button type="submit">Đăng xuất</button></form>
 </header>
 <div class="ams-layout ams-admin-layout">
 <aside class="ams-sidebar ams-admin-sidebar" id="ams-navigation"><nav aria-label="Điều hướng quản trị">

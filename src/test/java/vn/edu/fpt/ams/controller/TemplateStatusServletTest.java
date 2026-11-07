@@ -14,7 +14,8 @@ class TemplateStatusServletTest {
     for (var target : TemplateStatus.values()) {
       var params = new HashMap<String,String>();
       params.put("action","status"); params.put("id","17"); params.put("csrf","test-token");
-      params.put("status",target.name()); params.put("returnTo","list"); params.put("page","2");
+      params.put("status", ""); // A list filter must not override the requested target status.
+      params.put("targetStatus",target.name()); params.put("returnTo","list"); params.put("page","2");
       params.put("keyword","Mẫu & quiz"); params.put("filterStatus","ACTIVE");
       var attributes = new HashMap<String,Object>();
       attributes.put("userId",2L); attributes.put("csrf","test-token");

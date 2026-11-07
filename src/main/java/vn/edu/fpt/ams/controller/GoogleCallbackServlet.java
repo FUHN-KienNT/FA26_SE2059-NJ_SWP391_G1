@@ -25,7 +25,11 @@ public class GoogleCallbackServlet extends HttpServlet {
         s.setAttribute("googleState", state);
         s.setAttribute("googleNonce", nonce);
         s.setAttribute("googleStartedAt", System.currentTimeMillis());
-        s.setAttribute("googleInvitation", req.getParameter("invitation") != null ? req.getParameter("invitation") : s.getAttribute("pendingStudentInvitation"));
+        s.setAttribute(
+            "googleInvitation",
+            req.getParameter("invitation") != null
+                ? req.getParameter("invitation")
+                : s.getAttribute("pendingStudentInvitation"));
         res.sendRedirect(
             "https://accounts.google.com/o/oauth2/v2/auth?response_type=code&scope=openid%20email%20profile&client_id="
                 + enc(AppConfig.required("GOOGLE_CLIENT_ID", "google.clientId"))
@@ -64,19 +68,26 @@ public class GoogleCallbackServlet extends HttpServlet {
       var account = accounts.signIn(google.exchange(req.getParameter("code"), nonce), invitation);
       var verification = new vn.edu.fpt.ams.service.StudentVerificationService();
       if (verification.pending(account.userId())) {
-        req.getSession().removeAttribute("userId"); req.getSession().removeAttribute("role"); req.getSession().removeAttribute("accountStatus");
+        req.getSession().removeAttribute("userId");
+        req.getSession().removeAttribute("role");
+        req.getSession().removeAttribute("accountStatus");
         req.getSession().setAttribute("pendingStudentId", account.userId());
         req.getSession().setAttribute("pendingStudentInvitation", invitation);
         String message;
         try {
-          message = verification.send(account.userId())
-              ? "Đã gửi email xác nhận. Vui lòng kiểm tra cả thư mục Spam."
-              : "Chưa gửi được email xác nhận. Bạn có thể gửi lại hoặc liên hệ quản trị viên kiểm tra SMTP.";
+          message =
+              verification.send(account.userId())
+                  ? "Đã gửi email xác nhận. Vui lòng kiểm tra cả thư mục Spam."
+                  : "Chưa gửi được email xác nhận. Bạn có thể gửi lại hoặc liên hệ quản trị viên"
+                        + " kiểm tra SMTP.";
         } catch (IllegalArgumentException cooldown) {
-          message = "Email xác nhận đã được yêu cầu gần đây. Vui lòng kiểm tra hộp thư hoặc chờ 60 giây để gửi lại.";
+          message =
+              "Email xác nhận đã được yêu cầu gần đây. Vui lòng kiểm tra hộp thư hoặc chờ 60 giây"
+                  + " để gửi lại.";
         }
         req.getSession().setAttribute("studentVerificationNotice", message);
-        res.sendRedirect(req.getContextPath() + "/auth/student-verification"); return;
+        res.sendRedirect(req.getContextPath() + "/auth/student-verification");
+        return;
       }
       req.getSession().removeAttribute("pendingStudentInvitation");
       AuthSession.establish(req, account);
