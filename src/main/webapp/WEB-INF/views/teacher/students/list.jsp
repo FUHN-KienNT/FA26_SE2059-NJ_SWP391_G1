@@ -1,10 +1,12 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
 <%@ page import="java.util.List" %>
+<%@ page import="vn.edu.fpt.ams.model.StudentInvitation" %>
 <%@ page import="vn.edu.fpt.ams.dto.EnrollmentDTO" %>
 <%@ page import="vn.edu.fpt.ams.dto.TeacherClassSummary" %>
 <%@ page import="vn.edu.fpt.ams.dto.ImportResultDTO" %>
 <%
     String context = request.getContextPath();
+    List<StudentInvitation> invitations = (List<StudentInvitation>) request.getAttribute("invitations");
     TeacherClassSummary selected = (TeacherClassSummary) request.getAttribute("selected");
     @SuppressWarnings("unchecked")
     List<EnrollmentDTO> students = (List<EnrollmentDTO>) request.getAttribute("students");
@@ -17,10 +19,10 @@
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width,initial-scale=1">
-        <title>Quản lý sinh viên trong lớp | AMS</title>
+        <title>Danh sách sinh viên | AMS</title>
         <link rel="stylesheet" href="<%= context %>/css/app.css">
         <%@ include file="/WEB-INF/views/shared/assets.jspf" %>
-        <link rel="stylesheet" href="<%= context %>/css/teacher-enrollment.css">
+        <link rel="stylesheet" href="<%= context %>/css/teacher-student-list.css">
     </head>
     <body class="ams-ui teacher-app">
         <%@ include file="/WEB-INF/views/shared/shell.jspf" %>
@@ -28,12 +30,12 @@
             <nav>
                 <a href="<%= context %>/teacher/dashboard">Bảng điều khiển giảng viên</a>
     ·
-                <a href="<%= context %>/teacher/enrollments?classId=<%= selected.classId() %>">Danh sách sinh viên</a>
+                <a href="<%= context %>/teacher/classes/detail?classId=<%= selected.classId() %>">Chi tiết lớp</a>
     ·
                 <a href="<%= context %>/teacher/assignments?classId=<%= selected.classId() %>">Xem bài tập</a>
             </nav>
             <h1>
-                Quản lý sinh viên trong lớp
+                Danh sách sinh viên
             </h1>
             <p>
                 <%= vn.edu.fpt.ams.util.WebSupport.html(selected.classCode()) %> · <%= vn.edu.fpt.ams.util.WebSupport.html(selected.subjectCode()) %> · <%= selected.activeRoster() %> / <%= selected.capacity() %> đang học · <%= selected.availableSeats() %> chỗ còn lại
@@ -106,8 +108,8 @@
                             <%= vn.edu.fpt.ams.util.WebSupport.html(vn.edu.fpt.ams.util.Vietnamese.label(student.status())) %>
                         </td>
                         <td>
-                            <form action="<%= context %>/teacher/enrollments" method="post">
-                                <input type="hidden" name="action" value="updateStatus">
+                            <form action="<%= context %>/teacher/students" method="post">
+                <input type="hidden" name="action" value="updateStatus">
                                 <input type="hidden" name="classId" value="<%= selected.classId() %>">
                                 <input type="hidden" name="enrollmentId" value="<%= student.enrollmentId() %>">
                                 <input
@@ -131,7 +133,7 @@
             <dialog id="add-student" aria-labelledby="add-student-title" <%= "addStudent".equals(request.getAttribute("openDialog")) ? "data-reopen" : "" %>>
             <h2 id="add-student-title">Thêm sinh viên đã có tài khoản</h2>
             <% if (error != null && "addStudent".equals(request.getAttribute("openDialog"))) { %><p role="alert"><%= vn.edu.fpt.ams.util.WebSupport.html(error) %></p><% } %>
-            <form action="<%= context %>/teacher/enrollments" method="post">
+            <form action="<%= context %>/teacher/students" method="post">
                 <input type="hidden" name="action" value="addStudent">
                 <input type="hidden" name="classId" value="<%= selected.classId() %>">
                 <label>
@@ -147,7 +149,7 @@
             <dialog id="import-students" aria-labelledby="import-students-title" <%= "importStudents".equals(request.getAttribute("openDialog")) ? "data-reopen" : "" %>>
             <h2 id="import-students-title">Nhập danh sách sinh viên</h2>
             <% if (error != null && "importStudents".equals(request.getAttribute("openDialog"))) { %><p role="alert"><%= vn.edu.fpt.ams.util.WebSupport.html(error) %></p><% } %>
-            <form action="<%= context %>/teacher/enrollments" method="post" enctype="multipart/form-data">
+            <form action="<%= context %>/teacher/students" method="post" enctype="multipart/form-data">
                 <input type="hidden" name="action" value="importStudents">
                 <input type="hidden" name="classId" value="<%= selected.classId() %>">
                 <label>
@@ -160,7 +162,56 @@
             </form>
             <button type="button" data-close-dialog>Đóng</button>
             </dialog>
-            <script src="<%= context %>/js/teacher-enrollment.js" defer></script>
+                <h2>
+                    Lời mời sinh viên
+                </h2>
+                <table>
+                    <tr>
+                        <th>
+                            Họ tên
+                        </th>
+                        <th>
+                            Email
+                        </th>
+                        <th>
+                            Trạng thái
+                        </th>
+                        <th>
+                            Hết hạn
+                        </th>
+                    </tr>
+                    <%
+                        for (StudentInvitation invitation : invitations) {
+                        %>
+                        <tr>
+                            <td>
+                                <%= vn.edu.fpt.ams.util.WebSupport.html(invitation.fullName()) %>
+                            </td>
+                            <td>
+                                <%= vn.edu.fpt.ams.util.WebSupport.html(invitation.email()) %>
+                            </td>
+                            <td>
+                                <%= vn.edu.fpt.ams.util.WebSupport.html(vn.edu.fpt.ams.util.Vietnamese.label(invitation.status())) %>
+                            </td>
+                            <td>
+                                <%= vn.edu.fpt.ams.util.AssignmentListView.deadline(invitation.expiresAt()) %>
+                            </td>
+                        </tr>
+                        <%
+                        }
+                    %>
+                </table>
+                <%
+                    if (invitations.isEmpty()) {
+                    %>
+                    <p>
+                        Lớp này chưa có lời mời.
+                    </p>
+                    <%
+                    }
+                %>
+
+            <script src="<%= context %>/js/teacher-student-list.js" defer></script>
         </main>
     </div>
 </body>

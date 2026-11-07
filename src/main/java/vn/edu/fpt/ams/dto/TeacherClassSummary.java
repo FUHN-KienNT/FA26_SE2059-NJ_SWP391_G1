@@ -4,7 +4,7 @@ package vn.edu.fpt.ams.dto;
 public record TeacherClassSummary(long classId, String classCode, String className,
                                   String subjectCode, String subjectName, String termCode,
                                   int capacity, long activeRoster, long pendingInvitations,
-                                  long assignmentCount) {
+                                  long assignmentCount, String status) {
     public long availableSeats() {
         return Math.max(0, capacity - activeRoster - pendingInvitations);
     }

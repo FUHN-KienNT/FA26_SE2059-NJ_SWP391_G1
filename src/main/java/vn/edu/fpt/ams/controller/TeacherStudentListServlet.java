@@ -8,69 +8,38 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.Part;
 import java.io.IOException;
-import java.util.List;
 import vn.edu.fpt.ams.dto.TeacherClassSummary;
 import vn.edu.fpt.ams.model.EnrollmentStatus;
 import vn.edu.fpt.ams.service.EnrollmentService;
 import vn.edu.fpt.ams.service.TeacherDashboardService;
 
-/** Teacher routes for assigned classes, roster, enrollment changes and CSV import. */
-@WebServlet("/teacher/enrollments")
+/** Teacher student list, enrollment changes and CSV import. */
+@WebServlet("/teacher/students")
 @MultipartConfig(maxFileSize = 5 * 1024 * 1024, maxRequestSize = 6 * 1024 * 1024)
-public class EnrollmentServlet extends HttpServlet {
+public class TeacherStudentListServlet extends HttpServlet {
     private final EnrollmentService service;
     private final TeacherDashboardService dashboardService;
 
     /** Initialize the servlet with database-backed enrollment and class services. */
-    public EnrollmentServlet() { this(new EnrollmentService(), new TeacherDashboardService()); }
+    public TeacherStudentListServlet() { this(new EnrollmentService(), new TeacherDashboardService()); }
 
     /** Supply services for isolated routing and ownership tests. */
-    EnrollmentServlet(EnrollmentService service, TeacherDashboardService dashboardService) {
+    TeacherStudentListServlet(EnrollmentService service, TeacherDashboardService dashboardService) {
         this.service = service;
         this.dashboardService = dashboardService;
     }
 
-    /** Load either the searchable class list or one authorized class roster. */
+    /** Open the student list for an assigned class. */
     @Override protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         long teacherId = (Long) request.getSession().getAttribute("userId");
         try {
-            Long classId = optionalId(request, "classId");
-            if (classId != null && "manage".equals(request.getParameter("mode"))) {
-                loadEnrollmentPage(request, teacherId, classId);
-                request.getRequestDispatcher("/WEB-INF/views/enrollments/detail.jsp").forward(request, response);
-                return;
-            }
-            List<TeacherClassSummary> classes = dashboardService.assignedClasses(teacherId);
-            String keyword = parameter(request, "keyword");
-            String term = parameter(request, "term");
-            request.setAttribute("keyword", keyword);
-            request.setAttribute("term", term);
-            request.setAttribute("terms", classes.stream().map(TeacherClassSummary::termCode).distinct().sorted().toList());
-            request.setAttribute("listQuery", "keyword=" + encode(keyword) + "&amp;term=" + encode(term));
-            request.setAttribute("classes", classes.stream()
-                    .filter(item -> term.isEmpty() || term.equals(item.termCode()))
-                    .filter(item -> matches(item, keyword)).toList());
-            if (classId != null) {
-                TeacherClassSummary selected = classes.stream()
-                        .filter(item -> item.classId() == classId)
-                        .findFirst()
-                        .orElseThrow(() -> new IllegalArgumentException("Lớp này không thuộc phân công của giảng viên hiện tại"));
-                request.setAttribute("selected", selected);
-                request.setAttribute("students", service.listStudents(teacherId, classId));
-                request.setAttribute("invitations", service.listInvitations(teacherId, classId));
-            }
-            Object notice = request.getSession().getAttribute("enrollmentNotice");
-            if (notice != null) {
-                request.setAttribute("notice", notice);
-                request.getSession().removeAttribute("enrollmentNotice");
-            }
-            request.getRequestDispatcher("/WEB-INF/views/enrollments/list.jsp").forward(request, response);
+            loadStudentList(request, teacherId, requiredId(request, "classId"));
+            request.getRequestDispatcher("/WEB-INF/views/teacher/students/list.jsp").forward(request, response);
         } catch (IllegalArgumentException ex) {
             response.sendError(HttpServletResponse.SC_BAD_REQUEST, message(ex.getMessage()));
         }
     }
-
     /** Submit an enrollment action and reopen its popup when validation fails. */
     @Override protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
@@ -110,10 +79,10 @@ public class EnrollmentServlet extends HttpServlet {
                 response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Thao tác quản lý sinh viên không hợp lệ");
                 return;
             }
-            response.sendRedirect(request.getContextPath() + "/teacher/enrollments?classId=" + classId + "&mode=manage");
+            response.sendRedirect(request.getContextPath() + "/teacher/students?classId=" + classId);
         } catch (IllegalArgumentException ex) {
             try {
-                loadEnrollmentPage(request, teacherId, classId);
+                loadStudentList(request, teacherId, classId);
             } catch (IllegalArgumentException ignored) {
                 response.sendError(HttpServletResponse.SC_BAD_REQUEST, message(ex.getMessage()));
                 return;
@@ -121,19 +90,16 @@ public class EnrollmentServlet extends HttpServlet {
             request.setAttribute("error", message(ex.getMessage()));
             request.setAttribute("openDialog", action);
             request.setAttribute("submittedEmail", request.getParameter("email"));
-            request.getRequestDispatcher("/WEB-INF/views/enrollments/detail.jsp").forward(request, response);
+            request.getRequestDispatcher("/WEB-INF/views/teacher/students/list.jsp").forward(request, response);
         }
     }
 
     /** Resolve class ownership before loading editable enrollment data and flash notices. */
-    private void loadEnrollmentPage(HttpServletRequest request, long teacherId, long classId) {
-        List<TeacherClassSummary> classes = dashboardService.assignedClasses(teacherId);
-        TeacherClassSummary selected = classes.stream()
-                .filter(item -> item.classId() == classId)
-                .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Lớp này không thuộc phân công của giảng viên hiện tại"));
+    private void loadStudentList(HttpServletRequest request, long teacherId, long classId) {
+        TeacherClassSummary selected = dashboardService.requireAssignedClass(teacherId, classId);
         request.setAttribute("selected", selected);
         request.setAttribute("students", service.listStudents(teacherId, classId));
+        request.setAttribute("invitations", service.listInvitations(teacherId, classId));
         String importKey = "enrollmentImportResult:" + classId;
         Object importResult = request.getSession().getAttribute(importKey);
         if (importResult != null) {
@@ -186,14 +152,4 @@ public class EnrollmentServlet extends HttpServlet {
         return value;
     }
 
-    /** Encode a filter value before including it in a return link. */
-    private static String encode(String value) {
-        return java.net.URLEncoder.encode(value, java.nio.charset.StandardCharsets.UTF_8);
-    }
-
-    /** Match a class by code, name, or subject, ignoring letter case. */
-    static boolean matches(TeacherClassSummary item, String keyword) {
-        String text = String.join(" ", item.classCode(), item.className(), item.subjectCode(), item.subjectName());
-        return text.toLowerCase(java.util.Locale.ROOT).contains(keyword.toLowerCase(java.util.Locale.ROOT));
-    }
 }
