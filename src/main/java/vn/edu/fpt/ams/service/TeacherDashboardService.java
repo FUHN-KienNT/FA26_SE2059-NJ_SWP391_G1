@@ -28,6 +28,14 @@ public class TeacherDashboardService {
         return dashboardDAO.listAssignedClasses(teacherId);
     }
 
+    /** Resolve one class within the current Teacher's assignments. */
+    public TeacherClassSummary requireAssignedClass(long teacherId, long classId) {
+        return assignedClasses(teacherId).stream()
+                .filter(item -> item.classId() == classId)
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Lớp này không thuộc phân công của giảng viên hiện tại."));
+    }
+
     public long submissionCount(long teacherId) {
         requireActiveTeacher(teacherId);
         return dashboardDAO.countSubmissions(teacherId);

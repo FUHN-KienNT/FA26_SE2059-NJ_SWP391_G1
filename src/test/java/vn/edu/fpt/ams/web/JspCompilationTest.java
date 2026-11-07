@@ -11,7 +11,7 @@ class JspCompilationTest {
     var compiler = new JspC();
     compiler.setUriroot(Path.of("src/main/webapp").toAbsolutePath().toString());
     compiler.setJspFiles(
-        "WEB-INF/views/teacher/students/list.jsp,WEB-INF/views/submissions/detail.jsp,WEB-INF/views/student/result.jsp");
+        "WEB-INF/views/teacher/students/list.jsp,WEB-INF/views/teacher/classes/list.jsp,WEB-INF/views/teacher/classes/detail.jsp,WEB-INF/views/teacher/dashboard.jsp,WEB-INF/views/submissions/detail.jsp,WEB-INF/views/student/result.jsp");
     compiler.setOutputDir(Path.of("target/jsp-default-test").toAbsolutePath().toString());
     compiler.setClassPath(
         System.getProperty("surefire.test.class.path", System.getProperty("java.class.path")));

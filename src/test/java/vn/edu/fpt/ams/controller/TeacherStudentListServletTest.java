@@ -15,23 +15,23 @@ class TeacherStudentListServletTest {
     @Test void filtersAndReturnLinkPreserveContext() throws Exception {
         var h = new Harness();
         h.params.putAll(Map.of("keyword", "software", "term", "FALL2026"));
-        h.servlet().doGet(h.request(), h.response());
+        h.classServlet().doGet(h.request(), h.response());
         assertEquals(1, ((List<?>) h.attributes.get("classes")).size());
-        assertEquals("keyword=software&amp;term=FALL2026", h.attributes.get("listQuery"));
+        assertEquals("software", h.attributes.get("keyword"));
         assertEquals(7, h.teacher);
         assertEquals("/WEB-INF/views/teacher/classes/list.jsp", h.view);
     }
 
-    /** An empty list search must not hide an already selected owned roster. */
-    @Test void selectedClassUsesOwnedClassesBeforeFiltering() throws Exception {
+    /** Class details load without fetching the roster. */
+    @Test void classDetailLoadsOnlySelectedClass() throws Exception {
         var h = new Harness();
-        h.params.putAll(Map.of("classId", "1", "keyword", "no-match"));
-        h.servlet().doGet(h.request(), h.response());
-        assertTrue(((List<?>) h.attributes.get("classes")).isEmpty());
+        h.params.put("classId", "1");
+        h.path = "/teacher/classes/detail";
+        h.classServlet().doGet(h.request(), h.response());
         assertEquals(1, ((TeacherClassSummary) h.attributes.get("selected")).classId());
-        assertEquals(1, h.rosterReads);
+        assertEquals(0, h.rosterReads);
+        assertEquals("/WEB-INF/views/teacher/classes/detail.jsp", h.view);
     }
-
     /** Foreign and malformed class identifiers must never load another roster. */
     @Test void invalidAndForeignClassIdsAreRejected() throws Exception {
         for (String id : List.of("999", "0", "-1", "abc")) {
@@ -75,7 +75,7 @@ class TeacherStudentListServletTest {
                 new ImportLineResult(2, "one@example.test", ImportLineResult.Outcome.IMPORTED, "Đã thêm sinh viên vào lớp.")));
         h.session.put("enrollmentImportResult:1", result);
         h.session.put("enrollmentImportResult:2", result);
-        h.params.putAll(Map.of("classId", "1", "mode", "manage"));
+        h.params.putAll(Map.of("classId", "1"));
         h.servlet().doGet(h.request(), h.response());
         assertSame(result, h.attributes.get("importResult"));
         assertFalse(h.session.containsKey("enrollmentImportResult:1"));
@@ -88,13 +88,13 @@ class TeacherStudentListServletTest {
     private static final class Harness {
         final Map<String,String> params = new HashMap<>();
         final Map<String,Object> attributes = new HashMap<>(), session = new HashMap<>();
-        long teacher; int status=200, rosterReads; String view; boolean updated;
+        long teacher; int status=200, rosterReads; String view; String path = "/teacher/classes"; boolean updated;
         /** Supply deterministic classes and enrollment failures without a live database. */
         TeacherStudentListServlet servlet() {
             return new TeacherStudentListServlet(new EnrollmentService() {
                 /** Read a roster only for the owned fixture class. */
                 @Override public List<EnrollmentDTO> listStudents(long actor,long id) {
-                    assertEquals(1,id); rosterReads++; return List.of();
+                    assertEquals(1,id); rosterReads++; return List.of(new EnrollmentDTO(5, 3, 1, 10, "Student One", "one@example.test", EnrollmentStatus.ACTIVE));
                 }
                 /** Return no pending invitations for the fixture. */
                 @Override public List<StudentInvitation> listInvitations(long actor,long id) { return List.of(); }
@@ -102,12 +102,20 @@ class TeacherStudentListServletTest {
                 @Override public long addStudentByEmail(long actor,long id,String email) { throw new IllegalArgumentException("Không có tài khoản sử dụng email này"); }
                 /** Record whether an unauthorized status write reaches the service. */
                 @Override public void updateEnrollmentStatus(long actor,long id,EnrollmentStatus state) { updated=true; }
-            }, new TeacherDashboardService() {
+            }, dashboardService());
+        }
+        /** Build the class screens with the same Teacher ownership fixture. */
+        TeacherClassServlet classServlet() {
+            return new TeacherClassServlet(dashboardService());
+        }
+        /** Provide only the assigned class. */
+        TeacherDashboardService dashboardService() {
+            return new TeacherDashboardService() {
                 /** Return only classes owned by the authenticated fixture teacher. */
                 @Override public List<TeacherClassSummary> assignedClasses(long id) {
-                    teacher=id; return List.of(new TeacherClassSummary(1,"SE2059","Class One","SWP391","Software Project","FALL2026",30,0,0,0));
+                    teacher=id; return List.of(new TeacherClassSummary(1,"SE2059","Class One","SWP391","Software Project","FALL2026",30,0,0,0,"ACTIVE"));
                 }
-            });
+            };
         }
         /** Provide request parameters, attributes, session identity and dispatch capture. */
         HttpServletRequest request() {
@@ -117,7 +125,7 @@ class TeacherStudentListServletTest {
                 case "removeAttribute" -> session.remove(a[0]); default -> null;
             });
             return (HttpServletRequest) Proxy.newProxyInstance(HttpServletRequest.class.getClassLoader(),new Class<?>[]{HttpServletRequest.class},(p,m,a)->switch(m.getName()) {
-                case "getSession" -> state; case "getParameter" -> params.get(a[0]);
+                case "getServletPath" -> path; case "getSession" -> state; case "getParameter" -> params.get(a[0]);
                 case "setAttribute" -> { attributes.put((String)a[0],a[1]); yield null; }
                 case "getRequestDispatcher" -> { view=(String)a[0]; yield Proxy.newProxyInstance(RequestDispatcher.class.getClassLoader(),new Class<?>[]{RequestDispatcher.class},(d,n,b)->null); }
                 default -> null;

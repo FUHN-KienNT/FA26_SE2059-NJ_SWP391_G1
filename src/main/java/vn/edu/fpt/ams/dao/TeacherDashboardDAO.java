@@ -12,7 +12,7 @@ import vn.edu.fpt.ams.util.DBConnection;
 /** Read models for the teacher overview. Writes stay on the enrollment workflow. */
 public class TeacherDashboardDAO {
     private static final String CLASS_SQL = """
-            SELECT c.class_id, c.class_code, c.class_name, c.capacity,
+            SELECT c.class_id, c.class_code, c.class_name, c.capacity, c.status,
                    s.subject_code, s.subject_name, t.term_code,
                    (SELECT count(*) FROM class_enrollments e
                      WHERE e.class_id = c.class_id AND e.status = 'ACTIVE') AS active_roster,
@@ -40,7 +40,7 @@ public class TeacherDashboardDAO {
                             rows.getString("class_name"), rows.getString("subject_code"),
                             rows.getString("subject_name"), rows.getString("term_code"),
                             rows.getInt("capacity"), rows.getLong("active_roster"),
-                            rows.getLong("pending_invitations"), rows.getLong("assignment_count")));
+                            rows.getLong("pending_invitations"), rows.getLong("assignment_count"), rows.getString("status")));
                 }
                 return classes;
             }

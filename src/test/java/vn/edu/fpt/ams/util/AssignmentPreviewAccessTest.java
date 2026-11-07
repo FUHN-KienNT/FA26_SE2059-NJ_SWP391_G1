@@ -114,7 +114,7 @@ class AssignmentPreviewAccessTest {
         remote.address = "192.168.1.20";
         var other = new Exchange();
 
-        other.path = "/teacher/students";
+        other.path = "/teacher/classes";
         var post = new Exchange();
 
         post.method = "POST";
