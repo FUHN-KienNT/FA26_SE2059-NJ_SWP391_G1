@@ -10,7 +10,7 @@ import vn.edu.fpt.ams.dto.*;
 import vn.edu.fpt.ams.model.*;
 import vn.edu.fpt.ams.service.*;
 
-class EnrollmentServletTest {
+class TeacherStudentListServletTest {
     /** Filters apply to the list without broadening the authenticated teacher's scope. */
     @Test void filtersAndReturnLinkPreserveContext() throws Exception {
         var h = new Harness();
@@ -19,7 +19,7 @@ class EnrollmentServletTest {
         assertEquals(1, ((List<?>) h.attributes.get("classes")).size());
         assertEquals("keyword=software&amp;term=FALL2026", h.attributes.get("listQuery"));
         assertEquals(7, h.teacher);
-        assertEquals("/WEB-INF/views/enrollments/list.jsp", h.view);
+        assertEquals("/WEB-INF/views/teacher/classes/list.jsp", h.view);
     }
 
     /** An empty list search must not hide an already selected owned roster. */
@@ -48,7 +48,7 @@ class EnrollmentServletTest {
         h.servlet().doPost(h.request(), h.response());
         assertEquals("addStudent", h.attributes.get("openDialog"));
         assertEquals("missing@example.test", h.attributes.get("submittedEmail"));
-        assertEquals("/WEB-INF/views/enrollments/detail.jsp", h.view);
+        assertEquals("/WEB-INF/views/teacher/students/list.jsp", h.view);
     }
 
     /** Missing uploads return to the import popup without changing enrollment. */
@@ -90,8 +90,8 @@ class EnrollmentServletTest {
         final Map<String,Object> attributes = new HashMap<>(), session = new HashMap<>();
         long teacher; int status=200, rosterReads; String view; boolean updated;
         /** Supply deterministic classes and enrollment failures without a live database. */
-        EnrollmentServlet servlet() {
-            return new EnrollmentServlet(new EnrollmentService() {
+        TeacherStudentListServlet servlet() {
+            return new TeacherStudentListServlet(new EnrollmentService() {
                 /** Read a roster only for the owned fixture class. */
                 @Override public List<EnrollmentDTO> listStudents(long actor,long id) {
                     assertEquals(1,id); rosterReads++; return List.of();

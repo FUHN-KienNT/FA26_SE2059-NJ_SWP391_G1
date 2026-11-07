@@ -21,7 +21,7 @@
         <title><%= selected == null ? "Lớp phụ trách" : "Danh sách sinh viên" %> | AMS</title>
         <link rel="stylesheet" href="<%= context %>/css/app.css">
         <%@ include file="/WEB-INF/views/shared/assets.jspf" %>
-        <link rel="stylesheet" href="<%= context %>/css/teacher-enrollment.css">
+        <link rel="stylesheet" href="<%= context %>/css/teacher-student-list.css">
         <style>.ams-content table th,.ams-content table td{word-break:normal;overflow-wrap:normal}.ams-content table .class-actions{min-width:150px}.class-actions a{white-space:nowrap}</style>
     </head>
     <body class="ams-ui teacher-app">
@@ -67,7 +67,7 @@
                     %>
                     <tr>
                         <td>
-                            <a href="<%= context %>/teacher/enrollments?classId=<%= item.classId() %>&amp;<%= request.getAttribute("listQuery") %>"><%= vn.edu.fpt.ams.util.WebSupport.html(item.classCode()) %></a>
+                            <a href="<%= context %>/teacher/students?classId=<%= item.classId() %>&amp;<%= request.getAttribute("listQuery") %>"><%= vn.edu.fpt.ams.util.WebSupport.html(item.classCode()) %></a>
                         </td>
                         <td>
                             <%= vn.edu.fpt.ams.util.WebSupport.html(item.subjectCode()) %> <%= vn.edu.fpt.ams.util.WebSupport.html(item.subjectName()) %>
@@ -84,7 +84,7 @@
                         <td class="class-actions">
                             <a href="<%= context %>/teacher/assignments?classId=<%= item.classId() %>">Xem bài tập</a>
                             <br>
-                            <a href="<%= context %>/teacher/enrollments?classId=<%= item.classId() %>&amp;mode=manage">Quản lý sinh viên</a>
+                            <a href="<%= context %>/teacher/students?classId=<%= item.classId() %>&amp;mode=manage">Quản lý sinh viên</a>
                         </td>
                     </tr>
                     <%
@@ -104,8 +104,8 @@
             <%
                 if (selected != null) {
                 %>
-                <p><a class="ams-button" href="<%= context %>/teacher/enrollments?<%= request.getAttribute("listQuery") %>">Quay lại danh sách lớp</a>
-                <a class="ams-button" href="<%= context %>/teacher/enrollments?classId=<%= selected.classId() %>&amp;mode=manage">Quản lý ghi danh</a></p>
+                <p><a class="ams-button" href="<%= context %>/teacher/students?<%= request.getAttribute("listQuery") %>">Quay lại danh sách lớp</a>
+                <a class="ams-button" href="<%= context %>/teacher/students?classId=<%= selected.classId() %>&amp;mode=manage">Quản lý ghi danh</a></p>
                 <h2>
                     Danh sách sinh viên · <%= vn.edu.fpt.ams.util.WebSupport.html(selected.classCode()) %>
                 </h2>

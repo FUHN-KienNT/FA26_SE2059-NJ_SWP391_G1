@@ -15,17 +15,17 @@ import vn.edu.fpt.ams.service.EnrollmentService;
 import vn.edu.fpt.ams.service.TeacherDashboardService;
 
 /** Teacher routes for assigned classes, roster, enrollment changes and CSV import. */
-@WebServlet("/teacher/enrollments")
+@WebServlet("/teacher/students")
 @MultipartConfig(maxFileSize = 5 * 1024 * 1024, maxRequestSize = 6 * 1024 * 1024)
-public class EnrollmentServlet extends HttpServlet {
+public class TeacherStudentListServlet extends HttpServlet {
     private final EnrollmentService service;
     private final TeacherDashboardService dashboardService;
 
     /** Initialize the servlet with database-backed enrollment and class services. */
-    public EnrollmentServlet() { this(new EnrollmentService(), new TeacherDashboardService()); }
+    public TeacherStudentListServlet() { this(new EnrollmentService(), new TeacherDashboardService()); }
 
     /** Supply services for isolated routing and ownership tests. */
-    EnrollmentServlet(EnrollmentService service, TeacherDashboardService dashboardService) {
+    TeacherStudentListServlet(EnrollmentService service, TeacherDashboardService dashboardService) {
         this.service = service;
         this.dashboardService = dashboardService;
     }
@@ -38,7 +38,7 @@ public class EnrollmentServlet extends HttpServlet {
             Long classId = optionalId(request, "classId");
             if (classId != null && "manage".equals(request.getParameter("mode"))) {
                 loadEnrollmentPage(request, teacherId, classId);
-                request.getRequestDispatcher("/WEB-INF/views/enrollments/detail.jsp").forward(request, response);
+                request.getRequestDispatcher("/WEB-INF/views/teacher/students/list.jsp").forward(request, response);
                 return;
             }
             List<TeacherClassSummary> classes = dashboardService.assignedClasses(teacherId);
@@ -65,7 +65,7 @@ public class EnrollmentServlet extends HttpServlet {
                 request.setAttribute("notice", notice);
                 request.getSession().removeAttribute("enrollmentNotice");
             }
-            request.getRequestDispatcher("/WEB-INF/views/enrollments/list.jsp").forward(request, response);
+            request.getRequestDispatcher("/WEB-INF/views/teacher/classes/list.jsp").forward(request, response);
         } catch (IllegalArgumentException ex) {
             response.sendError(HttpServletResponse.SC_BAD_REQUEST, message(ex.getMessage()));
         }
@@ -110,7 +110,7 @@ public class EnrollmentServlet extends HttpServlet {
                 response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Thao tác quản lý sinh viên không hợp lệ");
                 return;
             }
-            response.sendRedirect(request.getContextPath() + "/teacher/enrollments?classId=" + classId + "&mode=manage");
+            response.sendRedirect(request.getContextPath() + "/teacher/students?classId=" + classId + "&mode=manage");
         } catch (IllegalArgumentException ex) {
             try {
                 loadEnrollmentPage(request, teacherId, classId);
@@ -121,7 +121,7 @@ public class EnrollmentServlet extends HttpServlet {
             request.setAttribute("error", message(ex.getMessage()));
             request.setAttribute("openDialog", action);
             request.setAttribute("submittedEmail", request.getParameter("email"));
-            request.getRequestDispatcher("/WEB-INF/views/enrollments/detail.jsp").forward(request, response);
+            request.getRequestDispatcher("/WEB-INF/views/teacher/students/list.jsp").forward(request, response);
         }
     }
 

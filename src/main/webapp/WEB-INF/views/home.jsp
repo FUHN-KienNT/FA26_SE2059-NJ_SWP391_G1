@@ -14,7 +14,7 @@
                 Quản lý lớp học, giao bài tập và theo dõi kết quả học tập.
             </p>
             <nav>
-                <a href="${pageContext.request.contextPath}/auth/signin">Đăng nhập</a> · <a href="${pageContext.request.contextPath}/teacher/enrollments">Lớp phụ trách</a>
+                <a href="${pageContext.request.contextPath}/auth/signin">Đăng nhập</a> · <a href="${pageContext.request.contextPath}/teacher/students">Lớp phụ trách</a>
             </nav>
         </main>
     </body>

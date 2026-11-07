@@ -25,7 +25,7 @@
         <main class="ams-content" id="page-content">
             <nav>
                 <a href="<%= context %>/home">AMS</a>
-    · <a href="<%= context %>/teacher/enrollments">Lớp phụ trách</a>
+    · <a href="<%= context %>/teacher/students">Lớp phụ trách</a>
             </nav>
             <h1>
                 Bảng điều khiển giảng viên
@@ -43,7 +43,7 @@
             <section class="ams-panel">
                 <h2>Không gian giảng dạy</h2>
                 <p>Chọn lớp để xem sinh viên, quản lý ghi danh hoặc mở danh sách bài tập.</p>
-                <a class="ams-button ams-button-primary" href="<%= context %>/teacher/enrollments">Xem lớp phụ trách</a>
+                <a class="ams-button ams-button-primary" href="<%= context %>/teacher/students">Xem lớp phụ trách</a>
             </section>
             <%
                 if (classes.isEmpty()) {

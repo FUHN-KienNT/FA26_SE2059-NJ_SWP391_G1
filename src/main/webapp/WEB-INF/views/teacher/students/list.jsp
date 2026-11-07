@@ -20,7 +20,7 @@
         <title>Quản lý sinh viên trong lớp | AMS</title>
         <link rel="stylesheet" href="<%= context %>/css/app.css">
         <%@ include file="/WEB-INF/views/shared/assets.jspf" %>
-        <link rel="stylesheet" href="<%= context %>/css/teacher-enrollment.css">
+        <link rel="stylesheet" href="<%= context %>/css/teacher-student-list.css">
     </head>
     <body class="ams-ui teacher-app">
         <%@ include file="/WEB-INF/views/shared/shell.jspf" %>
@@ -28,7 +28,7 @@
             <nav>
                 <a href="<%= context %>/teacher/dashboard">Bảng điều khiển giảng viên</a>
     ·
-                <a href="<%= context %>/teacher/enrollments?classId=<%= selected.classId() %>">Danh sách sinh viên</a>
+                <a href="<%= context %>/teacher/students?classId=<%= selected.classId() %>">Danh sách sinh viên</a>
     ·
                 <a href="<%= context %>/teacher/assignments?classId=<%= selected.classId() %>">Xem bài tập</a>
             </nav>
@@ -106,7 +106,7 @@
                             <%= vn.edu.fpt.ams.util.WebSupport.html(vn.edu.fpt.ams.util.Vietnamese.label(student.status())) %>
                         </td>
                         <td>
-                            <form action="<%= context %>/teacher/enrollments" method="post">
+                            <form action="<%= context %>/teacher/students" method="post">
                                 <input type="hidden" name="action" value="updateStatus">
                                 <input type="hidden" name="classId" value="<%= selected.classId() %>">
                                 <input type="hidden" name="enrollmentId" value="<%= student.enrollmentId() %>">
@@ -131,7 +131,7 @@
             <dialog id="add-student" aria-labelledby="add-student-title" <%= "addStudent".equals(request.getAttribute("openDialog")) ? "data-reopen" : "" %>>
             <h2 id="add-student-title">Thêm sinh viên đã có tài khoản</h2>
             <% if (error != null && "addStudent".equals(request.getAttribute("openDialog"))) { %><p role="alert"><%= vn.edu.fpt.ams.util.WebSupport.html(error) %></p><% } %>
-            <form action="<%= context %>/teacher/enrollments" method="post">
+            <form action="<%= context %>/teacher/students" method="post">
                 <input type="hidden" name="action" value="addStudent">
                 <input type="hidden" name="classId" value="<%= selected.classId() %>">
                 <label>
@@ -147,7 +147,7 @@
             <dialog id="import-students" aria-labelledby="import-students-title" <%= "importStudents".equals(request.getAttribute("openDialog")) ? "data-reopen" : "" %>>
             <h2 id="import-students-title">Nhập danh sách sinh viên</h2>
             <% if (error != null && "importStudents".equals(request.getAttribute("openDialog"))) { %><p role="alert"><%= vn.edu.fpt.ams.util.WebSupport.html(error) %></p><% } %>
-            <form action="<%= context %>/teacher/enrollments" method="post" enctype="multipart/form-data">
+            <form action="<%= context %>/teacher/students" method="post" enctype="multipart/form-data">
                 <input type="hidden" name="action" value="importStudents">
                 <input type="hidden" name="classId" value="<%= selected.classId() %>">
                 <label>
@@ -160,7 +160,7 @@
             </form>
             <button type="button" data-close-dialog>Đóng</button>
             </dialog>
-            <script src="<%= context %>/js/teacher-enrollment.js" defer></script>
+            <script src="<%= context %>/js/teacher-student-list.js" defer></script>
         </main>
     </div>
 </body>
