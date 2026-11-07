@@ -36,6 +36,7 @@
         </section>
         <p>
             <a class="ams-button ams-button-primary" href="<%= context %>/teacher/students?classId=<%= selected.classId() %>">Danh sách sinh viên</a>
+            <a class="ams-button" href="<%= context %>/teacher/groups?classId=<%= selected.classId() %>">Danh sách nhóm</a>
             <a class="ams-button" href="<%= context %>/teacher/assignments?classId=<%= selected.classId() %>">Xem bài tập</a>
         </p>
     </main>
