@@ -37,12 +37,17 @@ public class AuthFilter implements Filter {
       if (current.isEmpty()
           || current.get().accountStatus() != AccountStatus.ACTIVE
           || current.get().role() != role
-          || (role == UserRole.STUDENT && new vn.edu.fpt.ams.service.StudentVerificationService().pending((Long) id))) {
+          || (role != UserRole.STUDENT
+              && !vn.edu.fpt.ams.util.AuthSession.fingerprint(current.get().passwordHash())
+                  .equals(session.getAttribute("credentialFingerprint")))
+          || (role == UserRole.STUDENT
+              && new vn.edu.fpt.ams.service.StudentVerificationService().pending((Long) id))) {
         session.invalidate();
         if ("GET".equals(req.getMethod())) res.sendRedirect(req.getContextPath() + "/auth/signin");
         else
           res.sendError(
-              HttpServletResponse.SC_UNAUTHORIZED, "Quyền truy cập đã thay đổi. Vui lòng đăng nhập lại");
+              HttpServletResponse.SC_UNAUTHORIZED,
+              "Quyền truy cập đã thay đổi. Vui lòng đăng nhập lại");
         return;
       }
     } catch (IllegalStateException ex) {

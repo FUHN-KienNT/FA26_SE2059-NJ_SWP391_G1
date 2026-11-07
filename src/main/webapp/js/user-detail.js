@@ -8,7 +8,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const teacher = role.value === 'TEACHER';
     eligibility.hidden = !teacher;
     eligibility.disabled = !teacher;
-    if (expertSubjects) expertSubjects.hidden = role.value !== 'EXPERT';
+    if (expertSubjects) {
+      const expert = role.value === 'EXPERT';
+      expertSubjects.hidden = !expert;
+      expertSubjects.querySelectorAll('[data-expert-assignment]').forEach(field => {
+        field.disabled = !expert || field.dataset.subjectActive !== 'true';
+      });
+    }
   };
   role.addEventListener('change', update);
   update();

@@ -33,6 +33,15 @@
                 <%
                 }
             %>
+            <%
+                if("1".equals(request.getParameter("passwordChanged"))){
+                %>
+                <p role="status">
+                    Đã đổi mật khẩu. Vui lòng đăng nhập lại.
+                </p>
+                <%
+                }
+            %>
             <div class="ams-auth-grid">
                 <section>
                     <h2>
@@ -61,6 +70,9 @@
                             Đăng nhập nội bộ
                         </button>
                     </form>
+                    <p>
+                        <a href="${pageContext.request.contextPath}/auth/forgot-password">Quên mật khẩu?</a>
+                    </p>
                 </section>
                 <section>
                     <h2>

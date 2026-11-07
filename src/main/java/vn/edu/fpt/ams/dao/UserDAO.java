@@ -1,8 +1,11 @@
 package vn.edu.fpt.ams.dao;
 
+import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.Instant;
 import vn.edu.fpt.ams.model.*;
+import vn.edu.fpt.ams.util.Jdbc;
 
 /** JDBC operations; callers use UserService for authorization and business rules. */
 public class UserDAO {
@@ -126,5 +129,91 @@ public class UserDAO {
         ResultSetSupport.instant(rs, "created_at"),
         ResultSetSupport.instant(rs, "last_login_at"),
         ResultSetSupport.instant(rs, "updated_at"));
+  }
+
+  // The caller owns the connection and transaction for locked account/reset operations.
+
+  public UserAccount lockByEmail(Connection connection, String email) throws SQLException {
+    try (var statement =
+            Jdbc.statement(
+                connection, "SELECT * FROM users WHERE lower(trim(email))=? FOR UPDATE", email);
+        var resultSet = statement.executeQuery()) {
+      return resultSet.next() ? UserDAO.mapUser(resultSet) : null;
+    }
+  }
+
+  public UserAccount lockById(Connection connection, long id) throws SQLException {
+    try (var statement =
+            Jdbc.statement(connection, "SELECT * FROM users WHERE user_id=? FOR UPDATE", id);
+        var resultSet = statement.executeQuery()) {
+      return resultSet.next() ? UserDAO.mapUser(resultSet) : null;
+    }
+  }
+
+  public boolean hasRecentPasswordReset(Connection connection, long id, Instant since)
+      throws SQLException {
+    return Jdbc.scalar(
+            connection,
+            "SELECT COUNT(*) FROM staff_password_resets WHERE user_id=? AND sent_at>?",
+            id,
+            since)
+        > 0;
+  }
+
+  public void replacePasswordReset(
+      Connection connection, long id, String hash, String credentialHash, Instant expires)
+      throws SQLException {
+    deletePasswordReset(connection, id);
+    Jdbc.update(
+        connection,
+        "INSERT INTO staff_password_resets(user_id,token_hash,credential_hash,expires_at)"
+            + " VALUES(?,?,?,?)",
+        id,
+        hash,
+        credentialHash,
+        expires);
+  }
+
+  public long findPasswordResetUserId(Connection connection, String hash) throws SQLException {
+    return Jdbc.scalar(
+        connection, "SELECT user_id FROM staff_password_resets WHERE token_hash=?", hash);
+  }
+
+  public boolean consumePasswordReset(
+      Connection connection, long id, String tokenHash, String credentialHash) throws SQLException {
+    return Jdbc.update(
+            connection,
+            "DELETE FROM staff_password_resets WHERE user_id=? AND token_hash=? AND"
+                + " credential_hash=? AND expires_at>CURRENT_TIMESTAMP",
+            id,
+            tokenHash,
+            credentialHash)
+        == 1;
+  }
+
+  public void deletePasswordReset(Connection connection, long id) throws SQLException {
+    Jdbc.update(connection, "DELETE FROM staff_password_resets WHERE user_id=?", id);
+  }
+
+  public void deleteMatchingPasswordReset(Connection connection, long id, String hash)
+      throws SQLException {
+    Jdbc.update(
+        connection, "DELETE FROM staff_password_resets WHERE user_id=? AND token_hash=?", id, hash);
+  }
+
+  public void updatePassword(Connection connection, long id, String hash) throws SQLException {
+    Jdbc.update(
+        connection,
+        "UPDATE users SET password_hash=?,updated_at=CURRENT_TIMESTAMP WHERE user_id=?",
+        hash,
+        id);
+  }
+
+  public void updateFullName(Connection connection, long id, String name) throws SQLException {
+    Jdbc.update(
+        connection,
+        "UPDATE users SET full_name=?,updated_at=CURRENT_TIMESTAMP WHERE user_id=?",
+        name,
+        id);
   }
 }

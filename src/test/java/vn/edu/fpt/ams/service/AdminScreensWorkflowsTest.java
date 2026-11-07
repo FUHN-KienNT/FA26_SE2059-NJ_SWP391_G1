@@ -48,6 +48,57 @@ class AdminScreensWorkflowsTest {
   }
 
   @Test
+  void createsExpertAndMultipleAssignmentsBeforeSendingEmail() {
+    var created = users.create(1,
+        new UserCreateRequest("New Expert", "expert-create@test.edu", UserRole.EXPERT),
+        Set.of(), Map.of(1L, ResponsibilityType.SUPPORTING, 2L, ResponsibilityType.PRIMARY));
+    assertTrue(created.delivered());
+    assertEquals(2, scalar("SELECT COUNT(*) FROM subject_experts WHERE expert_id=? AND is_active=TRUE", created.userId()));
+    assertEquals(1, scalar("SELECT COUNT(*) FROM subject_experts WHERE subject_id=1 AND expert_id=2 AND responsibility_type='PRIMARY' AND is_active=TRUE"));
+  }
+
+  @Test
+  void invalidLaterAssignmentRollsBackNewAccountAndEarlierAssignmentsWithoutEmail() {
+    long before = scalar("SELECT COUNT(*) FROM subject_experts");
+    mailed = null;
+    assertThrows(IllegalArgumentException.class, () -> users.create(1,
+        new UserCreateRequest("Invalid Expert", "expert-rollback@test.edu", UserRole.EXPERT),
+        Set.of(), Map.of(1L, ResponsibilityType.PRIMARY, 2L, ResponsibilityType.SUPPORTING)));
+    assertEquals(0, scalar("SELECT COUNT(*) FROM users WHERE email='expert-rollback@test.edu'"));
+    assertEquals(before, scalar("SELECT COUNT(*) FROM subject_experts"));
+    assertNull(mailed);
+  }
+
+  @Test
+  void expertCreationRejectsFullInactiveUnknownSubjectsAndNonExpertAssignments() {
+    sql("INSERT INTO subject_experts(subject_id,expert_id,responsibility_type) VALUES(1,5,'PRIMARY')");
+    var request = new UserCreateRequest("Invalid Expert", "expert-invalid@test.edu", UserRole.EXPERT);
+    assertThrows(IllegalArgumentException.class, () -> users.create(1, request, Set.of(), Map.of(1L, ResponsibilityType.PRIMARY)));
+    sql("UPDATE subjects SET status='INACTIVE' WHERE subject_id=2");
+    assertThrows(IllegalArgumentException.class, () -> users.create(1, request, Set.of(), Map.of(2L, ResponsibilityType.PRIMARY)));
+    assertThrows(RuntimeException.class, () -> users.create(1, request, Set.of(), Map.of(999L, ResponsibilityType.PRIMARY)));
+    assertThrows(IllegalArgumentException.class, () -> users.create(1,
+        new UserCreateRequest("Teacher Name", "teacher-invalid@test.edu", UserRole.TEACHER),
+        Set.of(), Map.of(1L, ResponsibilityType.SUPPORTING)));
+    assertEquals(0, scalar("SELECT COUNT(*) FROM users WHERE email IN ('expert-invalid@test.edu','teacher-invalid@test.edu')"));
+  }
+
+  @Test
+  void studentCanUpdateOwnProfileWithoutChangingRoleOrEnablingLocalPassword() {
+    var student = google.signIn(new Identity("self-profile", "self-profile@test.edu", "Student"), null);
+    var profiles = new UserProfileService(db);
+    assertEquals(UserRole.STUDENT, profiles.profile(student.userId()).role());
+    profiles.updateProfile(student.userId(), "Updated Student");
+    var updated = profiles.profile(student.userId());
+    assertEquals("Updated Student", updated.fullName());
+    assertEquals(student.email(), updated.email());
+    assertEquals(UserRole.STUDENT, updated.role());
+    assertThrows(SecurityException.class, () -> staffAccounts().changePassword(student.userId(), "OldPass123", "NewPass123", "NewPass123"));
+    sql("UPDATE users SET account_status='INACTIVE' WHERE user_id=?", student.userId());
+    assertThrows(SecurityException.class, () -> profiles.updateProfile(student.userId(), "Blocked Student"));
+  }
+
+  @Test
   void internalLoginUsesDatabaseRoleAndUpdatesLastLoginOnlyOnSuccess() {
     var auth = new AuthenticationService(db);
     String hash = PasswordHash.hash("Local-Test-Password");
@@ -212,6 +263,89 @@ class AdminScreensWorkflowsTest {
   private void verifiedStudent(String subject, String email) {
     var account = google.signIn(new Identity(subject, email, "Student Name"), null);
     sql("UPDATE users SET email_verified=TRUE WHERE user_id=?", account.userId());
+  }
+  @Test void reactivatedTeacherCanReceiveEligibilityInSameAtomicSave() {
+    long id=users.create(1,new UserCreateRequest("New Teacher","reactivate@test.edu",UserRole.TEACHER),Set.of()).userId();
+    users.status(1,id,AccountStatus.INACTIVE);
+    users.update(1,id,"New Teacher","reactivate@test.edu",UserRole.TEACHER,Set.of(1L),AccountStatus.ACTIVE);
+    assertEquals(AccountStatus.ACTIVE,users.detail(1,id).accountStatus());
+    assertEquals(Set.of(1L),users.eligibility(1,id));
+    users.status(1,id,AccountStatus.INACTIVE);
+    assertThrows(IllegalArgumentException.class,()->users.update(1,id,"Changed Teacher","reactivate@test.edu",UserRole.TEACHER,Set.of(999999L),AccountStatus.ACTIVE));
+    assertEquals(AccountStatus.INACTIVE,users.detail(1,id).accountStatus());
+    assertEquals("New Teacher",users.detail(1,id).fullName());
+  }
+  @Test void resetLinkIsInvalidAfterAdminChangesAccountEmail() {
+    sql("UPDATE users SET password_hash=? WHERE user_id=2",PasswordHash.hash("OldPass123"));
+    var service=staffAccounts();service.requestReset(users.detail(1,2).email());String token=resetToken();
+    sql("UPDATE users SET email='changed-email@test.edu' WHERE user_id=2");
+    assertThrows(IllegalArgumentException.class,()->service.resetPassword(token,"NewPass123","NewPass123"));
+    assertTrue(PasswordHash.verify("OldPass123",users.detail(1,2).passwordHash()));
+  }
+  private StaffAccountService staffAccounts() {
+    return new StaffAccountService(db,new EmailService(){
+      @Override public void sendNotification(String to,String subject,String text){
+        assertEquals(1,scalar("SELECT COUNT(*) FROM users WHERE email=?",to));
+        if(failMail)throw new IllegalStateException("SMTP unavailable");
+        mailed=text;
+      }
+    });
+  }
+  private String resetToken(){return mailed.split("token=")[1].split("\\n")[0];}
+
+  @Test void staffCanChangeOwnPasswordAndUpdateOwnNameOnly() {
+    sql("UPDATE users SET password_hash=? WHERE user_id=2",PasswordHash.hash("OldPass123"));
+    var service=staffAccounts();
+    assertThrows(IllegalArgumentException.class,()->service.changePassword(2,"wrong","NewPass123","NewPass123"));
+    assertThrows(IllegalArgumentException.class,()->service.changePassword(2,"OldPass123","short","short"));
+    assertThrows(IllegalArgumentException.class,()->service.changePassword(2,"OldPass123","NewPass123","Different123"));
+    assertThrows(IllegalArgumentException.class,()->service.changePassword(2,"OldPass123","OldPass123","OldPass123"));
+    service.changePassword(2,"OldPass123","NewPass123","NewPass123");
+    assertTrue(PasswordHash.verify("NewPass123",users.detail(1,2).passwordHash()));
+    assertFalse(PasswordHash.verify("OldPass123",users.detail(1,2).passwordHash()));
+    service.updateProfile(2,"Updated Expert");
+    assertEquals("Updated Expert",service.profile(2).fullName());
+    assertEquals(UserRole.EXPERT,service.profile(2).role());
+    var student=google.signIn(new Identity("profile-student","profile-student@test.edu","Student"),null);
+    assertThrows(SecurityException.class,()->service.profile(student.userId()));
+    assertThrows(SecurityException.class,()->service.changePassword(student.userId(),"OldPass123","NewPass123","NewPass123"));
+  }
+  @Test void staffResetTokenIsHashedSingleUseAndBoundToCurrentCredential() {
+    sql("UPDATE users SET password_hash=? WHERE user_id=2",PasswordHash.hash("OldPass123"));
+    var service=staffAccounts();String email=users.detail(1,2).email();
+    service.requestReset(email);String token=resetToken();
+    assertEquals(0,scalar("SELECT COUNT(*) FROM staff_password_resets WHERE token_hash=?",token));
+    String firstMail=mailed;service.requestReset(email);assertEquals(firstMail,mailed);
+    assertThrows(IllegalArgumentException.class,()->service.resetPassword(token,"NewPass123","WrongPass123"));
+    service.resetPassword(token,"NewPass123","NewPass123");
+    assertTrue(PasswordHash.verify("NewPass123",users.detail(1,2).passwordHash()));
+    assertThrows(IllegalArgumentException.class,()->service.resetPassword(token,"OtherPass123","OtherPass123"));
+    service.requestReset(email);String obsolete=resetToken();
+    sql("UPDATE users SET password_hash=? WHERE user_id=2",PasswordHash.hash("Reissued123"));
+    assertThrows(IllegalArgumentException.class,()->service.resetPassword(obsolete,"OtherPass123","OtherPass123"));
+  }
+  @Test void resetRejectsExpiredTokensAndDoesNotSendToInactiveMissingOrStudents() {
+    sql("UPDATE users SET password_hash=? WHERE user_id=2",PasswordHash.hash("OldPass123"));
+    var service=staffAccounts();String email=users.detail(1,2).email();
+    service.requestReset(email);String token=resetToken();
+    sql("UPDATE staff_password_resets SET expires_at=?",Instant.now().minusSeconds(1));
+    assertThrows(IllegalArgumentException.class,()->service.resetPassword(token,"NewPass123","NewPass123"));
+    mailed=null;service.requestReset("missing-reset@test.edu");assertNull(mailed);
+    var student=google.signIn(new Identity("reset-student","reset-student@test.edu","Student"),null);
+    service.requestReset(student.email());assertNull(mailed);
+    sql("UPDATE users SET account_status='INACTIVE' WHERE user_id=2");
+    service.requestReset(email);assertNull(mailed);
+    assertThrows(IllegalArgumentException.class,()->service.resetPassword(token,"NewPass123","NewPass123"));
+  }
+  @Test void failedResetEmailCanBeRetriedAndPasswordChangeRevokesPendingTokens() {
+    sql("UPDATE users SET password_hash=? WHERE user_id=2",PasswordHash.hash("OldPass123"));
+    var service=staffAccounts();String email=users.detail(1,2).email();
+    failMail=true;service.requestReset(email);
+    assertEquals(0,scalar("SELECT COUNT(*) FROM staff_password_resets"));
+    failMail=false;service.requestReset(email);String token=resetToken();
+    service.changePassword(2,"OldPass123","NewPass123","NewPass123");
+    assertEquals(0,scalar("SELECT COUNT(*) FROM staff_password_resets"));
+    assertThrows(IllegalArgumentException.class,()->service.resetPassword(token,"OtherPass123","OtherPass123"));
   }
   @Test
   void adminCanEditGoogleStudentWithNumberedNameWithoutChangingIdentity() {

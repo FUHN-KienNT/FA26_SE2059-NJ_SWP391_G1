@@ -1,7 +1,7 @@
 package vn.edu.fpt.ams.service;
-import vn.edu.fpt.ams.dao.*;
 
 import java.util.*;
+import vn.edu.fpt.ams.dao.*;
 import vn.edu.fpt.ams.dto.ExpertDashboardDTO;
 import vn.edu.fpt.ams.model.UserRole;
 import vn.edu.fpt.ams.util.*;
@@ -27,12 +27,8 @@ public class DashboardService {
               List.of(
                   "users", "subjects", "academic_terms", "subject_classes", "assignment_templates"))
             out.put(t, DashboardDAO.countEntities(c, t));
-          out.put(
-              "active_users",
-              DashboardDAO.countActiveUsers(c));
-          out.put(
-              "pending_invitations",
-              DashboardDAO.countPendingInvitations(c));
+          out.put("active_users", DashboardDAO.countActiveUsers(c));
+          out.put("pending_invitations", DashboardDAO.countPendingInvitations(c));
           return out;
         });
   }

@@ -1,12 +1,11 @@
 package vn.edu.fpt.ams.dao;
 
-import java.sql.ResultSet;
 import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.*;
-import java.sql.SQLException;
-import vn.edu.fpt.ams.model.*;
-import java.sql.SQLException;
 import vn.edu.fpt.ams.dto.ExpertTemplateDTO;
+import vn.edu.fpt.ams.model.*;
 import vn.edu.fpt.ams.util.Jdbc;
 
 /** JDBC persistence; TemplateService owns permissions and preserves Assignment snapshots. */
@@ -19,49 +18,78 @@ public class TemplateDAO {
   private static Object[] searchArguments(long subject, String keyword, TemplateStatus status) {
     var values = new ArrayList<Object>();
     values.add(subject);
-    values.add("%" + keyword.toLowerCase(Locale.ROOT).replace("!", "!!")
-        .replace("%", "!%").replace("_", "!_") + "%");
+    values.add(
+        "%"
+            + keyword
+                .toLowerCase(Locale.ROOT)
+                .replace("!", "!!")
+                .replace("%", "!%")
+                .replace("_", "!_")
+            + "%");
     if (status != null) values.add(status.name());
     return values.toArray();
   }
 
-  public long countMatching(Connection c, long subject, String keyword, TemplateStatus status) throws SQLException {
-    return Jdbc.scalar(c, "SELECT COUNT(*) FROM assignment_templates" + searchClause(status),
+  public long countMatching(Connection c, long subject, String keyword, TemplateStatus status)
+      throws SQLException {
+    return Jdbc.scalar(
+        c,
+        "SELECT COUNT(*) FROM assignment_templates" + searchClause(status),
         searchArguments(subject, keyword, status));
   }
 
-  public List<AssignmentTemplate> searchPage(Connection c, long subject, String keyword,
-      TemplateStatus status, int offset, int size) throws SQLException {
+  public List<AssignmentTemplate> searchPage(
+      Connection c, long subject, String keyword, TemplateStatus status, int offset, int size)
+      throws SQLException {
     var values = new ArrayList<Object>(Arrays.asList(searchArguments(subject, keyword, status)));
     values.add(size);
     values.add(offset);
-    try (var p = Jdbc.statement(c, "SELECT * FROM assignment_templates" + searchClause(status)
-        + " ORDER BY updated_at DESC,template_id LIMIT ? OFFSET ?", values.toArray());
+    try (var p =
+            Jdbc.statement(
+                c,
+                "SELECT * FROM assignment_templates"
+                    + searchClause(status)
+                    + " ORDER BY updated_at DESC,template_id LIMIT ? OFFSET ?",
+                values.toArray());
         var r = p.executeQuery()) {
       var result = new ArrayList<AssignmentTemplate>();
       while (r.next()) result.add(mapTemplate(r));
       return result;
     }
   }
-public List<ExpertTemplateDTO> findVisibleByExpert(Connection c,long expertId,Long subjectId)
-        throws SQLException {
-    String sql="SELECT t.template_id,s.subject_id,s.subject_code,s.subject_name,t.title,"
+
+  public List<ExpertTemplateDTO> findVisibleByExpert(Connection c, long expertId, Long subjectId)
+      throws SQLException {
+    String sql =
+        "SELECT t.template_id,s.subject_id,s.subject_code,s.subject_name,t.title,"
             + "t.maximum_score,t.status,t.updated_at FROM assignment_templates t"
             + " JOIN subjects s ON s.subject_id=t.subject_id"
             + " JOIN subject_experts se ON se.subject_id=s.subject_id"
             + " WHERE se.expert_id=? AND se.is_active=TRUE";
-    var args=new ArrayList<Object>(); args.add(expertId);
-    if(subjectId!=null){ sql+=" AND s.subject_id=?"; args.add(subjectId); }
-    sql+=" ORDER BY s.subject_code,t.title";
-    try(var p=Jdbc.statement(c,sql,args.toArray());var r=p.executeQuery()){
-        var out=new ArrayList<ExpertTemplateDTO>();
-        while(r.next()) out.add(new ExpertTemplateDTO(r.getLong(1),r.getLong(2),r.getString(3),
-                r.getString(4),r.getString(5),r.getBigDecimal(6),TemplateStatus.valueOf(r.getString(7)),
-                r.getTimestamp(8).toInstant()));
-        return out;
+    var args = new ArrayList<Object>();
+    args.add(expertId);
+    if (subjectId != null) {
+      sql += " AND s.subject_id=?";
+      args.add(subjectId);
     }
-}
-
+    sql += " ORDER BY s.subject_code,t.title";
+    try (var p = Jdbc.statement(c, sql, args.toArray());
+        var r = p.executeQuery()) {
+      var out = new ArrayList<ExpertTemplateDTO>();
+      while (r.next())
+        out.add(
+            new ExpertTemplateDTO(
+                r.getLong(1),
+                r.getLong(2),
+                r.getString(3),
+                r.getString(4),
+                r.getString(5),
+                r.getBigDecimal(6),
+                TemplateStatus.valueOf(r.getString(7)),
+                r.getTimestamp(8).toInstant()));
+      return out;
+    }
+  }
 
   public java.util.List<AssignmentTemplate> findBySubjectId(long id) {
     return vn.edu.fpt.ams.util.Jdbc.transaction(
