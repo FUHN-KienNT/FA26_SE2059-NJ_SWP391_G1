@@ -14,17 +14,25 @@ import vn.edu.fpt.ams.service.EnrollmentService;
 import vn.edu.fpt.ams.service.TeacherDashboardService;
 
 /** Teacher student list, enrollment changes and CSV import. */
-@WebServlet("/teacher/students")
+@WebServlet({"/teacher/students", "/teacher/students/detail"})
 @MultipartConfig(maxFileSize = 5 * 1024 * 1024, maxRequestSize = 6 * 1024 * 1024)
 public class TeacherStudentListServlet extends HttpServlet {
     private final EnrollmentService service;
     private final TeacherDashboardService dashboardService;
+    private final vn.edu.fpt.ams.service.TeacherGroupService groupService;
 
     /** Initialize the servlet with database-backed enrollment and class services. */
     public TeacherStudentListServlet() { this(new EnrollmentService(), new TeacherDashboardService()); }
 
     /** Supply services for isolated routing and ownership tests. */
     TeacherStudentListServlet(EnrollmentService service, TeacherDashboardService dashboardService) {
+        this(service, dashboardService, new vn.edu.fpt.ams.service.TeacherGroupService());
+    }
+
+    /** Supply group reads when exercising Student Details without a database. */
+    TeacherStudentListServlet(EnrollmentService service, TeacherDashboardService dashboardService,
+                             vn.edu.fpt.ams.service.TeacherGroupService groupService) {
+        this.groupService = groupService;
         this.service = service;
         this.dashboardService = dashboardService;
     }
@@ -35,6 +43,19 @@ public class TeacherStudentListServlet extends HttpServlet {
         long teacherId = (Long) request.getSession().getAttribute("userId");
         try {
             loadStudentList(request, teacherId, requiredId(request, "classId"));
+            if ("/teacher/students/detail".equals(request.getServletPath())) {
+                long enrollmentId = requiredId(request, "enrollmentId");
+                var student = service.listStudents(teacherId, requiredId(request, "classId")).stream()
+                        .filter(item -> item.enrollmentId() == enrollmentId).findFirst()
+                        .orElseThrow(() -> new IllegalArgumentException("Sinh viên không thuộc lớp đã chọn."));
+                request.setAttribute("student", student);
+                request.setAttribute("studentGroups", groupService.list(teacherId, student.classId()).stream()
+                        .filter(group -> group.members().stream()
+                                .anyMatch(member -> member.studentId() == student.studentId() && member.current()))
+                        .toList());
+                request.getRequestDispatcher("/WEB-INF/views/teacher/students/detail.jsp").forward(request, response);
+                return;
+            }
             request.getRequestDispatcher("/WEB-INF/views/teacher/students/list.jsp").forward(request, response);
         } catch (IllegalArgumentException ex) {
             response.sendError(HttpServletResponse.SC_BAD_REQUEST, message(ex.getMessage()));
@@ -50,6 +71,7 @@ public class TeacherStudentListServlet extends HttpServlet {
         catch (IllegalArgumentException ex) { response.sendError(400, "Mã lớp không hợp lệ."); return; }
         String action = request.getParameter("action");
         try {
+            vn.edu.fpt.ams.util.WebSupport.checkCsrf(request);
             if ("addStudent".equals(action)) {
                 service.addStudentByEmail(teacherId, classId, request.getParameter("email"));
                 request.getSession().setAttribute("enrollmentNotice", "Đã thêm sinh viên vào lớp.");
@@ -80,6 +102,8 @@ public class TeacherStudentListServlet extends HttpServlet {
                 return;
             }
             response.sendRedirect(request.getContextPath() + "/teacher/students?classId=" + classId);
+        } catch (SecurityException ex) {
+            response.sendError(403, ex.getMessage());
         } catch (IllegalArgumentException ex) {
             try {
                 loadStudentList(request, teacherId, classId);
@@ -98,7 +122,17 @@ public class TeacherStudentListServlet extends HttpServlet {
     private void loadStudentList(HttpServletRequest request, long teacherId, long classId) {
         TeacherClassSummary selected = dashboardService.requireAssignedClass(teacherId, classId);
         request.setAttribute("selected", selected);
-        request.setAttribute("students", service.listStudents(teacherId, classId));
+        var students = service.listStudents(teacherId, classId);
+        String keyword = parameter(request, "keyword");
+        String enrollmentStatus = parameter(request, "enrollmentStatus");
+        if (!enrollmentStatus.isEmpty()) EnrollmentStatus.valueOf(enrollmentStatus);
+        request.setAttribute("keyword", keyword);
+        request.setAttribute("enrollmentStatus", enrollmentStatus);
+        request.setAttribute("students", students.stream()
+                .filter(student -> enrollmentStatus.isEmpty() || student.status().name().equals(enrollmentStatus))
+                .filter(student -> (student.studentName() + " " + student.studentEmail())
+                        .toLowerCase(java.util.Locale.ROOT).contains(keyword.toLowerCase(java.util.Locale.ROOT)))
+                .toList());
         request.setAttribute("invitations", service.listInvitations(teacherId, classId));
         String importKey = "enrollmentImportResult:" + classId;
         Object importResult = request.getSession().getAttribute(importKey);

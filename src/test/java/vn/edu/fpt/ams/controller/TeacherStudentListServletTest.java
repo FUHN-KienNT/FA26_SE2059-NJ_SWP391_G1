@@ -85,9 +85,47 @@ class TeacherStudentListServletTest {
         assertFalse(h.attributes.containsKey("importResult"));
     }
 
+    /** Search and status filters retain the selected class boundary. */
+    @Test void studentFiltersUseNameEmailAndEnrollmentStatus() throws Exception {
+        var h = new Harness();
+        h.params.putAll(Map.of("classId", "1", "keyword", "ONE@", "enrollmentStatus", "ACTIVE"));
+        h.servlet().doGet(h.request(), h.response());
+        assertEquals(1, ((List<?>) h.attributes.get("students")).size());
+        h.params.put("enrollmentStatus", "INACTIVE");
+        h.servlet().doGet(h.request(), h.response());
+        assertTrue(((List<?>) h.attributes.get("students")).isEmpty());
+    }
+
+    /** Details resolve the enrollment only inside the assigned class roster. */
+    @Test void studentDetailRejectsForeignEnrollmentAndLoadsOwnedStudent() throws Exception {
+        var h = new Harness();
+        h.path = "/teacher/students/detail";
+        h.params.putAll(Map.of("classId", "1", "enrollmentId", "99"));
+        h.servlet().doGet(h.request(), h.response());
+        assertEquals(400, h.status);
+        h.status = 200;
+        h.params.put("enrollmentId", "5");
+        h.servlet().doGet(h.request(), h.response());
+        assertEquals("/WEB-INF/views/teacher/students/detail.jsp", h.view);
+        assertEquals(10, ((EnrollmentDTO) h.attributes.get("student")).studentId());
+    }
+
+    /** Reject an expired or forged form token before any enrollment mutation. */
+    @Test void rejectsInvalidCsrf() throws Exception {
+        var h = new Harness();
+        h.params.putAll(Map.of("classId", "1", "action", "updateStatus", "enrollmentId", "5", "status", "INACTIVE", "csrf", "wrong"));
+        h.servlet().doPost(h.request(), h.response());
+        assertEquals(403, h.status);
+        assertFalse(h.updated);
+    }
     private static final class Harness {
         final Map<String,String> params = new HashMap<>();
         final Map<String,Object> attributes = new HashMap<>(), session = new HashMap<>();
+        /** Set a valid session token for enrollment form submissions. */
+        Harness() {
+            params.put("csrf", "fixture-token");
+            session.put("csrf", "fixture-token");
+        }
         long teacher; int status=200, rosterReads; String view; String path = "/teacher/classes"; boolean updated;
         /** Supply deterministic classes and enrollment failures without a live database. */
         TeacherStudentListServlet servlet() {
@@ -102,7 +140,11 @@ class TeacherStudentListServletTest {
                 @Override public long addStudentByEmail(long actor,long id,String email) { throw new IllegalArgumentException("Không có tài khoản sử dụng email này"); }
                 /** Record whether an unauthorized status write reaches the service. */
                 @Override public void updateEnrollmentStatus(long actor,long id,EnrollmentStatus state) { updated=true; }
-            }, dashboardService());
+            }, dashboardService(), new TeacherGroupService() {
+                @Override public List<TeacherGroup> list(long actor, long classId) {
+                    return List.of();
+                }
+            });
         }
         /** Build the class screens with the same Teacher ownership fixture. */
         TeacherClassServlet classServlet() {

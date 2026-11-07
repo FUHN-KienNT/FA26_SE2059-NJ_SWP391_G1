@@ -79,7 +79,17 @@
                 <% } %>
             </section>
             <% } %>
-            <% if (students.isEmpty()) { %><p>Lớp này chưa có sinh viên.</p><% } %>
+            <form class="ams-panel" method="get" action="<%= context %>/teacher/students">
+                <input type="hidden" name="classId" value="<%= selected.classId() %>">
+                <label>Tên hoặc email <input name="keyword" maxlength="100" value="<%= vn.edu.fpt.ams.util.WebSupport.html(request.getAttribute("keyword")) %>"></label>
+                <label>Ghi danh <select name="enrollmentStatus">
+                    <option value="">Tất cả</option>
+                    <option value="ACTIVE" <%= "ACTIVE".equals(request.getAttribute("enrollmentStatus")) ? "selected" : "" %>>Đang học</option>
+                    <option value="INACTIVE" <%= "INACTIVE".equals(request.getAttribute("enrollmentStatus")) ? "selected" : "" %>>Ngừng học</option>
+                </select></label>
+                <button type="submit">Tìm kiếm</button>
+            </form>
+            <% if (students.isEmpty()) { %><p>Không có sinh viên phù hợp với bộ lọc.</p><% } %>
             <table>
                 <tr>
                     <th>
@@ -108,7 +118,9 @@
                             <%= vn.edu.fpt.ams.util.WebSupport.html(vn.edu.fpt.ams.util.Vietnamese.label(student.status())) %>
                         </td>
                         <td>
+                            <a href="<%= context %>/teacher/students/detail?classId=<%= selected.classId() %>&amp;enrollmentId=<%= student.enrollmentId() %>">Xem chi tiết</a>
                             <form action="<%= context %>/teacher/students" method="post">
+                                <input type="hidden" name="csrf" value="<%= vn.edu.fpt.ams.util.WebSupport.csrf(request) %>">
                 <input type="hidden" name="action" value="updateStatus">
                                 <input type="hidden" name="classId" value="<%= selected.classId() %>">
                                 <input type="hidden" name="enrollmentId" value="<%= student.enrollmentId() %>">
@@ -134,6 +146,7 @@
             <h2 id="add-student-title">Thêm sinh viên đã có tài khoản</h2>
             <% if (error != null && "addStudent".equals(request.getAttribute("openDialog"))) { %><p role="alert"><%= vn.edu.fpt.ams.util.WebSupport.html(error) %></p><% } %>
             <form action="<%= context %>/teacher/students" method="post">
+                <input type="hidden" name="csrf" value="<%= vn.edu.fpt.ams.util.WebSupport.csrf(request) %>">
                 <input type="hidden" name="action" value="addStudent">
                 <input type="hidden" name="classId" value="<%= selected.classId() %>">
                 <label>
@@ -150,6 +163,7 @@
             <h2 id="import-students-title">Nhập danh sách sinh viên</h2>
             <% if (error != null && "importStudents".equals(request.getAttribute("openDialog"))) { %><p role="alert"><%= vn.edu.fpt.ams.util.WebSupport.html(error) %></p><% } %>
             <form action="<%= context %>/teacher/students" method="post" enctype="multipart/form-data">
+                <input type="hidden" name="csrf" value="<%= vn.edu.fpt.ams.util.WebSupport.csrf(request) %>">
                 <input type="hidden" name="action" value="importStudents">
                 <input type="hidden" name="classId" value="<%= selected.classId() %>">
                 <label>
