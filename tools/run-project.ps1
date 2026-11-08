@@ -22,8 +22,19 @@ try {
     $listeners = @(Get-NetTCPConnection -LocalPort 8080 -State Listen -ErrorAction SilentlyContinue)
     foreach ($processId in ($listeners.OwningProcess | Select-Object -Unique)) {
         $processInfo = Get-CimInstance Win32_Process -Filter "ProcessId=$processId"
+        # Compare the actual Catalina base after normalizing Windows path separators.
+        $processBase = $null
+        if ($processInfo -and $processInfo.CommandLine) {
+            $baseMatch = [regex]::Match($processInfo.CommandLine,
+                '(?i)(?:"-Dcatalina\.base=([^"]+)"|-Dcatalina\.base="([^"]+)"|-Dcatalina\.base=([^\s"]+))')
+            if ($baseMatch.Success) {
+                $baseValue = ($baseMatch.Groups | Select-Object -Skip 1 |
+                    Where-Object { $_.Success } | Select-Object -First 1).Value
+                $processBase = [IO.Path]::GetFullPath($baseValue.Replace('/', '\')).TrimEnd('\')
+            }
+        }
         if (-not $processInfo -or $processInfo.Name -ne 'java.exe' -or
-            $processInfo.CommandLine.IndexOf($TomcatHome, [StringComparison]::OrdinalIgnoreCase) -lt 0 -or
+            -not [string]::Equals($processBase, $TomcatHome.TrimEnd('\'), [StringComparison]::OrdinalIgnoreCase) -or
             $processInfo.CommandLine -notlike '*org.apache.catalina.startup.Bootstrap*') {
             throw "Port 8080 is used by another process (PID $processId). Stop it before running AMS."
         }
