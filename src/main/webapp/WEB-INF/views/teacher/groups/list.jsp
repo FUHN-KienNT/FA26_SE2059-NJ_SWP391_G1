@@ -6,6 +6,7 @@
 <%
     String context = request.getContextPath();
     TeacherClassSummary selected = (TeacherClassSummary) request.getAttribute("selected");
+    int unassignedCount = (Integer) request.getAttribute("unassignedCount");
     Object notice = session.getAttribute("groupNotice");
     session.removeAttribute("groupNotice");
     List<TeacherGroup> groups = (List<TeacherGroup>) request.getAttribute("groups");
@@ -38,6 +39,22 @@
             <button type="submit">Tìm kiếm</button>
         </form>
         <% if ("ACTIVE".equals(selected.status())) { %>
+        <section class="ams-panel" aria-labelledby="random-groups-title">
+            <h2 id="random-groups-title">Chia nhóm ngẫu nhiên</h2>
+            <p>Có <strong><%= unassignedCount %></strong> sinh viên đang học đủ điều kiện và chưa có nhóm.</p>
+            <p>Hệ thống tạo nhóm mới cho các sinh viên này. Nhóm cuối có thể ít thành viên hơn số đã chọn.</p>
+            <% if (unassignedCount > 0) { %>
+            <form method="post" action="<%= context %>/teacher/groups">
+                <input type="hidden" name="csrf" value="<%= WebSupport.csrf(request) %>">
+                <input type="hidden" name="action" value="random">
+                <input type="hidden" name="classId" value="<%= selected.classId() %>">
+                <label for="members-per-group">Số thành viên tối đa mỗi nhóm</label>
+                <input id="members-per-group" type="number" name="membersPerGroup" min="1" max="40" required
+                    value="<%= request.getAttribute("membersPerGroup") == null ? "5" : WebSupport.html(request.getAttribute("membersPerGroup")) %>">
+                <button type="submit">Chia nhóm ngẫu nhiên</button>
+            </form>
+            <% } %>
+        </section>
         <p><a class="ams-button ams-button-primary" href="<%= context %>/teacher/groups/detail?classId=<%= selected.classId() %>">Tạo nhóm</a></p>
         <% } %>
         <% if (groups.isEmpty()) { %>

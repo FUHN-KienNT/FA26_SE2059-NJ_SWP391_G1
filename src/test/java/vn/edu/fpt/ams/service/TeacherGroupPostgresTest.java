@@ -135,6 +135,54 @@ class TeacherGroupPostgresTest {
         assertThrows(SecurityException.class, () -> service.list(1, 100));
     }
 
+    /** Random grouping covers each eligible Student once and respects the selected maximum. */
+    @Test void randomGroupingKeepsExistingGroupsAndHandlesRemainders() throws Exception {
+        long existing = service.save(1, 100, null, "Nhóm 1", "");
+        service.addMember(1, 100, existing, 10);
+        for (long id = 14; id <= 20; id++) {
+            Jdbc.update(connection, "INSERT INTO users VALUES (?, 'STUDENT', 'ACTIVE', 'Fixture', ?)", id, id + "@test");
+            Jdbc.update(connection, "INSERT INTO subject_registrations VALUES (?, ?, 'ACTIVE')", id, id);
+            Jdbc.update(connection, "INSERT INTO class_enrollments VALUES (?, 100, ?, 'ACTIVE')", id, id);
+        }
+        connection.commit();
+        assertEquals(8, service.unassignedStudents(1, 100).size());
+        assertEquals(3, service.divideRandomly(1, 100, 3));
+        var all = service.list(1, 100);
+        assertEquals(1, service.detail(1, 100, existing).memberCount());
+        var generated = all.stream().filter(group -> group.groupId() != existing).toList();
+        assertEquals(java.util.List.of(2L, 3L, 3L),
+                generated.stream().map(group -> group.memberCount()).sorted().toList());
+        var members = generated.stream().flatMap(group -> group.members().stream()).toList();
+        assertEquals(8, members.stream().map(member -> member.studentId()).distinct().count());
+        assertTrue(members.stream().noneMatch(member -> member.studentId() == 10 || member.studentId() == 12 || member.studentId() == 13));
+        assertTrue(service.unassignedStudents(1, 100).isEmpty());
+        assertThrows(IllegalArgumentException.class, () -> service.divideRandomly(1, 100, 3));
+        assertEquals(4, service.list(1, 100).size());
+    }
+
+    /** Validate group sizes and current Teacher ownership before any random write. */
+    @Test void randomGroupingRejectsInvalidSizeAndForeignClass() {
+        for (int size : new int[] {-1, 0, 41, Integer.MAX_VALUE}) {
+            assertThrows(IllegalArgumentException.class, () -> service.divideRandomly(1, 100, size));
+        }
+        assertThrows(SecurityException.class, () -> service.divideRandomly(2, 100, 2));
+        assertTrue(service.list(1, 100).isEmpty());
+        assertEquals(1, service.divideRandomly(1, 100, 40));
+        assertEquals(2, service.list(1, 100).get(0).memberCount());
+    }
+
+    /** A failed later group rolls back earlier groups and every assigned member. */
+    @Test void randomGroupingIsAtomicAcrossAllGeneratedGroups() throws Exception {
+        connection.setAutoCommit(false);
+        try (var s = connection.createStatement()) {
+            s.execute("ALTER TABLE project_groups ADD CONSTRAINT fixture_second_group CHECK (group_name <> 'Nhóm 2')");
+        }
+        connection.commit();
+        assertThrows(IllegalStateException.class, () -> service.divideRandomly(1, 100, 1));
+        assertTrue(service.list(1, 100).isEmpty());
+        assertEquals(2, service.unassignedStudents(1, 100).size());
+        assertEquals(0, Jdbc.scalar(connection, "SELECT count(*) FROM project_group_members"));
+    }
     /** A partially written lifecycle operation rolls back all its effects. */
     @Test void failedLifecycleRollsBackMembershipClosure() throws Exception {
         long id = service.save(1, 100, null, "Alpha", "");

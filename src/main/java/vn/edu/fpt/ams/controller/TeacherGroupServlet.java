@@ -47,6 +47,7 @@ public class TeacherGroupServlet extends HttpServlet {
                 request.getRequestDispatcher("/WEB-INF/views/teacher/groups/detail.jsp").forward(request, response);
                 return;
             }
+            request.setAttribute("unassignedCount", groups.unassignedStudents(actor, classId).size());
             String keyword = parameter(request, "keyword");
             String status = parameter(request, "status");
             if (!status.isEmpty() && !Set.of("ACTIVE", "INACTIVE").contains(status)) {
@@ -74,6 +75,18 @@ public class TeacherGroupServlet extends HttpServlet {
             long classId = WebSupport.id(request.getParameter("classId"));
             String action = request.getParameter("action");
             Long groupId = null;
+            if ("random".equals(action)) {
+                int membersPerGroup;
+                try {
+                    membersPerGroup = Integer.parseInt(parameter(request, "membersPerGroup"));
+                } catch (NumberFormatException ex) {
+                    throw new IllegalArgumentException("Số thành viên mỗi nhóm phải là số nguyên từ 1 đến 40.");
+                }
+                int created = groups.divideRandomly(actor, classId, membersPerGroup);
+                request.getSession().setAttribute("groupNotice", "Đã chia ngẫu nhiên thành " + created + " nhóm.");
+                response.sendRedirect(request.getContextPath() + "/teacher/groups?classId=" + classId);
+                return;
+            }
             if ("save".equals(action)) {
                 String rawId = request.getParameter("groupId");
                 groupId = groups.save(actor, classId, rawId == null || rawId.isBlank() ? null : WebSupport.id(rawId),
@@ -101,6 +114,7 @@ public class TeacherGroupServlet extends HttpServlet {
             request.setAttribute("error", ex.getMessage());
             request.setAttribute("submittedName", request.getParameter("name"));
             request.setAttribute("submittedDescription", request.getParameter("description"));
+            request.setAttribute("membersPerGroup", request.getParameter("membersPerGroup"));
             response.setStatus(400);
             doGet(request, response);
         } catch (RuntimeException ex) {

@@ -3,6 +3,10 @@ package vn.edu.fpt.ams.service;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Locale;
+import java.security.SecureRandom;
 import vn.edu.fpt.ams.dto.EnrollmentDTO;
 import vn.edu.fpt.ams.model.EnrollmentStatus;
 import java.util.List;
@@ -46,7 +50,54 @@ public class TeacherGroupService {
         });
     }
 
-    /** Select actively enrolled Students without a current group membership. */
+    /** Randomly partition eligible ungrouped Students in one class-locked transaction. */
+    public int divideRandomly(long teacherId, long classId, int membersPerGroup) {
+        if (membersPerGroup < 1 || membersPerGroup > 40) {
+            throw new IllegalArgumentException("Số thành viên mỗi nhóm phải là số nguyên từ 1 đến 40.");
+        }
+        return Jdbc.transaction(connections, c -> {
+            requireClass(c, teacherId, classId, true);
+            var students = unassignedStudents(c, classId);
+            if (students.isEmpty()) {
+                throw new IllegalArgumentException("Không còn sinh viên đang học chưa có nhóm để chia.");
+            }
+            Collections.shuffle(students, new SecureRandom());
+            var usedNames = new HashSet<String>();
+            try (var p = Jdbc.statement(c, "SELECT group_name FROM project_groups WHERE class_id = ?", classId);
+                 var r = p.executeQuery()) {
+                while (r.next()) usedNames.add(r.getString(1).trim().toLowerCase(Locale.ROOT));
+            }
+            int nextNumber = 1;
+            int created = 0;
+            for (int offset = 0; offset < students.size(); offset += membersPerGroup) {
+                String name;
+                do {
+                    name = "Nhóm " + nextNumber++;
+                } while (!usedNames.add(name.toLowerCase(Locale.ROOT)));
+                long groupId = Jdbc.insert(c, """
+                        INSERT INTO project_groups(class_id, group_name, description)
+                        VALUES (?, ?, ?)
+                        """, classId, name, "Chia ngẫu nhiên, tối đa " + membersPerGroup + " thành viên.");
+                int end = Math.min(offset + membersPerGroup, students.size());
+                for (int index = offset; index < end; index++) {
+                    var student = students.get(index);
+                    // Retain prior episodes after a Student returns to the class.
+                    Jdbc.update(c, """
+                            UPDATE project_group_members SET left_at = CURRENT_TIMESTAMP
+                            WHERE class_id = ? AND student_id = ? AND left_at IS NULL AND enrollment_id <> ?
+                            """, classId, student.studentId(), student.enrollmentId());
+                    Jdbc.insert(c, """
+                            INSERT INTO project_group_members(group_id, class_id, student_id, enrollment_id)
+                            VALUES (?, ?, ?, ?)
+                            """, groupId, classId, student.studentId(), student.enrollmentId());
+                }
+                created++;
+            }
+            return created;
+        });
+    }
+
+    /** Select the same eligibility boundary used by manual and random group placement. */
     private List<EnrollmentDTO> unassignedStudents(Connection c, long classId) throws SQLException {
         var students = new ArrayList<EnrollmentDTO>();
         try (var p = Jdbc.statement(c, """
