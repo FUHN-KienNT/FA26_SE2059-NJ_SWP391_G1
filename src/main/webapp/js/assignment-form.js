@@ -8,6 +8,7 @@
     const editing = form.dataset.edit === 'true';
     const saveLabel = editing ? 'Lưu thay đổi' : 'Lưu bản nháp';
     const saveButton = byId('save-draft');
+    const publishButton = byId('publish-assignment');
     // Validate after filling the one explicitly allowed blank Objective points field.
     form.noValidate = true;
     const templates = JSON.parse(byId('template-data').value);
@@ -47,6 +48,7 @@
                 task_order: index + 1,
                 title,
                 description: '',
+                rubric: typeof task.rubric === 'string' ? task.rubric : '',
                 maximum_points: points,
                 requirements: requirements.map((requirement, requirementIndex) => {
                     if (!requirement || typeof requirement.title !== 'string' ||
@@ -58,7 +60,10 @@
                         requirement_order: requirementIndex + 1,
                         title: requirement.title,
                         maximum_points: wholeNumberText(requirement.maximum_points),
-                        answer_type: requirement.answer_type
+                        answer_type: requirement.answer_type,
+                        rubric: typeof requirement.rubric === 'string' ? requirement.rubric : '',
+                        allowed_tools: requirement.answer_type === 'TEXT' ? [] :
+                            (Array.isArray(requirement.allowed_tools) ? [...requirement.allowed_tools] : ['DRAWIO', 'PLANTUML'])
                     };
                 })
             };
@@ -113,7 +118,9 @@
         return {
             title: '',
             maximum_points: '',
-            answer_type: 'TEXT'
+            answer_type: 'TEXT',
+            rubric: '',
+            allowed_tools: []
         };
     }
 
@@ -121,6 +128,7 @@
         return {
             title: '',
             description: '',
+            rubric: '',
             maximum_points: '',
             requirements: [newRequirement()]
         };
@@ -396,6 +404,8 @@
                     true, preview),
                 field('Điểm câu hỏi *', task.maximum_points, value => task.maximum_points = value, 'points', true,
                     preview));
+            card.append(rubricField('Tiêu chí chấm chung của câu hỏi (chỉ giảng viên thấy)', task.rubric,
+                value => task.rubric = value, 5000, preview));
             card.append(node('h3', 'Yêu cầu con'));
 
             task.requirements.forEach((requirement, requirementIndex) => {
@@ -422,7 +432,9 @@
 
                 select.addEventListener('change', () => {
                     requirement.answer_type = select.value;
+                    requirement.allowed_tools = select.value === 'TEXT' ? [] : ['DRAWIO', 'PLANTUML'];
                     preview ? previewChanged() : changed();
+                    render();
                 });
 
                 answer.append(select);
@@ -430,6 +442,34 @@
                 grid.append(pointsField, answer);
                 requirementCard.append(requirementHeading, field('Nội dung yêu cầu *', requirement.title,
                     value => requirement.title = value, 'textarea', true, preview), grid);
+                if (requirement.answer_type !== 'TEXT') {
+                    const tools = node('div', undefined, 'drawing-tools');
+                    const summary = node('p', toolsLabel(requirement.allowed_tools), 'selected-drawing-tools');
+                    summary.setAttribute('aria-live', 'polite');
+                    const options = node('div', undefined, 'drawing-tool-options');
+                    options.setAttribute('role', 'group');
+                    options.setAttribute('aria-label', 'Công cụ vẽ được phép');
+                    for (const [value, label] of [['DRAWIO', 'draw.io'], ['PLANTUML', 'PlantUML']]) {
+                        const option = node('label', undefined, 'drawing-tool-choice');
+                        const checkbox = node('input');
+                        checkbox.type = 'checkbox';
+                        checkbox.checked = requirement.allowed_tools.includes(value);
+                        checkbox.addEventListener('change', () => {
+                            requirement.allowed_tools = checkbox.checked
+                                ? [...requirement.allowed_tools, value]
+                                : requirement.allowed_tools.filter(tool => tool !== value);
+                            summary.textContent = toolsLabel(requirement.allowed_tools);
+                            preview ? previewChanged() : changed();
+                        });
+                        option.append(checkbox, node('span', label));
+                        options.append(option);
+                    }
+                    tools.append(summary, options);
+                    requirementCard.append(node('p', 'Công cụ sinh viên được phép sử dụng *', 'field-label'), tools,
+                        node('small', 'Chọn một hoặc nhiều công cụ vẽ cho yêu cầu này.', 'form-hint'));
+                }
+                requirementCard.append(rubricField('Tiêu chí chấm yêu cầu (chỉ giảng viên thấy)',
+                    requirement.rubric, value => requirement.rubric = value, 2000, preview));
                 card.append(requirementCard);
             });
 
@@ -452,6 +492,18 @@
             }, task.requirements.length >= requirementLimit));
             editor.append(card);
         });
+    }
+
+    function rubricField(label, value, update, maximum, preview) {
+        const control = field(label, value, update, 'textarea', false, preview);
+        control.querySelector('textarea').maxLength = maximum;
+        control.className += ' rubric-field';
+        return control;
+    }
+
+    function toolsLabel(values) {
+        return values.length ? 'Công cụ được chọn: ' + values.map(value => value === 'DRAWIO' ? 'draw.io' : 'PlantUML').join(', ')
+            : 'Chưa chọn công cụ vẽ';
     }
 
     function renderTasks() {
@@ -531,6 +583,8 @@
 
         for (const [index, task] of list.entries()) {
             if (!task.title.trim()) return `Câu ${index + 1}: nhập nội dung câu hỏi.`;
+            if (Array.from(task.rubric || '').length > 5000)
+                return `Câu ${index + 1}: tiêu chí chấm tối đa 5000 ký tự.`;
 
             const points = pointsInCents(task.maximum_points);
 
@@ -553,6 +607,11 @@
 
                 if (!Object.hasOwn(answerTypes, requirement.answer_type))
                 return `Câu ${index + 1}, yêu cầu ${requirementIndex + 1}: chọn hình thức trả lời hợp lệ.`;
+                if (Array.from(requirement.rubric || '').length > 2000)
+                    return `Câu ${index + 1}, yêu cầu ${requirementIndex + 1}: tiêu chí chấm tối đa 2000 ký tự.`;
+                if (requirement.answer_type !== 'TEXT' && (!requirement.allowed_tools.length ||
+                        requirement.allowed_tools.some(tool => !['DRAWIO', 'PLANTUML'].includes(tool))))
+                    return `Câu ${index + 1}, yêu cầu ${requirementIndex + 1}: chọn ít nhất một công cụ vẽ.`;
 
                 requirementTotal += requirementPoints;
             }
@@ -850,16 +909,15 @@
 
         if (!template) return;
 
-        const hasContent = ['title', 'instructions', 'maximumScore'].some(id => byId(id).value.trim());
+        const hasContent = ['title', 'maximumScore'].some(id => byId(id).value.trim());
 
         if (hasContent && !confirm(
-                'Thay tiêu đề, hướng dẫn và điểm tối đa bằng dữ liệu của mẫu này? Nội dung khác vẫn được giữ lại.')) {
+                'Thay tình huống chung và điểm tối đa bằng dữ liệu của mẫu này? Nội dung khác vẫn được giữ lại.')) {
             select.value = previousTemplate;
             return;
         }
 
         byId('title').value = template.title;
-        byId('instructions').value = template.instructions || '';
         byId('maximumScore').value = wholeNumberText(template.maximumScore);
         previousTemplate = select.value;
         changed();
@@ -876,9 +934,6 @@
 
         if (essayOption) essayOption.disabled = practice;
 
-        byId('attempt-field').hidden = !practice;
-        byId('attemptLimit').disabled = !practice;
-        byId('attemptLimit').required = practice;
         const objective = byId('responseType').value === 'OBJECTIVE';
 
         if (objective && questions.length === 0) {
@@ -945,6 +1000,8 @@
     }));
 
     form.addEventListener('submit', event => {
+        const publishing = event.submitter?.id === 'publish-assignment';
+        if (byId('submit-mode')) byId('submit-mode').value = publishing ? 'publish' : 'draft';
         if (saveButton.dataset.canSave !== 'true' || form.dataset.editConflict === 'true') {
             event.preventDefault();
             return;
@@ -1024,6 +1081,10 @@
         dirty = false;
         saveButton.disabled = true;
         saveButton.textContent = 'Đang lưu…';
+        if (publishButton) {
+            publishButton.disabled = true;
+            publishButton.textContent = publishing ? 'Đang công bố…' : 'Công bố bài tập';
+        }
     });
 
     renderTasks();
@@ -1031,10 +1092,29 @@
     updateType();
     sync();
     saveButton.disabled = saveButton.dataset.canSave !== 'true';
+    if (publishButton) publishButton.disabled = saveButton.disabled;
+
+    const classChoices = Array.from(form.querySelectorAll('[data-target-class]'));
+    function syncClassChoices() {
+        const selected = classChoices.filter(item => item.checked);
+        byId('target-class-ids').value = selected.map(item => item.value).join(',');
+        byId('target-class-summary').textContent = selected.length
+            ? `Đã chọn ${selected.length} lớp` : 'Lớp hiện tại nếu không chọn lớp khác';
+    }
+
+    if (classChoices.length) syncClassChoices();
+    classChoices.forEach(choice => choice.addEventListener('change', () => {
+        syncClassChoices();
+        dirty = true;
+    }));
 
     window.addEventListener('pageshow', () => {
         saveButton.disabled = saveButton.dataset.canSave !== 'true';
         saveButton.textContent = saveLabel;
+        if (publishButton) {
+            publishButton.disabled = saveButton.disabled;
+            publishButton.textContent = 'Công bố bài tập';
+        }
     });
 
     byId('form-errors')?.focus();

@@ -26,8 +26,8 @@ public final class AssignmentEditSupport {
         values.put("maximumScore", a.maximumScore().stripTrailingZeros().toPlainString());
         values.put("availableFrom", localTime(a.availableFrom()));
         values.put("dueAt", localTime(a.dueAt()));
-        values.put("timeLimitMinutes", text(a.timeLimitMinutes()));
-        values.put("attemptLimit", text(a.attemptLimit()));
+        values.put("timeLimitMinutes", "");
+        values.put("attemptLimit", "");
         JsonArray tasks = new JsonArray();
 
         for (JsonElement element : array(a.taskChecklistJson())) {
@@ -54,6 +54,7 @@ public final class AssignmentEditSupport {
 
                 task.addProperty("title", title);
                 task.addProperty("description", "");
+                task.addProperty("rubric", string(source, "rubric"));
                 JsonElement points = source.get("maximum_points");
 
                 task.addProperty(
@@ -156,7 +157,8 @@ public final class AssignmentEditSupport {
                                 text(a.timeLimitMinutes()),
                                 text(a.attemptLimit()),
                                 text(a.publishedAt()),
-                                text(a.cancelledAt())));
+                                text(a.cancelledAt()),
+                                text(a.closedAt())));
 
         for (Question q : questions)
             fields.addAll(

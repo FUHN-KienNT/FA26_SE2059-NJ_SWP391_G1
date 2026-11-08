@@ -28,11 +28,13 @@ class StudentClassServletTest {
                         "status",
                         "submitted",
                         "page",
-                        "2"));
+                        "2",
+                        "sort",
+                        "due_desc"));
         h.servlet().doGet(h.request(), h.response());
         assertEquals(7, h.actor);
         assertEquals(10L, h.classId);
-        assertEquals(new StudentClassFilter("Câu & hỏi", "ESSAY", "SUBMITTED", 2), h.filter);
+        assertEquals(new StudentClassFilter("Câu & hỏi", "ESSAY", "SUBMITTED", 2, "DUE_DESC"), h.filter);
         assertEquals("/WEB-INF/views/student/class-detail.jsp", h.forward);
         assertEquals("no-store", h.headers.get("Cache-Control"));
         assertTrue(h.attributes.containsKey("classPage"));
@@ -76,6 +78,7 @@ class StudentClassServletTest {
                         Map.of("page", "0"),
                         Map.of("responseType", "FILE"),
                         Map.of("status", "PUBLISHED"),
+                        Map.of("sort", "due_at DESC"),
                         Map.of("q", "x".repeat(201)))) {
             var h = new Exchange();
 

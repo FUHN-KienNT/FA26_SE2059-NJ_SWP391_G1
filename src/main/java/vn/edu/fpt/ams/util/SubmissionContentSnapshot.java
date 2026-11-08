@@ -41,7 +41,7 @@ public final class SubmissionContentSnapshot {
                     integer(a, "time_limit_minutes"),
                     integer(a, "attempt_limit"),
                     instant(a, "published_at"),
-                    instant(a, "cancelled_at"));
+                    instant(a, "cancelled_at"), instant(a, "closed_at"));
         } catch (RuntimeException ex) {
             throw new IllegalStateException("Không tải được bản chụp đề bài.", ex);
         }
@@ -76,7 +76,7 @@ public final class SubmissionContentSnapshot {
                             integer(a, "time_limit_minutes"),
                             integer(a, "attempt_limit"),
                             instant(a, "published_at"),
-                            instant(a, "cancelled_at"));
+                            instant(a, "cancelled_at"), instant(a, "closed_at"));
             List<Question> questions = new ArrayList<>();
 
             for (JsonElement element :

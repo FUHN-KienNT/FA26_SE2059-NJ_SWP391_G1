@@ -70,10 +70,8 @@ class AssignmentPublicationValidatorTest {
                         "purpose",
                         "responseType",
                         "maximumScore",
-                        "instructions",
                         "availableFrom",
-                        "dueAt",
-                        "timeLimitMinutes"),
+                        "dueAt"),
                 new ArrayList<>(errors.keySet()));
         assertThrows(UnsupportedOperationException.class, () -> errors.put("title", "Changed"));
         assertThrows(UnsupportedOperationException.class, errors::clear);
@@ -83,25 +81,45 @@ class AssignmentPublicationValidatorTest {
     }
 
     @Test
-    void countsTitleUnicodeCodePointsAndRejectsBlankInstructions() {
+    void countsTitleUnicodeCodePoints() {
         Fixture fixture = new Fixture();
 
-        fixture.title = "\uD83D\uDE80".repeat(200);
+        fixture.title = "\uD83D\uDE80".repeat(4000);
         assertTrue(fixture.errors().isEmpty());
         fixture.title += "\uD83D\uDE80";
         assertTrue(fixture.errors().containsKey("title"));
 
-        for (String title : Arrays.asList(null, "", "\t\n", "x".repeat(201))) {
+        for (String title : Arrays.asList(null, "", "\t\n", "x".repeat(4001))) {
             fixture.title = title;
             assertTrue(fixture.errors().containsKey("title"));
         }
+    }
 
-        fixture.title = "Valid title";
+    @Test
+    void publishesAllSupportedTypesWithoutInstructionsAndPreservesLegacyContent() {
+        for (var type : List.of(
+                new Type(AssignmentPurpose.REGULAR, ResponseType.ESSAY),
+                new Type(AssignmentPurpose.REGULAR, ResponseType.OBJECTIVE),
+                new Type(AssignmentPurpose.PRACTICE, ResponseType.OBJECTIVE))) {
+            Fixture fixture = new Fixture(type.purpose(), type.response());
 
-        for (String instructions : Arrays.asList(null, "", " \t\n")) {
-            fixture.instructions = instructions;
-            assertTrue(fixture.errors().containsKey("instructions"));
+            for (String instructions : Arrays.asList(null, "", " \t\n", "Legacy line one.\nLegacy line two.")) {
+                fixture.instructions = instructions;
+                Assignment saved = fixture.assignment();
+                assertTrue(AssignmentPublicationValidator.errors(saved, fixture.questions, NOW).isEmpty(),
+                        type.toString());
+                assertEquals(instructions, saved.instructions());
+            }
         }
+    }
+
+    @Test
+    void stillBoundsOptionalLegacyInstructionsToFiveHundredCharacters() {
+        Fixture fixture = new Fixture();
+        fixture.instructions = "x".repeat(500);
+        assertTrue(fixture.errors().isEmpty());
+        fixture.instructions += "x";
+        assertTrue(fixture.errors().containsKey("instructions"));
     }
 
     @Test
@@ -171,36 +189,12 @@ class AssignmentPublicationValidatorTest {
     }
 
     @Test
-    void appliesTimeAndAttemptLimitsByPurpose() {
-        Fixture regular = new Fixture();
-
-        for (Integer minutes : Arrays.asList(null, 20, 21, 719, 720)) {
-            regular.minutes = minutes;
-            assertTrue(regular.errors().isEmpty());
-        }
-
-        for (int minutes : List.of(0, -1, 19, 721, Integer.MAX_VALUE)) {
-            regular.minutes = minutes;
-            assertTrue(regular.errors().containsKey("timeLimitMinutes"));
-        }
-
-        regular.minutes = null;
-
-        for (int attempts : List.of(0, -1, 1, Integer.MAX_VALUE)) {
-            regular.attempts = attempts;
-            assertTrue(regular.errors().containsKey("attemptLimit"));
-        }
-
-        Fixture practice = new Fixture(AssignmentPurpose.PRACTICE, ResponseType.OBJECTIVE);
-
-        for (Integer attempts : Arrays.asList(null, 0, -1)) {
-            practice.attempts = attempts;
-            assertTrue(practice.errors().containsKey("attemptLimit"));
-        }
-
-        for (int attempts : List.of(1, Integer.MAX_VALUE)) {
-            practice.attempts = attempts;
-            assertTrue(practice.errors().isEmpty());
+    void legacyTimeAndAttemptValuesDoNotRestrictPublication() {
+        Fixture fixture = new Fixture(AssignmentPurpose.PRACTICE, ResponseType.OBJECTIVE);
+        for (Integer value : Arrays.asList(null, 0, -1, 1, 720, Integer.MAX_VALUE)) {
+            fixture.minutes = value;
+            fixture.attempts = value;
+            assertTrue(fixture.errors().isEmpty());
         }
     }
 

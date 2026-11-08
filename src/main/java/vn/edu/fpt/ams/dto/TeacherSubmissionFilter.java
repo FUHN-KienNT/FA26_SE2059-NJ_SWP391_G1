@@ -6,7 +6,7 @@ import vn.edu.fpt.ams.model.SubmissionStatus;
 /** Filters for one assignment's roster and attempts. Not started is a display-only state. */
 public record TeacherSubmissionFilter(
         String search, SubmissionStatus status, int page, boolean notStartedOnly) {
-    public static final int PAGE_SIZE = 12;
+    public static final int PAGE_SIZE = 10;
 
     public TeacherSubmissionFilter(String search, SubmissionStatus status) {
         this(search, status, 1, false);

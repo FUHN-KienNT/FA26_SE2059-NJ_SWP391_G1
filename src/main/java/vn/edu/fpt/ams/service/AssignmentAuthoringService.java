@@ -118,6 +118,8 @@ public class AssignmentAuthoringService {
                         + " Tổng điểm yêu cầu trong câu không vượt điểm câu. task_order và requirement_order liên tiếp từ 1."
                         + " Tiêu đề câu tối đa 200 ký tự; description rỗng; tiêu đề yêu cầu tối đa 500 ký tự."
                         + " answer_type chỉ TEXT, DIAGRAM hoặc BOTH. Không tạo đáp án."
+                        + " Thêm rubric chung của câu (tối đa 5000 ký tự) và rubric riêng từng yêu cầu (tối đa 2000 ký tự), chỉ phục vụ giảng viên chấm bài."
+                        + " allowed_tools là [] với TEXT, hoặc một hay cả hai công cụ DRAWIO, PLANTUML với DIAGRAM/BOTH."
                         + "\n<BOI_CANH>\n"
                         + syllabus
                         + "\n</BOI_CANH>\n<YEU_CAU_GIANG_VIEN>\n"

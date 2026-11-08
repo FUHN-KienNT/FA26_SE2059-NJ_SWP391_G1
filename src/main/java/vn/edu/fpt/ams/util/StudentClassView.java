@@ -12,17 +12,34 @@ public final class StudentClassView {
 
     public static String pageUrl(
             String contextPath, long classId, StudentClassFilter filter, int page) {
+        return listUrl(contextPath, classId, filter.withPage(page));
+    }
+
+    /** One canonical entry for a student's class context and its assignment filters. */
+    public static String listUrl(
+            String contextPath, Long classId, StudentClassFilter filter) {
         return contextPath
-                + "/student/classes?classId="
-                + classId
-                + "&q="
+                + "/student/classes?"
+                + (classId == null ? "" : "classId=" + classId + "&")
+                + "q="
                 + encode(filter.search())
                 + "&responseType="
                 + encode(filter.responseType())
                 + "&status="
                 + encode(filter.status())
                 + "&page="
-                + page;
+                + filter.page()
+                + ("DEFAULT".equals(filter.sort()) ? "" : "&sort=" + encode(filter.sort()));
+    }
+
+    public static String sortSummary(StudentClassFilter filter) {
+        return switch (filter.sort()) {
+            case "OPEN_DESC" -> "Ngày mở bài: mới nhất đến cũ nhất.";
+            case "OPEN_ASC" -> "Ngày mở bài: cũ nhất đến mới nhất.";
+            case "DUE_DESC" -> "Hạn nộp: mới nhất đến cũ nhất.";
+            case "DUE_ASC" -> "Hạn nộp: cũ nhất đến mới nhất.";
+            default -> "Sắp xếp từ bài mới nhất.";
+        };
     }
 
     public static String assignmentUrl(String contextPath, long classId, AssignmentRow assignment) {
@@ -47,7 +64,12 @@ public final class StudentClassView {
     }
 
     public static String workLabel(String status) {
-        return "NOT_STARTED".equals(status) ? "Chưa làm" : Vietnamese.label(status);
+        return switch (status) {
+            case "NOT_STARTED" -> "Chưa làm";
+            case "IN_PROGRESS" -> "Lưu nháp";
+            case "DONE" -> "Đã làm";
+            default -> Vietnamese.label(status);
+        };
     }
 
     public static String workTone(String status) {

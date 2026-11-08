@@ -106,13 +106,86 @@ class StudentClassPostgresTest {
     }
 
     @Test
+    void thirteenCurrentAssignmentsUseTenRowPagesWithoutOverlap() throws Exception {
+        Instant now = Instant.now();
+
+        for (int i = 113; i <= 115; i++) {
+            assignment(connection, i, 10, "New current assignment " + i, "REGULAR", "ESSAY",
+                    "PUBLISHED", now.minusSeconds(60), now.plusSeconds(3600), now);
+        }
+
+        var first = service.load(1, 10L, ALL);
+        var second = service.load(1, 10L, ALL.withPage(2));
+
+        assertEquals(13, first.total());
+        assertEquals(10, first.assignments().size());
+        assertEquals(3, second.assignments().size());
+        assertEquals(115, first.assignments().get(0).assignmentId());
+        var identities = new java.util.HashSet<Long>();
+
+        first.assignments().forEach(row -> assertTrue(identities.add(row.assignmentId())));
+        second.assignments().forEach(row -> assertTrue(identities.add(row.assignmentId())));
+        assertEquals(13, identities.size());
+    }
+
+    @Test
+    void timeSortRunsBeforePagingWithStableTiesAndPreservesVisibility() throws Exception {
+        Instant now = Instant.now();
+
+        for (int i = 0; i < 13; i++) {
+            int offset = Math.max(1, i);
+            assignment(connection, 400 + i, 10, "Date sort " + i, "REGULAR", "ESSAY",
+                    "PUBLISHED", now.minusSeconds(86400).plusSeconds(offset * 60L),
+                    now.plusSeconds(7200).minusSeconds(offset * 60L), now);
+        }
+
+        assignment(connection, 500, 20, "Date sort foreign", "REGULAR", "ESSAY", "PUBLISHED",
+                now.minusSeconds(172800), now.plusSeconds(86400), now);
+        assignment(connection, 501, 10, "Date sort expired", "REGULAR", "ESSAY", "PUBLISHED",
+                now.minusSeconds(172800), now.minusSeconds(60), now);
+        assignment(connection, 502, 10, "Date sort closed", "REGULAR", "ESSAY", "PUBLISHED",
+                now.minusSeconds(172800), now.plusSeconds(86400), now);
+        Jdbc.update(connection, "UPDATE assignments SET closed_at=? WHERE assignment_id=502", now);
+        var opening = StudentClassFilter.from("Date sort", "ESSAY", "", "1", "OPEN_ASC");
+        var first = service.load(1, 10L, opening);
+        var second = service.load(1, 10L, opening.withPage(2));
+        var oldestFirst = List.of(401L, 400L, 402L, 403L, 404L, 405L, 406L, 407L, 408L, 409L);
+        var newestFirst = List.of(412L, 411L, 410L, 409L, 408L, 407L, 406L, 405L, 404L, 403L);
+
+        assertEquals(13, first.total());
+        assertEquals(2, first.totalPages());
+        assertEquals(oldestFirst, first.assignments().stream().map(AssignmentRow::assignmentId).toList());
+        assertEquals(List.of(410L, 411L, 412L), second.assignments().stream().map(AssignmentRow::assignmentId).toList());
+        assertEquals(first.assignments(), service.load(1, 10L, opening).assignments());
+        assertEquals(newestFirst, service.load(1, 10L, opening.withSort("OPEN_DESC"))
+                .assignments().stream().map(AssignmentRow::assignmentId).toList());
+        assertEquals(oldestFirst, service.load(1, 10L, opening.withSort("DUE_DESC"))
+                .assignments().stream().map(AssignmentRow::assignmentId).toList());
+        assertEquals(newestFirst, service.load(1, 10L, opening.withSort("DUE_ASC"))
+                .assignments().stream().map(AssignmentRow::assignmentId).toList());
+        var clamped = service.load(1, 10L, opening.withPage(Integer.MAX_VALUE));
+
+        assertEquals(2, clamped.page());
+        assertEquals("OPEN_ASC", clamped.filter().sort());
+        assertEquals(second.assignments(), clamped.assignments());
+        Jdbc.update(connection, "UPDATE assignments SET available_from=NULL WHERE assignment_id=400");
+        // The borrowed connection retains autoCommit=false after service calls.
+        // Finish this fixture mutation before the next read-only snapshot starts.
+        connection.commit();
+
+        assertEquals(List.of(411L, 412L, 400L), service.load(1, 10L, opening.withPage(2))
+                .assignments().stream().map(AssignmentRow::assignmentId).toList());
+        assertEquals(List.of(402L, 401L, 400L), service.load(1, 10L, opening.withSort("OPEN_DESC").withPage(2))
+                .assignments().stream().map(AssignmentRow::assignmentId).toList());
+    }
+
+    @Test
     void showsPublishedRegularAndPracticeAndOnlyLatestOwnAlignedAttempt() {
         var page = service.load(1, 10L, ALL);
         var rows = new ArrayList<>(page.assignments());
 
-        rows.addAll(service.load(1, 10L, ALL.withPage(2)).assignments());
-        assertEquals(13, page.total());
-        assertEquals(13, rows.size());
+        assertEquals(10, page.total());
+        assertEquals(10, rows.size());
         Map<Long, AssignmentRow> byId =
                 rows.stream().collect(Collectors.toMap(AssignmentRow::assignmentId, x -> x));
 
@@ -123,7 +196,7 @@ class StudentClassPostgresTest {
                 List.of("PRACTICE", "REGULAR"),
                 rows.stream().map(AssignmentRow::purpose).distinct().sorted().toList());
         assertTrue(rows.stream().allMatch(x -> x.assignmentId() >= 100 && x.assignmentId() <= 112));
-        assertEquals("CANCELLED", byId.get(104L).status());
+        assertFalse(byId.containsKey(104L));
         assertEquals(3, byId.get(100L).submissionId());
         assertEquals(2, byId.get(100L).attemptNumber());
         assertEquals("VOID", byId.get(100L).workStatus());
@@ -133,12 +206,12 @@ class StudentClassPostgresTest {
         assertEquals(0, byId.get(103L).submissionId());
         assertEquals(0, byId.get(103L).attemptNumber());
         assertNull(byId.get(103L).submittedAt());
-        assertEquals("SUBMITTED", byId.get(104L).workStatus());
-        assertEquals("EXPIRED", byId.get(105L).workStatus());
+        assertFalse(byId.containsKey(105L));
+        assertFalse(byId.containsKey(112L));
         assertEquals("GRADED", byId.get(107L).workStatus());
         assertEquals("GRADED", byId.get(108L).workStatus());
         assertEquals("IN_PROGRESS", byId.get(109L).workStatus());
-        assertEquals(new Counts(13, 8, 5, 5), page.counts());
+        assertEquals(new Counts(10, 8, 4, 4), page.counts());
         assertTrue(
                 serviceQueries.stream()
                         .noneMatch(
@@ -158,7 +231,7 @@ class StudentClassPostgresTest {
                 List.of(102L),
                 page.assignments().stream().map(AssignmentRow::assignmentId).toList());
         assertEquals(1, page.total());
-        assertEquals(new Counts(13, 8, 5, 5), page.counts());
+        assertEquals(new Counts(10, 8, 4, 4), page.counts());
 
         for (String literal : new String[] {"%", "_", "\\", "<SCRIPT>", "50%_done\\review"}) {
             var matching = service.load(1, 10L, StudentClassFilter.from(literal, "", "", "1"));
@@ -193,15 +266,15 @@ class StudentClassPostgresTest {
         var first = service.load(1, 10L, ALL);
 
         assertEquals(
-                List.of(105L, 111L, 110L, 109L, 108L, 107L, 104L, 102L, 101L, 100L, 106L, 103L),
+                List.of(111L, 110L, 109L, 108L, 107L, 106L, 103L, 102L, 101L, 100L),
                 first.assignments().stream().map(AssignmentRow::assignmentId).toList());
-        assertEquals(2, first.totalPages());
+        assertEquals(1, first.totalPages());
         var last = service.load(1, 10L, ALL.withPage(Integer.MAX_VALUE));
 
-        assertEquals(2, last.page());
-        assertEquals(2, last.filter().page());
+        assertEquals(1, last.page());
+        assertEquals(1, last.filter().page());
         assertEquals(
-                List.of(112L),
+                List.of(111L, 110L, 109L, 108L, 107L, 106L, 103L, 102L, 101L, 100L),
                 last.assignments().stream().map(AssignmentRow::assignmentId).toList());
         var emptyClass = service.load(1, 11L, ALL.withPage(9));
 
@@ -258,7 +331,7 @@ class StudentClassPostgresTest {
                         "subject_classes(class_id BIGINT PRIMARY KEY,subject_term_id BIGINT,class_code TEXT,class_name TEXT,teacher_id BIGINT,status TEXT)",
                         "subject_registrations(registration_id BIGINT PRIMARY KEY,student_id BIGINT,subject_term_id BIGINT,status TEXT)",
                         "class_enrollments(enrollment_id BIGINT PRIMARY KEY,registration_id BIGINT,class_id BIGINT,status TEXT)",
-                        "assignments(assignment_id BIGINT PRIMARY KEY,class_id BIGINT,title TEXT,assignment_purpose TEXT,response_type TEXT,maximum_score NUMERIC(10,2),status TEXT,available_from TIMESTAMPTZ,due_at TIMESTAMPTZ,published_at TIMESTAMPTZ)",
+                        "assignments(assignment_id BIGINT PRIMARY KEY,class_id BIGINT,title TEXT,assignment_purpose TEXT,response_type TEXT,maximum_score NUMERIC(10,2),status TEXT,available_from TIMESTAMPTZ,due_at TIMESTAMPTZ,published_at TIMESTAMPTZ,closed_at TIMESTAMPTZ)",
                         "submissions(submission_id BIGINT PRIMARY KEY,assignment_id BIGINT,enrollment_id BIGINT,attempt_number INTEGER,status TEXT,submitted_at TIMESTAMPTZ,released_at TIMESTAMPTZ,score NUMERIC(10,2))"))
             try (var s = c.createStatement()) {
                 s.execute("CREATE TEMP TABLE " + table);
@@ -429,7 +502,7 @@ class StudentClassPostgresTest {
             throws SQLException {
         Jdbc.update(
                 c,
-                "INSERT INTO assignments VALUES (?,?,?,?,?,10,?,?,?,?)",
+                "INSERT INTO assignments(assignment_id,class_id,title,assignment_purpose,response_type,maximum_score,status,available_from,due_at,published_at) VALUES (?,?,?,?,?,10,?,?,?,?)",
                 id,
                 classId,
                 title,

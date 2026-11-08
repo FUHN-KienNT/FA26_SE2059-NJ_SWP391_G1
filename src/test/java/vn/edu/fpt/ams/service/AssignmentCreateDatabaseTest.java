@@ -141,6 +141,105 @@ class AssignmentCreateDatabaseTest {
     }
 
     @Test
+    void createsAndPublishesAllSelectedOwnedClassesInOneTransaction() throws Exception {
+        try (var statement = connection.createStatement()) {
+            statement.execute("INSERT INTO subject_classes VALUES(11,1000,1,'A2','Second owned')");
+        }
+        var values = new HashMap<>(form("1").values());
+        values.put("targetClassIds", "11,10");
+        values.put("availableFrom", java.time.LocalDateTime.now().minusDays(1).toString());
+        values.put("dueAt", java.time.LocalDateTime.now().plusDays(2).toString());
+        values.put("questionsJson", """
+                [{"question_text":"Question","maximum_points":"20","options":[
+                  {"option_text":"A","is_correct":true},{"option_text":"B","is_correct":false}]}]
+                """);
+        long primary = service(new AssignmentDAO()).createAssignment(1, new AssignmentForm(values), true);
+        assertEquals(2, count("assignments"));
+        assertEquals(2, count("questions"));
+        try (var statement = connection.createStatement();
+             var rows = statement.executeQuery("SELECT class_id,status,published_at FROM assignments ORDER BY class_id")) {
+            assertTrue(rows.next());
+            assertEquals(10, rows.getLong("class_id"));
+            assertEquals("PUBLISHED", rows.getString("status"));
+            assertNotNull(rows.getObject("published_at"));
+            assertTrue(rows.next());
+            assertEquals(11, rows.getLong("class_id"));
+            assertEquals("PUBLISHED", rows.getString("status"));
+            assertFalse(rows.next());
+        }
+        try (var statement = connection.createStatement();
+             var rows = statement.executeQuery("SELECT class_id FROM assignments WHERE assignment_id=" + primary)) {
+            assertTrue(rows.next());
+            assertEquals(10, rows.getLong(1));
+        }
+    }
+
+    @Test
+    void directlyPublishesEssayAndObjectiveWithoutInjectingTemplateInstructions() throws Exception {
+        var now = java.time.LocalDateTime.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
+        for (String response : List.of("ESSAY", "OBJECTIVE")) {
+            var values = new HashMap<>(form("1").values());
+            values.put("responseType", response);
+            values.put("instructions", "");
+            values.put("availableFrom", now.minusDays(1).toString());
+            values.put("dueAt", now.plusDays(2).toString());
+            values.put("tasksJson", response.equals("ESSAY") ? """
+                    [{"title":"Analyze the design","maximum_points":"20","requirements":[
+                      {"title":"Explain the answer","maximum_points":"20","answer_type":"TEXT"}]}]
+                    """ : "[]");
+            values.put("questionsJson", response.equals("OBJECTIVE") ? """
+                    [{"question_text":"Question","maximum_points":"20","options":[
+                      {"option_text":"A","is_correct":true},{"option_text":"B","is_correct":false}]}]
+                    """ : "[]");
+
+            long id = service(new AssignmentDAO()).createAssignment(1, new AssignmentForm(values), true);
+            try (var statement = connection.prepareStatement(
+                    "SELECT status,instructions FROM assignments WHERE assignment_id=?")) {
+                statement.setLong(1, id);
+                try (var rows = statement.executeQuery()) {
+                    assertTrue(rows.next());
+                    assertEquals("PUBLISHED", rows.getString("status"));
+                    assertEquals("", rows.getString("instructions"));
+                }
+            }
+        }
+    }
+
+    @Test
+    void incompleteDirectPublicationAndForeignTargetCreateNoAssignments() throws Exception {
+        assertThrows(ValidationException.class,
+                () -> service(new AssignmentDAO()).createAssignment(1, form("1"), true));
+        assertEquals(0, count("assignments"));
+        var values = new HashMap<>(form("1").values());
+        values.put("targetClassIds", "10,20");
+        assertThrows(SecurityException.class,
+                () -> service(new AssignmentDAO()).createAssignment(1, new AssignmentForm(values)));
+        assertEquals(0, count("assignments"));
+        assertEquals(0, count("questions"));
+    }
+
+    @Test
+    void aFailureInTheSecondClassRollsBackEveryCreatedCopy() throws Exception {
+        try (var statement = connection.createStatement()) {
+            statement.execute("INSERT INTO subject_classes VALUES(11,1000,1,'A2','Second owned')");
+        }
+        var values = new HashMap<>(form("1").values());
+        values.put("targetClassIds", "10,11");
+        var dao = new AssignmentDAO() {
+            @Override
+            public long insertDraft(Connection current, vn.edu.fpt.ams.model.Assignment assignment)
+                    throws SQLException {
+                if (assignment.classId() == 11) throw new SQLException("Second class failure");
+                return super.insertDraft(current, assignment);
+            }
+        };
+        assertThrows(IllegalStateException.class,
+                () -> service(dao).createAssignment(1, new AssignmentForm(values)));
+        assertEquals(0, count("assignments"));
+        assertEquals(0, count("questions"));
+    }
+
+    @Test
     void inactiveResponseTypeCannotBeUsedForNewAssignment() throws Exception {
         try (var s = connection.createStatement()) {
             s.executeUpdate(

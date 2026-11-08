@@ -15,9 +15,13 @@ import vn.edu.fpt.ams.util.AssignmentRules;
 
 /** Immutable, versioned Essay evaluation. A null score is an unfinished requirement. */
 public record SubmissionEvaluation(
-        long revision, List<SubmissionEvaluation.Mark> marks, String feedback) {
+        long revision, List<SubmissionEvaluation.Mark> marks, String feedback, boolean feedbackAi) {
     private static final Gson JSON = new GsonBuilder().setStrictness(Strictness.STRICT).create();
     public static final String FORMAT = "ams-evaluation-v1";
+
+    public SubmissionEvaluation(long revision, List<Mark> marks, String feedback) {
+        this(revision, marks, feedback, false);
+    }
 
     public SubmissionEvaluation {
         if (revision < 0) throw invalid("Phiên bản chấm bài không hợp lệ.");
@@ -43,7 +47,12 @@ public record SubmissionEvaluation(
         feedback = text(feedback, 5000, "Nhận xét chung chỉ được có tối đa 5000 ký tự.");
     }
 
-    public record Mark(int taskOrder, int requirementOrder, BigDecimal score, String feedback) {
+    public record Mark(
+            int taskOrder, int requirementOrder, BigDecimal score, String feedback, boolean aiGenerated) {
+        public Mark(int taskOrder, int requirementOrder, BigDecimal score, String feedback) {
+            this(taskOrder, requirementOrder, score, feedback, false);
+        }
+
         public Mark {
             if (taskOrder <= 0 || requirementOrder <= 0)
                 throw invalid("Số thứ tự câu hỏi và yêu cầu phải là số nguyên dương.");
@@ -89,10 +98,11 @@ public record SubmissionEvaluation(
                                 number(mark.get("task_order")).intValueExact(),
                                 number(mark.get("requirement_order")).intValueExact(),
                                 score,
-                                string(mark.get("feedback"))));
+                                string(mark.get("feedback")),
+                                flag(mark.get("ai_generated"))));
             }
 
-            return new SubmissionEvaluation(revision, result, feedback);
+            return new SubmissionEvaluation(revision, result, feedback, flag(root.get("feedback_ai")));
         } catch (IllegalArgumentException ex) {
             throw ex;
         } catch (RuntimeException ex) {
@@ -104,6 +114,7 @@ public record SubmissionEvaluation(
         JsonObject root = new JsonObject();
 
         root.addProperty("format", FORMAT);
+        root.addProperty("feedback_ai", feedbackAi);
         JsonArray entries = new JsonArray();
 
         for (Mark mark : marks) {
@@ -113,6 +124,7 @@ public record SubmissionEvaluation(
             entry.addProperty("requirement_order", mark.requirementOrder());
             entry.addProperty("score", mark.score());
             entry.addProperty("feedback", mark.feedback());
+            entry.addProperty("ai_generated", mark.aiGenerated());
             entries.add(entry);
         }
 
@@ -161,6 +173,15 @@ public record SubmissionEvaluation(
         if (AssignmentRules.length(text) > maximum) throw invalid(message);
 
         return text;
+    }
+
+    private static boolean flag(JsonElement value) {
+        if (value == null || value.isJsonNull()) return false;
+
+        if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isBoolean())
+            throw invalid("Nguồn nhận xét không hợp lệ.");
+
+        return value.getAsBoolean();
     }
 
     private static IllegalArgumentException invalid(String message) {

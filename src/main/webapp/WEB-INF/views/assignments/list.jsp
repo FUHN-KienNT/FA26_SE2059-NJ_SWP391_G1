@@ -1,4 +1,5 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
+<%@ taglib prefix="ams" tagdir="/WEB-INF/tags" %>
 <%@ page import="vn.edu.fpt.ams.dto.*,vn.edu.fpt.ams.model.*" %>
 <%@ page import="vn.edu.fpt.ams.util.AssignmentDetailView" %>
 <%@ page import="static vn.edu.fpt.ams.util.AssignmentListView.*" %>
@@ -20,6 +21,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Bài tập | AMS</title>
         <link rel="stylesheet" href="<%= escape(base) %>/css/assignment-list.css">
+        <link rel="stylesheet" href="<%= escape(base) %>/css/assignment-dialog.css">
         <%@ include file="/WEB-INF/views/shared/assets.jspf" %>
 
     </head>
@@ -27,6 +29,7 @@
         <%@ include file="/WEB-INF/views/shared/shell.jspf" %>
 
         <main class="ams-content" id="page-content">
+            <%@ include file="/WEB-INF/views/shared/action-notice.jspf" %>
             <nav class="breadcrumb" aria-label="Đường dẫn">
                 <a href="<%= escape(base) %>/teacher/dashboard">Bảng điều khiển</a><span
                     aria-hidden="true">/</span><span>Bài tập</span>
@@ -71,13 +74,14 @@
                 </section>
             <% } else { %>
                 <form class="filters" method="get" action="<%= escape(listUrl) %>">
+                    <input type="hidden" name="sort" value="<%= escape(filters.sort()) %>">
                     <div class="search-row">
-                        <label class="search-label" for="search"> Tìm theo tiêu đề <input
+                        <label class="search-label" for="search"> Tìm bài tập hoặc tình huống <input
                                 type="search"
                                 id="search"
                                 name="search"
                                 maxlength="200"
-                                placeholder="Nhập tiêu đề bài tập…"
+                                placeholder="Nhập nội dung tình huống…"
                                 value="<%= escape(filters.search()) %>">
                         </label>
                         <button class="button primary" type="submit"> Áp dụng bộ lọc </button>
@@ -130,10 +134,14 @@
                         </caption>
                         <thead>
                             <tr>
-                                <th scope="col"> Tiêu đề bài tập </th>
+                                <th scope="col"> Tình huống chung </th>
                                 <th scope="col"> Mục đích </th>
                                 <th scope="col"> Hình thức trả lời </th>
-                                <th scope="col"> Hạn nộp <small>(UTC+07)</small>
+                                <th scope="col" aria-sort="<%= "OLDEST".equals(filters.sort()) ? "ascending" : "NEWEST".equals(filters.sort()) || "DEFAULT".equals(filters.sort()) ? "descending" : "none" %>">
+                                    <a title="<%= "NEWEST".equals(filters.nextCreationSort()) ? "Ngày tạo: mới nhất đến cũ nhất" : "Ngày tạo: cũ nhất đến mới nhất" %>" href="<%= escape(AssignmentDetailView.listUrl(base, classId, filters.withSort(filters.nextCreationSort()))) %>">Ngày tạo <span aria-hidden="true"><%= "OLDEST".equals(filters.sort()) ? "↑" : "NEWEST".equals(filters.sort()) || "DEFAULT".equals(filters.sort()) ? "↓" : "↕" %></span></a> <small>(UTC+07)</small>
+                                </th>
+                                <th scope="col" aria-sort="<%= "DUE_ASC".equals(filters.sort()) ? "ascending" : "DUE_DESC".equals(filters.sort()) ? "descending" : "none" %>">
+                                    <a title="<%= "DUE_DESC".equals(filters.nextDeadlineSort()) ? "Hạn nộp: mới nhất đến cũ nhất" : "Hạn nộp: cũ nhất đến mới nhất" %>" href="<%= escape(AssignmentDetailView.listUrl(base, classId, filters.withSort(filters.nextDeadlineSort()))) %>">Hạn nộp <span aria-hidden="true"><%= "DUE_ASC".equals(filters.sort()) ? "↑" : "DUE_DESC".equals(filters.sort()) ? "↓" : "↕" %></span></a> <small>(UTC+07)</small>
                                 </th>
                                 <th scope="col"> Trạng thái </th>
                                 <th scope="col"> Thao tác </th>
@@ -153,6 +161,7 @@
                                     <td class="assignment-title"> <%= escape(assignment.title()) %> </td>
                                     <td> <%= label(assignment.assignmentPurpose()) %> </td>
                                     <td> <%= label(assignment.responseType()) %> </td>
+                                    <td class="deadline"> <%= data.creationTimes().containsKey(assignment.assignmentId()) ? deadline(data.creationTimes().get(assignment.assignmentId())) : "Chưa ghi nhận" %> </td>
                                     <td class="deadline"> <%= deadline(assignment.dueAt()) %> </td>
                                     <td>
                                         <span class="badge <%= assignment.status().name().toLowerCase(java.util.Locale.ROOT) %>"><%= label(assignment.status()) %></span>
@@ -173,11 +182,11 @@
                                                     <summary aria-label="Thao tác khác cho <%= escape(assignment.title()) %>"> Thêm </summary>
                                                     <div class="action-menu">
                                                         <% if (assignment.status() == AssignmentStatus.DRAFT) { %>
-                                                            <a href="<%= escape(actionUrl) %>&amp;mode=publish">Công bố bài tập</a>
+                                                            <a data-lifecycle-dialog href="<%= escape(actionUrl) %>&amp;mode=publish">Công bố bài tập</a>
                                                         <% } %>
 
                                                         <% if (assignment.status() != AssignmentStatus.CANCELLED) { %>
-                                                            <a href="<%= escape(actionUrl) %>&amp;mode=cancel">Hủy bài tập</a>
+                                                            <a data-lifecycle-dialog href="<%= escape(actionUrl) %>&amp;mode=cancel">Hủy bài tập</a>
                                                         <% } %>
 
                                                         <% if (data.submissionAssignmentIds().contains(assignment.assignmentId())) { %>
@@ -198,7 +207,7 @@
                                 if (data.assignments().isEmpty()) {
                             %>
                                 <tr>
-                                    <td colspan="6" class="empty-results"> Không có bài tập phù hợp với các bộ lọc trong lớp
+                                    <td colspan="7" class="empty-results"> Không có bài tập phù hợp với các bộ lọc trong lớp
                                         này. </td>
                                 </tr>
                             <% } %>
@@ -207,12 +216,19 @@
                     </table>
                 </div>
                 <footer class="results">
-                    <p role="status"> Đang hiển thị <strong><%= data.assignments().size() %></strong> bài tập </p>
+                    <p role="status"> Hiển thị <strong><%= data.firstRow() %>–<%= data.lastRow() %></strong> trên <strong><%= data.totalCount() %></strong> bài tập </p>
                     <p> Chỉ có thể chỉnh sửa bài tập ở trạng thái bản nháp. </p>
                 </footer>
+                <% if (data.totalPages() > 1) { %>
+                    <ams:pagination currentPage="<%= filters.page() %>"
+                        totalPages="<%= data.totalPages() %>"
+                        baseUrl="<%= AssignmentDetailView.listUrl(base, classId, filters) %>"
+                        ariaLabel="Các trang bài tập" />
+                <% } %>
             <% } %>
 
         </main>
         </div>
+        <script src="<%= escape(base) %>/js/assignment-lifecycle.js" defer></script>
     </body>
 </html>

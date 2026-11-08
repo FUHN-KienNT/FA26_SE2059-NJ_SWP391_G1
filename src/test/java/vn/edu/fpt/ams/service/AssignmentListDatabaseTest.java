@@ -16,6 +16,42 @@ import vn.edu.fpt.ams.util.DBConnection;
 class AssignmentListDatabaseTest {
     private AssignmentService service;
 
+    @Test
+    void pagesTenRowsAndSortsByCreationOrDeadline() {
+        var paged = new AssignmentService(new AssignmentDAO(), () -> {
+            Connection c = fixtureConnection();
+            try (var s = c.createStatement()) {
+                s.execute("INSERT INTO assignments(assignment_id,class_id,template_id,title,"
+                        + "assignment_purpose,response_type,instructions,maximum_score,status,created_at,due_at)"
+                        + " SELECT 200+n,10,1,'PAGED '||n,'REGULAR','ESSAY','Guide',10,'DRAFT',"
+                        + " TIMESTAMPTZ '2026-01-01 00:00+00'+n*INTERVAL '1 day',"
+                        + " TIMESTAMPTZ '2026-12-01 00:00+00'-n*INTERVAL '1 day'"
+                        + " FROM generate_series(0,13) n");
+            }
+            return c;
+        });
+
+        var first = paged.listPage(1, 10L,
+                AssignmentListFilter.from("PAGED", null, null, null, "1", "NEWEST"));
+        assertEquals(14, first.totalCount());
+        assertEquals(10, first.assignments().size());
+        assertEquals(213, first.assignments().get(0).assignmentId());
+        assertEquals(2, first.totalPages());
+
+        var last = paged.listPage(1, 10L,
+                AssignmentListFilter.from("PAGED", null, null, null, "999", "NEWEST"));
+        assertEquals(2, last.filter().page());
+        assertEquals(4, last.assignments().size());
+
+        var oldest = paged.listPage(1, 10L,
+                AssignmentListFilter.from("PAGED", null, null, null, "1", "OLDEST"));
+        assertEquals(200, oldest.assignments().get(0).assignmentId());
+
+        var due = paged.listPage(1, 10L,
+                AssignmentListFilter.from("PAGED", null, null, null, "1", "DUE_ASC"));
+        assertEquals(213, due.assignments().get(0).assignmentId());
+    }
+
     @BeforeEach
     void setup() {
         Assumptions.assumeTrue(

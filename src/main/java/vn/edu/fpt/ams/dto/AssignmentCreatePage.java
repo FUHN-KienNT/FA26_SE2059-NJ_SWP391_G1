@@ -11,7 +11,18 @@ public record AssignmentCreatePage(
         String className,
         String subjectCode,
         String subjectName,
-        List<TemplateOption> templates) {
+        List<TemplateOption> templates,
+        List<vn.edu.fpt.ams.dto.AssignmentClassOption> eligibleClasses) {
+    public AssignmentCreatePage(long classId, long subjectId, String classCode, String className,
+                                String subjectCode, String subjectName, List<TemplateOption> templates) {
+        this(classId, subjectId, classCode, className, subjectCode, subjectName, templates, List.of());
+    }
+
+    public AssignmentCreatePage {
+        templates = List.copyOf(templates);
+        eligibleClasses = List.copyOf(eligibleClasses);
+    }
+
     public record TemplateOption(
             long templateId,
             String title,

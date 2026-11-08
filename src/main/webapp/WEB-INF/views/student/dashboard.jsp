@@ -64,7 +64,7 @@
             </ul>
             <% } %>
             <p class="student-panel-footnote">Hiển thị <%=dashboard.openAssignments().size()%> bài đang mở. Tổng số bài thường đã công bố: <%=dashboard.assignmentCount()%>.</p>
-            <a class="student-panel-link" href="${pageContext.request.contextPath}/student/assignments">Danh sách bài tập <span aria-hidden="true">→</span></a>
+            <a class="student-panel-link" href="${pageContext.request.contextPath}/student/classes">Xem lớp và bài tập của tôi <span aria-hidden="true">→</span></a>
         </section>
 
         <section class="student-panel" id="student-results" aria-labelledby="student-results-title">

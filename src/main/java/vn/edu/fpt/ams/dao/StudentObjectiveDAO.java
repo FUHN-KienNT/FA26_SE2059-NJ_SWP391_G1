@@ -27,7 +27,7 @@ public class StudentObjectiveDAO {
                 connection.prepareStatement(
                         "SELECT a.*,e.enrollment_id,c.class_code "
                                 + MEMBERSHIP
-                                + " AND a.assignment_purpose='REGULAR' ORDER BY a.due_at,a.assignment_id")) {
+                                + " AND a.due_at>CURRENT_TIMESTAMP AND a.closed_at IS NULL ORDER BY a.assignment_id DESC")) {
             s.setLong(1, studentId);
 
             try (var rows = s.executeQuery()) {
@@ -70,6 +70,19 @@ public class StudentObjectiveDAO {
 
     public List<Submission> attempts(Connection connection, long studentId, long assignmentId)
             throws SQLException {
+        try (var align = connection.prepareStatement("""
+                UPDATE submissions sub SET deadline_at=a.due_at
+                FROM assignments a,class_enrollments e,subject_registrations r
+                WHERE sub.assignment_id=a.assignment_id AND sub.enrollment_id=e.enrollment_id
+                  AND r.registration_id=e.registration_id AND r.student_id=?
+                  AND a.assignment_id=? AND sub.status='IN_PROGRESS'
+                  AND a.due_at>sub.started_at AND sub.deadline_at IS DISTINCT FROM a.due_at
+                """)) {
+            align.setLong(1, studentId);
+            align.setLong(2, assignmentId);
+            align.executeUpdate();
+        }
+
         try (var s =
                 connection.prepareStatement(
                         """
@@ -221,6 +234,39 @@ public class StudentObjectiveDAO {
         }
     }
 
+    public List<Submission> waitingForGrading(Connection connection, long assignmentId)
+            throws SQLException {
+        try (var statement = connection.prepareStatement(
+                "SELECT * FROM submissions WHERE assignment_id=? AND status='SUBMITTED' AND submitted_at IS NOT NULL ORDER BY submission_id FOR UPDATE")) {
+            statement.setLong(1, assignmentId);
+
+            try (var rows = statement.executeQuery()) {
+                var result = new ArrayList<Submission>();
+
+                while (rows.next()) result.add(SubmissionDAO.mapSubmission(rows));
+
+                return result;
+            }
+        }
+    }
+
+    public void releaseObjective(Connection connection, long submissionId, Instant now,
+            ObjectiveAnswerGrader.Result grade) throws SQLException {
+        try (var statement = connection.prepareStatement("""
+                UPDATE submissions SET answer=?::jsonb,score=?,status='RELEASED',graded_at=?,released_at=?,graded_by=NULL
+                WHERE submission_id=? AND status='SUBMITTED'
+                """)) {
+            statement.setString(1, grade.answerJson());
+            statement.setBigDecimal(2, grade.score());
+            statement.setObject(3, now.atOffset(ZoneOffset.UTC));
+            statement.setObject(4, now.atOffset(ZoneOffset.UTC));
+            statement.setLong(5, submissionId);
+
+            if (statement.executeUpdate() != 1)
+                throw new ConcurrentModificationException("Bài nộp đã thay đổi trước khi chấm.");
+        }
+    }
+
     public void saveEssay(Connection connection, long id, long revision, String content)
             throws SQLException {
         try (var s =
@@ -233,6 +279,60 @@ public class StudentObjectiveDAO {
             if (s.executeUpdate() != 1)
                 throw new ConcurrentModificationException(
                         "Bài làm đã được cập nhật ở phiên khác. Vui lòng tải lại trang.");
+        }
+    }
+
+    /** Replace accepted work only after the new final has been accepted in this transaction. */
+    public void keepLatestAccepted(Connection connection, long submissionId) throws SQLException {
+        String obsolete = """
+                SELECT previous.submission_id
+                FROM submissions previous
+                JOIN class_enrollments previous_e ON previous_e.enrollment_id=previous.enrollment_id
+                JOIN subject_registrations previous_r ON previous_r.registration_id=previous_e.registration_id
+                JOIN submissions current ON current.submission_id=?
+                JOIN class_enrollments current_e ON current_e.enrollment_id=current.enrollment_id
+                JOIN subject_registrations current_r ON current_r.registration_id=current_e.registration_id
+                WHERE previous.assignment_id=current.assignment_id
+                  AND previous_r.student_id=current_r.student_id
+                  AND previous.submission_id<>current.submission_id
+                """;
+
+        String archive = """
+                INSERT INTO submission_evaluation_history(
+                    submission_id,assignment_id,student_id,actor_id,action,reason,
+                    previous_evaluation,next_evaluation,previous_score,next_score,
+                    previous_status,next_status)
+                SELECT old.submission_id,old.assignment_id,r.student_id,r.student_id,
+                    'RESUBMITTED','Sinh viên đã nộp bản làm mới.',
+                    COALESCE(old.evaluation,'{"format":"ams-evaluation-v1","marks":[]}'::jsonb)
+                        ||jsonb_build_object('feedback',COALESCE(old.feedback,'')),
+                    '{"format":"ams-evaluation-v1","marks":[],"feedback":""}'::jsonb,
+                    old.score,NULL,old.status,'SUBMITTED'
+                FROM submissions old
+                JOIN class_enrollments e ON e.enrollment_id=old.enrollment_id
+                JOIN subject_registrations r ON r.registration_id=e.registration_id
+                WHERE old.submission_id IN (
+                """ + obsolete + """
+                ) AND (old.status IN ('GRADED','RELEASED')
+                    OR COALESCE(old.feedback,'')<>''
+                    OR jsonb_array_length(COALESCE(old.evaluation->'marks','[]'::jsonb))>0)
+                """;
+
+        try (var statement = connection.prepareStatement(archive)) {
+            statement.setLong(1, submissionId);
+            statement.executeUpdate();
+        }
+
+        try (var statement = connection.prepareStatement(
+                "DELETE FROM submission_content_snapshots WHERE submission_id IN (" + obsolete + ")")) {
+            statement.setLong(1, submissionId);
+            statement.executeUpdate();
+        }
+
+        try (var statement = connection.prepareStatement(
+                "DELETE FROM submissions WHERE submission_id IN (" + obsolete + ")")) {
+            statement.setLong(1, submissionId);
+            statement.executeUpdate();
         }
     }
 
@@ -259,8 +359,10 @@ public class StudentObjectiveDAO {
                         connection.prepareStatement(
                                 """
                 SELECT DISTINCT a.assignment_id FROM assignments a JOIN submissions sub ON sub.assignment_id=a.assignment_id
-                WHERE a.status='PUBLISHED' AND sub.status='IN_PROGRESS'
-                AND LEAST(sub.deadline_at,a.due_at)<=clock_timestamp() ORDER BY a.assignment_id LIMIT 100
+                WHERE a.status='PUBLISHED'
+                  AND (sub.status='IN_PROGRESS' OR (a.response_type='OBJECTIVE' AND sub.status='SUBMITTED'))
+                  AND (a.due_at<=clock_timestamp() OR a.closed_at IS NOT NULL)
+                ORDER BY a.assignment_id LIMIT 100
                 """);
                 var rows = s.executeQuery()) {
             List<Long> result = new ArrayList<>();
@@ -272,6 +374,21 @@ public class StudentObjectiveDAO {
     }
 
     /** Worker follows the same assignment -> submission lock order as all student/teacher writes. */
+    public Assignment closeSubmissions(Connection connection, long assignmentId, Instant now)
+            throws SQLException {
+        try (var statement = connection.prepareStatement(
+                "UPDATE assignments SET closed_at=? WHERE assignment_id=? AND closed_at IS NULL RETURNING *")) {
+            statement.setObject(1, now.atOffset(ZoneOffset.UTC));
+            statement.setLong(2, assignmentId);
+
+            try (var rows = statement.executeQuery()) {
+                if (!rows.next()) throw new ConcurrentModificationException("Bài tập đã được khóa.");
+
+                return AssignmentDAO.mapAssignment(rows);
+            }
+        }
+    }
+
     public Optional<Assignment> lockPublished(Connection connection, long assignmentId)
             throws SQLException {
         try (var s =
@@ -289,6 +406,17 @@ public class StudentObjectiveDAO {
 
     public List<Submission> inProgress(Connection connection, long assignmentId)
             throws SQLException {
+        try (var align = connection.prepareStatement("""
+                UPDATE submissions sub SET deadline_at=a.due_at
+                FROM assignments a
+                WHERE a.assignment_id=sub.assignment_id AND a.assignment_id=?
+                  AND sub.status='IN_PROGRESS' AND a.due_at>sub.started_at
+                  AND sub.deadline_at IS DISTINCT FROM a.due_at
+                """)) {
+            align.setLong(1, assignmentId);
+            align.executeUpdate();
+        }
+
         try (var s =
                 connection.prepareStatement(
                         "SELECT * FROM submissions WHERE assignment_id=? AND status='IN_PROGRESS' ORDER BY submission_id FOR UPDATE")) {

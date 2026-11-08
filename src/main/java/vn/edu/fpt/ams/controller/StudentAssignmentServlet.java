@@ -5,8 +5,10 @@ import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.*;
 import java.io.IOException;
 import java.util.*;
+import vn.edu.fpt.ams.dto.StudentClassFilter;
 import vn.edu.fpt.ams.model.*;
 import vn.edu.fpt.ams.service.StudentObjectiveService;
+import vn.edu.fpt.ams.util.StudentClassView;
 import vn.edu.fpt.ams.util.WebSupport;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -32,7 +34,16 @@ public class StudentAssignmentServlet extends HttpServlet {
             long student = student(req);
             String assignmentId = req.getParameter("assignmentId");
 
-            if (assignmentId == null) req.setAttribute("assignments", service.list(student));
+            if (assignmentId == null) {
+                Long classId = req.getParameter("classId") == null
+                        ? null : WebSupport.id(req.getParameter("classId"));
+                var filter = StudentClassFilter.from(
+                        req.getParameter("q"), req.getParameter("responseType"),
+                        req.getParameter("status"), req.getParameter("page"), req.getParameter("sort"));
+                res.sendRedirect(StudentClassView.listUrl(req.getContextPath(), classId, filter));
+
+                return;
+            }
             else {
                 var page =
                         service.page(
@@ -146,6 +157,10 @@ public class StudentAssignmentServlet extends HttpServlet {
                 }
             } else throw new IllegalArgumentException("Thao tác bài tập không hợp lệ.");
 
+            req.getSession().setAttribute("actionNotice", "start".equals(req.getParameter("action"))
+                    ? "Đã mở bản làm để bạn tiếp tục. Chỉ bản nộp cuối cùng được giữ lại."
+                    : "Đã nộp bài thành công. Đây là bản nộp mới nhất của bạn.");
+            req.getSession().setAttribute("actionNoticeType", "success");
             res.setStatus(303);
             res.setHeader(
                     "Location",

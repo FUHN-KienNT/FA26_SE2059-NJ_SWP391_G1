@@ -136,51 +136,17 @@ public class TeacherSubmissionPagingTest {
     }
 
     @Test
-    void mixedRosterAndAttemptsUseTwelveRowPagesWithoutDuplicatesOrSkippedRows() throws Exception {
-        var unstarted = page(null, null, null);
-
-        assertEquals(2, unstarted.totalCount());
-        assertEquals(1, unstarted.totalPages());
-        assertEquals(
-                List.of(2L, 3L),
-                unstarted.submissions().stream().map(TeacherSubmissionRow::studentId).toList());
-        assertTrue(
-                unstarted.submissions().stream()
-                        .allMatch(row -> !row.hasSubmission() && row.submission() == null));
-        assertFalse(unstarted.hasNext());
-
-        for (int i = 1; i <= 11; i++) attempt(i, 20, "SUBMITTED", true);
-
-        var twelve = page(null, null, null);
-
-        assertEquals(12, twelve.submissions().size());
-        assertEquals(12, twelve.totalCount());
-        assertEquals(1, twelve.totalPages());
-        assertFalse(twelve.hasNext());
-        attempt(12, 20, "SUBMITTED", true);
-        var first = page(null, null, "1");
-        var second = page(null, null, "2");
-
-        assertEquals(12, first.submissions().size());
-        assertEquals(13, first.totalCount());
-        assertEquals(12, first.submissions().get(0).submission().submissionId());
-        assertEquals(1, first.submissions().get(11).submission().submissionId());
-        assertEquals(
-                12,
-                first.submissions().stream()
-                        .map(row -> row.submission().submissionId())
-                        .distinct()
-                        .count());
-        assertTrue(first.hasNext());
-        assertFalse(first.hasPrevious());
-        assertEquals(1, second.submissions().size());
-        assertEquals(3, second.submissions().get(0).studentId());
-        assertNull(second.submissions().get(0).submission());
-        assertEquals(13, second.firstRow());
-        assertEquals(13, second.lastRow());
-        assertTrue(second.hasPrevious());
-        assertFalse(second.hasNext());
-        assertEquals(2, page(null, null, "999").filter().page());
+    void rosterKeepsOnlyLatestAcceptedWhileNewWorkspaceIsUnsubmitted() throws Exception {
+        assertEquals(2, page(null, null, null).totalCount());
+        assertTrue(page(null, null, null).submissions().stream().noneMatch(TeacherSubmissionRow::hasSubmission));
+        for (int i = 1; i <= 12; i++) attempt(i, 20, "SUBMITTED", true);
+        attempt(13, 20, "IN_PROGRESS", false);
+        var latest = page(null, null, "99");
+        assertEquals(2, latest.totalCount());
+        assertEquals(1, latest.filter().page());
+        assertEquals(12, latest.submissions().get(0).submission().submissionId());
+        assertEquals(1, latest.submissions().stream().filter(TeacherSubmissionRow::hasSubmission).count());
+        assertEquals(3, latest.submissions().get(1).studentId());
     }
 
     @Test
@@ -216,7 +182,7 @@ public class TeacherSubmissionPagingTest {
 
         assertEquals(3, roster.totalCount());
         assertEquals(
-                List.of(2L, 3L, 4L),
+                List.of(4L, 3L, 2L),
                 roster.submissions().stream().map(TeacherSubmissionRow::studentId).toList());
         assertTrue(roster.submissions().stream().noneMatch(TeacherSubmissionRow::hasSubmission));
         assertThrows(NoSuchElementException.class, () -> service.detailPage(1, 50, 4));
@@ -256,13 +222,13 @@ public class TeacherSubmissionPagingTest {
         assertEquals(13, first.totalCount());
         assertEquals(2, first.totalPages());
         assertEquals(
-                List.of(2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L),
+                List.of(14L, 13L, 12L, 11L, 10L, 9L, 8L, 7L, 6L, 5L),
                 first.submissions().stream().map(TeacherSubmissionRow::studentId).toList());
         assertEquals(
-                List.of(14L),
+                List.of(4L, 3L, 2L),
                 second.submissions().stream().map(TeacherSubmissionRow::studentId).toList());
         assertTrue(second.filter().notStartedOnly());
-        assertEquals(13, second.firstRow());
+        assertEquals(11, second.firstRow());
         assertTrue(first.submissions().stream().noneMatch(TeacherSubmissionRow::hasSubmission));
         assertNull(second.submissions().get(0).submission());
     }
@@ -284,9 +250,9 @@ public class TeacherSubmissionPagingTest {
 
         var all = page(null, null, null);
 
-        assertEquals(3, all.totalCount());
+        assertEquals(2, all.totalCount());
         assertEquals(
-                List.of(2L, 1L),
+                List.of(1L),
                 all.submissions().stream()
                         .filter(TeacherSubmissionRow::hasSubmission)
                         .map(row -> row.submission().submissionId())
@@ -336,9 +302,9 @@ public class TeacherSubmissionPagingTest {
         attempt(15, 40, "SUBMITTED", true);
         var filtered = page("100%_", "submitted", "2");
 
-        assertEquals(13, filtered.totalCount());
+        assertEquals(1, filtered.totalCount());
         assertEquals(1, filtered.submissions().size());
-        assertEquals(1, filtered.submissions().get(0).submission().submissionId());
+        assertEquals(13, filtered.submissions().get(0).submission().submissionId());
         assertEquals(1, page("BOB", "GRADED", null).totalCount());
         assertEquals(0, page("Alice", "GRADED", null).totalCount());
         var absent = page("' OR 1=1 --", null, "2");
@@ -346,6 +312,22 @@ public class TeacherSubmissionPagingTest {
         assertEquals(0, absent.totalCount());
         assertEquals(1, absent.filter().page());
         assertThrows(NoSuchElementException.class, () -> service.detailPage(1, 50, 15));
+    }
+
+    @Test
+    void wrongTermHistoryCannotHideOrReplaceTheStudentsAcceptedWork() throws Exception {
+        attempt(1, 20, "SUBMITTED", true);
+        try (Connection connection = connection(); var statement = connection.createStatement()) {
+            statement.execute("INSERT INTO subject_registrations VALUES (50,200,2,'ACTIVE')");
+            statement.execute("INSERT INTO class_enrollments VALUES (50,10,50,'ACTIVE')");
+        }
+        attempt(2, 50, "GRADED", true);
+
+        var roster = page("Alice", null, null);
+        assertEquals(1, roster.totalCount());
+        assertEquals(1, roster.submissions().get(0).submission().submissionId());
+        assertEquals(0, page("Alice", "GRADED", null).totalCount());
+        assertThrows(NoSuchElementException.class, () -> service.detailPage(1, 50, 2));
     }
 
     @Test
@@ -363,10 +345,10 @@ public class TeacherSubmissionPagingTest {
         assertThrows(NoSuchElementException.class, () -> page(null, null, null));
         assertThrows(NoSuchElementException.class, () -> service.detailPage(1, 50, 2));
         attempt(4, 20, "SUBMITTED", true);
-        assertEquals(4, page(null, null, null).totalCount());
+        assertEquals(2, page(null, null, null).totalCount());
         assertEquals(4, service.detailPage(1, 50, 4).row().submission().submissionId());
         assignment = assignment(AssignmentStatus.DRAFT, Instant.EPOCH);
-        assertEquals(4, page(null, null, null).totalCount());
+        assertEquals(2, page(null, null, null).totalCount());
         assignment = assignment(AssignmentStatus.DRAFT, null);
         assertThrows(NoSuchElementException.class, () -> page(null, null, null));
     }
@@ -436,7 +418,7 @@ public class TeacherSubmissionPagingTest {
 
         var filter = TeacherSubmissionFilter.from("Nguyễn & 100%_", "GRADED", "2");
 
-        assertEquals(12, filter.offset());
+        assertEquals(10, filter.offset());
         String list = TeacherSubmissionNavigation.listUrl("/ams", 50, filter);
 
         assertTrue(list.contains("&page=2"));
@@ -451,7 +433,7 @@ public class TeacherSubmissionPagingTest {
         assertTrue(notStarted.notStartedOnly());
         assertNull(notStarted.status());
         assertEquals("NOT_STARTED", notStarted.statusValue());
-        assertEquals(12, notStarted.offset());
+        assertEquals(10, notStarted.offset());
         assertTrue(
                 TeacherSubmissionNavigation.listUrl("/ams", 50, notStarted)
                         .contains("&status=NOT_STARTED"));

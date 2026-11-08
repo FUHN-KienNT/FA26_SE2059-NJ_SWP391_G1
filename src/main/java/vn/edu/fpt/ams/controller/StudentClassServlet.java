@@ -48,7 +48,8 @@ public class StudentClassServlet extends HttpServlet {
                             req.getParameter("q"),
                             req.getParameter("responseType"),
                             req.getParameter("status"),
-                            req.getParameter("page"));
+                            req.getParameter("page"),
+                            req.getParameter("sort"));
 
             req.setAttribute("classPage", service.load(studentId, classId, filter));
             req.getRequestDispatcher("/WEB-INF/views/student/class-detail.jsp").forward(req, res);

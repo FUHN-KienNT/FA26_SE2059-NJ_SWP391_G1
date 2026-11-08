@@ -1,0 +1,16 @@
+<%
+    Object actionNotice = request.getAttribute("actionNotice");
+    Object actionNoticeType = request.getAttribute("actionNoticeType");
+    if (actionNotice == null) {
+        actionNotice = session.getAttribute("actionNotice");
+        actionNoticeType = session.getAttribute("actionNoticeType");
+        session.removeAttribute("actionNotice");
+        session.removeAttribute("actionNoticeType");
+    }
+    if (actionNotice instanceof String && !((String) actionNotice).isBlank()) {
+%>
+    <div class="notice <%= "error".equals(actionNoticeType) ? "error" : "success" %>"
+         role="<%= "error".equals(actionNoticeType) ? "alert" : "status" %>" tabindex="-1">
+        <%= vn.edu.fpt.ams.util.WebSupport.html(actionNotice) %>
+    </div>
+<% } %>

@@ -284,11 +284,7 @@
 }
 
 .student-class .class-list-footer {
-    display: flex;
-    justify-content: space-between;
-    gap: 16px;
-    align-items: center;
-    flex-wrap: wrap;
+    display: block;
     margin-top: 18px;
 }
 
@@ -300,31 +296,31 @@
 
 .student-class .class-pagination {
     display: flex;
-    gap: 6px;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
     flex-wrap: wrap;
+    margin: 22px 0 0;
 }
 
-.student-class .class-pagination a,
-.student-class .class-pagination span {
+.student-class .class-pagination a {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 38px;
-    min-height: 40px;
-    padding: 6px 10px;
+    min-height: 46px;
+    padding: 10px 16px;
     box-sizing: border-box;
     border: 1px solid #d7e3f6;
     border-radius: 7px;
     text-decoration: none;
-    color: #245bd8;
-    font-size: 12px;
+    color: #324a67;
+    background: #fff;
+    font-size: 14px;
 }
 
 .student-class .class-pagination [aria-current] {
-    background: #2563eb;
-    color: white;
-    border-color: #2563eb;
-    font-weight: 600;
+    color: #324a67;
+    font-size: 14px;
 }
 
 .student-class .student-panel-footnote,
@@ -386,4 +382,42 @@
     .student-class .class-table-wrap {
         margin-inline: -6px;
     }
+}
+.class-work-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 0 0 22px;
+}
+
+.class-work-tabs a {
+    border: 1px solid #c8d7ec;
+    border-radius: 7px;
+    padding: 9px 15px;
+    text-decoration: none;
+}
+
+.class-work-tabs a.active {
+    background: #245cef;
+    color: white;
+}
+
+.student-class .class-time-sort {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.student-class .class-time-sort a {
+    color: #2259ac;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.student-class .class-time-sort a:hover {
+    text-decoration: underline;
 }

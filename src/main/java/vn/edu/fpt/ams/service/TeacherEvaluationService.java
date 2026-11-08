@@ -21,15 +21,18 @@ import vn.edu.fpt.ams.util.AssignmentSubmissionAccess;
 import vn.edu.fpt.ams.util.DBConnection;
 import vn.edu.fpt.ams.util.EssayEvaluationRules;
 import vn.edu.fpt.ams.util.SubmissionContentSnapshot;
+import vn.edu.fpt.ams.integration.GeminiEvaluationClient;
 
 /** Atomic Essay draft, completion, reopening and explicit publication workflow. */
 public class TeacherEvaluationService {
     private static final Set<String> ACTIONS =
-            Set.of("saveEvaluation", "completeEvaluation", "reopenEvaluation", "releaseEvaluation");
+            Set.of("saveEvaluation", "completeEvaluation", "reopenEvaluation", "releaseEvaluation",
+                    "publishEvaluation", "reviseReleasedEvaluation", "restoreEvaluation");
     private final TeacherEvaluationDAO evaluations;
     private final TeacherSubmissionDAO submissions;
     private final AssignmentDAO assignments;
     private final ConnectionProvider connections;
+    private final GeminiEvaluationClient gemini;
 
     @FunctionalInterface
     public interface ConnectionProvider {
@@ -49,14 +52,27 @@ public class TeacherEvaluationService {
             TeacherSubmissionDAO submissions,
             AssignmentDAO assignments,
             ConnectionProvider connections) {
+        this(evaluations, submissions, assignments, connections, new GeminiEvaluationClient());
+    }
+
+    public TeacherEvaluationService(
+            TeacherEvaluationDAO evaluations, TeacherSubmissionDAO submissions,
+            AssignmentDAO assignments, ConnectionProvider connections, GeminiEvaluationClient gemini) {
         this.evaluations = Objects.requireNonNull(evaluations);
         this.submissions = Objects.requireNonNull(submissions);
         this.assignments = Objects.requireNonNull(assignments);
         this.connections = Objects.requireNonNull(connections);
+        this.gemini = Objects.requireNonNull(gemini);
     }
 
     public TeacherEvaluationPage page(long teacherId, long assignmentId, long submissionId) {
+        return page(teacherId, assignmentId, submissionId, 1);
+    }
+
+    public TeacherEvaluationPage page(long teacherId, long assignmentId, long submissionId, int historyPage) {
         validateIds(teacherId, assignmentId, submissionId);
+
+        if (historyPage < 1) throw new IllegalArgumentException("Trang nhật ký không hợp lệ.");
 
         try (Connection connection = connections.open()) {
             connection.setReadOnly(true);
@@ -87,6 +103,9 @@ public class TeacherEvaluationService {
                 try {
                     questions = EssayEvaluationRules.questions(detail.assignment().assignment());
                     requireAccepted(detail.row().submission());
+                    var currentAssignment = assignments.findDetailForTeacher(connection, teacherId, assignmentId)
+                            .orElseThrow(() -> new NoSuchElementException("Không tìm thấy bài tập."));
+                    requireGradingOpen(currentAssignment.assignment(), assignments.currentTime(connection));
 
                     if (blocked == null)
                         EssayEvaluationRules.validate(
@@ -95,9 +114,10 @@ public class TeacherEvaluationService {
                     blocked = ex.getMessage();
                 }
 
+                var history = evaluations.history(connection, assignmentId, detail.row().studentId(), historyPage);
                 connection.commit();
 
-                return new TeacherEvaluationPage(detail, evaluation, questions, blocked);
+                return new TeacherEvaluationPage(detail, evaluation, questions, blocked, history);
             } catch (SQLException | RuntimeException ex) {
                 rollback(connection, ex);
                 throw ex;
@@ -115,12 +135,24 @@ public class TeacherEvaluationService {
             long revision,
             List<SubmissionEvaluation.Mark> marks,
             String feedback) {
+        apply(teacherId, assignmentId, submissionId, action, revision, marks, feedback, "", false, 0);
+    }
+
+    public void apply(
+            long teacherId, long assignmentId, long submissionId, String action, long revision,
+            List<SubmissionEvaluation.Mark> marks, String feedback, String reason,
+            boolean feedbackAi, long historyId) {
         validateIds(teacherId, assignmentId, submissionId);
 
         if (action == null || !ACTIONS.contains(action))
             throw new IllegalArgumentException("Thao tác chấm bài không hợp lệ.");
 
         if (revision < 0) throw new IllegalArgumentException("Phiên bản chấm bài không hợp lệ.");
+
+        String changeReason = reason == null ? "" : reason.strip();
+
+        if (vn.edu.fpt.ams.util.AssignmentRules.length(changeReason) > 2000)
+            throw new IllegalArgumentException("Lý do sửa điểm tối đa 2000 ký tự.");
 
         try (Connection connection = connections.open()) {
             connection.setReadOnly(false);
@@ -140,6 +172,7 @@ public class TeacherEvaluationService {
                 var submission = detail.row().submission();
 
                 requireAccepted(submission);
+                requireGradingOpen(assignment, assignments.currentTime(connection));
                 var saved = evaluations.read(connection, assignmentId, submissionId);
 
                 if (saved.revision() != revision)
@@ -150,24 +183,51 @@ public class TeacherEvaluationService {
                 var stored =
                         SubmissionEvaluation.read(
                                 saved.json(), saved.revision(), submission.feedback());
-                boolean editing =
-                        action.equals("saveEvaluation") || action.equals("completeEvaluation");
+                boolean released = submission.status() == SubmissionStatus.RELEASED;
+                boolean restoring = action.equals("restoreEvaluation");
+                boolean editing = Set.of("saveEvaluation", "completeEvaluation", "publishEvaluation",
+                                "reviseReleasedEvaluation", "restoreEvaluation").contains(action);
+                SubmissionEvaluation next = stored;
+                String nextStatus = submission.status().name();
+                java.math.BigDecimal nextScore = submission.score();
+
+                if (released && (!editing || (!action.equals("reviseReleasedEvaluation") && !restoring)))
+                    throw new IllegalArgumentException("Dùng chức năng sửa điểm đã công bố và ghi rõ lý do.");
+
+                if ((released || action.equals("reviseReleasedEvaluation")) && changeReason.isBlank())
+                    throw new IllegalArgumentException("Nhập lý do sửa điểm và nhận xét đã công bố.");
+
+                if (action.equals("reviseReleasedEvaluation") && !released)
+                    throw new IllegalArgumentException("Bài nộp chưa có kết quả đã công bố.");
 
                 if (editing) {
-                    requireStatus(submission, SubmissionStatus.SUBMITTED);
-                    var proposed = new SubmissionEvaluation(revision, marks, feedback);
+                    var proposed = restoring
+                            ? evaluations.previousEvaluation(connection, historyId, assignmentId,
+                                    detail.row().studentId(), submissionId, revision)
+                            : new SubmissionEvaluation(revision, marks, feedback, feedbackAi);
+                    boolean completing = released || action.equals("completeEvaluation")
+                            || action.equals("publishEvaluation")
+                            || (restoring && submission.status() == SubmissionStatus.GRADED);
 
                     EssayEvaluationRules.validate(
                             detail.assignment().assignment(),
                             proposed,
-                            action.equals("completeEvaluation"));
+                            completing);
                     evaluations.captureSnapshot(connection, assignmentId, submissionId);
-                    evaluations.save(
-                            connection,
-                            submissionId,
-                            teacherId,
-                            proposed,
-                            action.equals("completeEvaluation"));
+
+                    if (released) {
+                        evaluations.reviseReleased(connection, submissionId, teacherId, proposed);
+                    } else {
+                        evaluations.save(connection, submissionId, teacherId, proposed, completing);
+
+                        if (action.equals("publishEvaluation"))
+                            evaluations.release(connection, submissionId, revision + 1);
+                    }
+
+                    next = proposed;
+                    nextScore = proposed.total();
+                    nextStatus = released || action.equals("publishEvaluation") ? "RELEASED"
+                            : completing ? "GRADED" : "SUBMITTED";
                 } else {
                     requireStatus(submission, SubmissionStatus.GRADED);
                     EssayEvaluationRules.validate(
@@ -187,8 +247,13 @@ public class TeacherEvaluationService {
                     if (action.equals("reopenEvaluation"))
                         evaluations.reopen(connection, submissionId, revision);
                     else evaluations.release(connection, submissionId, revision);
+
+                    nextStatus = action.equals("reopenEvaluation") ? "SUBMITTED" : "RELEASED";
                 }
 
+                evaluations.journal(connection, assignmentId, submissionId, detail.row().studentId(),
+                        teacherId, action, changeReason, stored, next, submission.score(), nextScore,
+                        submission.status().name(), nextStatus);
                 connection.commit();
             } catch (SQLException | RuntimeException ex) {
                 rollback(connection, ex);
@@ -198,6 +263,32 @@ public class TeacherEvaluationService {
             throw new IllegalStateException(
                     "Không thể lưu bài chấm. Hãy tải lại trang trước khi thử lại.", ex);
         }
+    }
+
+    public SubmissionEvaluation aiSuggestion(
+            long teacherId, long assignmentId, long submissionId, long revision) {
+        var before = page(teacherId, assignmentId, submissionId);
+
+        if (before.blockedReason() != null)
+            throw new IllegalArgumentException(before.blockedReason());
+
+        if (before.evaluation().revision() != revision)
+            throw new ConcurrentModificationException("Đánh giá đã thay đổi. Vui lòng tải lại trang.");
+
+        var suggestion = gemini.evaluate(before.detail(), before.questions(), revision);
+        EssayEvaluationRules.validate(before.detail().assignment().assignment(), suggestion, true);
+        var after = page(teacherId, assignmentId, submissionId);
+
+        if (after.blockedReason() != null || after.evaluation().revision() != revision
+                || !Objects.equals(before.detail().row().submission().content(),
+                        after.detail().row().submission().content())
+                || !Objects.equals(before.detail().assignment().assignment().taskChecklistJson(),
+                        after.detail().assignment().assignment().taskChecklistJson()))
+            throw new ConcurrentModificationException("Bài nộp hoặc đánh giá đã thay đổi trong lúc AI chấm.");
+
+        EssayEvaluationRules.validate(after.detail().assignment().assignment(), suggestion, true);
+
+        return suggestion;
     }
 
     private TeacherSubmissionDetailPage detail(
@@ -256,6 +347,14 @@ public class TeacherEvaluationService {
                         .contains(submission.status()))
             throw new IllegalArgumentException(
                     "Chỉ có thể chấm bài nộp đã được hệ thống tiếp nhận.");
+    }
+
+    private static void requireGradingOpen(
+            vn.edu.fpt.ams.model.Assignment assignment, java.time.Instant now) {
+        if (assignment.closedAt() == null
+                && (assignment.dueAt() == null || assignment.dueAt().isAfter(now)))
+            throw new IllegalArgumentException(
+                    "Chỉ được chấm sau hạn nộp hoặc sau khi giảng viên đóng nhận bài vĩnh viễn.");
     }
 
     private static void requireStatus(Submission submission, SubmissionStatus expected) {

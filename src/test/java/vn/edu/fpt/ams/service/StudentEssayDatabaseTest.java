@@ -38,7 +38,7 @@ class StudentEssayDatabaseTest {
             statement.execute(
                     "CREATE TEMP TABLE users(user_id BIGINT PRIMARY KEY,role TEXT,account_status TEXT)");
             statement.execute(
-                    "CREATE TEMP TABLE subject_classes(class_id BIGINT PRIMARY KEY,subject_term_id BIGINT,class_code TEXT,status TEXT)");
+                    "CREATE TEMP TABLE subject_classes(class_id BIGINT PRIMARY KEY,subject_term_id BIGINT,class_code TEXT,status TEXT,teacher_id BIGINT DEFAULT 3)");
             statement.execute(
                     "CREATE TEMP TABLE subject_registrations(registration_id BIGINT PRIMARY KEY,student_id BIGINT,subject_term_id BIGINT,status TEXT)");
             statement.execute(
@@ -55,10 +55,11 @@ class StudentEssayDatabaseTest {
                     "ALTER TABLE submissions ALTER COLUMN submission_id SET DEFAULT nextval('student_essay_test_ids')");
             statement.execute(
                     "CREATE TEMP TABLE submission_content_snapshots(submission_id BIGINT PRIMARY KEY,assignment_data JSONB,questions_data JSONB)");
+            statement.execute("CREATE TEMP TABLE submission_evaluation_history(history_id BIGINT GENERATED ALWAYS AS IDENTITY,submission_id BIGINT,assignment_id BIGINT,student_id BIGINT,actor_id BIGINT,action TEXT,reason TEXT,previous_evaluation JSONB,next_evaluation JSONB,previous_score NUMERIC,next_score NUMERIC,previous_status TEXT,next_status TEXT,created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP)");
             statement.execute(
                     "INSERT INTO users VALUES(1,'STUDENT','ACTIVE'),(2,'STUDENT','ACTIVE'),(3,'TEACHER','ACTIVE')");
             statement.execute(
-                    "INSERT INTO subject_classes VALUES(10,100,'ESSAY A','ACTIVE'),(20,200,'FOREIGN','ACTIVE')");
+                    "INSERT INTO subject_classes(class_id,subject_term_id,class_code,status) VALUES(10,100,'ESSAY A','ACTIVE'),(20,200,'FOREIGN','ACTIVE')");
             statement.execute(
                     "INSERT INTO subject_registrations VALUES(11,1,100,'ACTIVE'),(22,2,200,'ACTIVE'),(33,3,100,'ACTIVE')");
             statement.execute(
@@ -84,6 +85,73 @@ class StudentEssayDatabaseTest {
     }
 
     @Test
+    void repeatedSubmissionKeepsAcceptedWorkUntilItsReplacementIsAccepted() throws Exception {
+        var service = service();
+        long first = service.start(1, 50);
+
+        service.submitEssay(1, 50, first, 0, text("First accepted answer"));
+        long second = service.start(1, 50);
+
+        assertNotEquals(first, second);
+        assertEquals(2, count("submissions"));
+        assertTrue(savedContent().contains("First accepted answer"));
+        assertThrows(IllegalArgumentException.class,
+                () -> service.submitEssay(1, 50, second, 0, "not valid JSON"));
+        assertTrue(savedContent().contains("First accepted answer"));
+
+        service.submitEssay(1, 50, second, 0, text("Final replacement answer"));
+
+        assertEquals(1, count("submissions"));
+        assertEquals(1, count("submission_content_snapshots"));
+        assertTrue(savedContent().contains("Final replacement answer"));
+        assertThrows(NoSuchElementException.class, () -> service.page(1, 50, first));
+        assertEquals(SubmissionStatus.SUBMITTED, service.page(1, 50, second).status());
+        assertTrue(service.start(1, 50) > second);
+    }
+
+    @Test
+    void permanentCloseFinalizesSavedDraftAndNeverAllowsReopening() throws Exception {
+        var service = service();
+        long id = service.start(1, 50);
+
+        service.saveEssay(1, 50, id, 0, text("Saved before permanent close"));
+        assertThrows(SecurityException.class, () -> service.closeSubmissions(1, 50));
+        assertEquals(1, service.closeSubmissions(3, 50));
+        assertEquals(0, service.closeSubmissions(3, 50));
+        assertEquals(SubmissionStatus.SUBMITTED, service.page(1, 50, id).status());
+        assertNotNull(service.page(1, 50, id).assignment().closedAt());
+        assertThrows(IllegalArgumentException.class, () -> service.start(1, 50));
+        assertTrue(service.saveEssay(1, 50, id, 1, text("Late content")).finished());
+        assertTrue(savedContent().contains("Saved before permanent close"));
+        assertFalse(savedContent().contains("Late content"));
+    }
+
+    @Test
+    void studentProjectionRemovesTeacherRubricsAndEnforcesAllowedTools() throws Exception {
+        String rubricTasks = TASKS.replace("\"title\":\"Discuss model\"",
+                "\"rubric\":\"PRIVATE_QUESTION_RUBRIC\",\"title\":\"Discuss model\"")
+                .replace("\"title\":\"Draw\"",
+                        "\"rubric\":\"PRIVATE_REQUIREMENT_RUBRIC\",\"allowed_tools\":[\"PLANTUML\"],\"title\":\"Draw\"");
+
+        try (var statement = connection.prepareStatement(
+                "UPDATE assignments SET task_checklist=?::jsonb WHERE assignment_id=50")) {
+            statement.setString(1, rubricTasks);
+            statement.executeUpdate();
+        }
+
+        var service = service();
+        long id = service.start(1, 50);
+        String visible = service.page(1, 50, id).assignment().taskChecklistJson();
+
+        assertFalse(visible.contains("PRIVATE_"));
+        assertFalse(visible.contains("rubric"));
+        assertTrue(visible.contains("PLANTUML"));
+        assertThrows(IllegalArgumentException.class,
+                () -> service.saveEssay(1, 50, id, 0,
+                        payload(row(1, 2, "", "<mxGraphModel/>", png(0xff112233)))));
+    }
+
+    @Test
     void startingSnapshotsQuestionRequirementsAndResumingKeepsTheSameAttempt() throws Exception {
         var service = service();
         long id = service.start(1, 50);
@@ -98,7 +166,7 @@ class StudentEssayDatabaseTest {
         assertEquals("Essay original", page.assignment().title());
         assertEquals("Original instructions", page.assignment().instructions());
         assertEquals(
-                JsonParser.parseString(TASKS),
+                JsonParser.parseString(vn.edu.fpt.ams.util.EssayQuestions.studentJson(TASKS)),
                 JsonParser.parseString(page.assignment().taskChecklistJson()));
         assertEquals(
                 3,
@@ -184,7 +252,7 @@ class StudentEssayDatabaseTest {
             assertEquals(1, result.getLong("answer_revision"));
         }
 
-        assertThrows(IllegalArgumentException.class, () -> service.start(1, 50));
+        assertTrue(service.start(1, 50) > id);
     }
 
     @Test
@@ -229,7 +297,7 @@ class StudentEssayDatabaseTest {
         service.saveEssay(1, 50, id, 0, text("Before deadline"));
         String saved = savedContent();
 
-        clock[0] = Instant.parse("2026-10-16T11:50:00Z");
+        clock[0] = Instant.parse("2026-10-16T12:00:00Z");
         assertTrue(service.saveEssay(1, 50, id, 0, "malformed late data").finished());
         service.submitEssay(1, 50, id, 0, text("Late answer"));
         assertEquals(saved, savedContent());
@@ -251,6 +319,7 @@ class StudentEssayDatabaseTest {
 
         sql(
                 "UPDATE submissions SET started_at=CURRENT_TIMESTAMP-INTERVAL '21 minutes',deadline_at=CURRENT_TIMESTAMP-INTERVAL '1 minute'");
+        sql("UPDATE assignments SET due_at=CURRENT_TIMESTAMP-INTERVAL '1 minute'");
         assertEquals(1, service.finishOverdue());
         assertEquals(0, service.finishOverdue());
         assertEquals(saved, savedContent());
@@ -261,6 +330,7 @@ class StudentEssayDatabaseTest {
         // worker closure.
         sql(
                 "INSERT INTO users VALUES(4,'STUDENT','ACTIVE');INSERT INTO subject_registrations VALUES(44,4,100,'ACTIVE');INSERT INTO class_enrollments VALUES(4,44,10,'ACTIVE')");
+        sql("UPDATE assignments SET due_at=CURRENT_TIMESTAMP+INTERVAL '1 hour'");
         long legacy = service.start(4, 50);
 
         try (var statement =
@@ -272,6 +342,7 @@ class StudentEssayDatabaseTest {
             connection.commit();
         }
 
+        sql("UPDATE assignments SET due_at=CURRENT_TIMESTAMP-INTERVAL '1 minute'");
         assertEquals(1, service.finishOverdue());
 
         try (var statement =

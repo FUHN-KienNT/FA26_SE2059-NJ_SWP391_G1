@@ -41,6 +41,7 @@ class StudentResultDatabaseTest {
             (104,10,3,1,'RELEASED',now()-interval '2 hours',now()+interval '1 hour',now()-interval '1 hour','Wrong term',8,'Wrong term',now()-interval '30 minutes',now()-interval '20 minutes','{"format":"ams-evaluation-v1","marks":[]}'),
             (105,10,4,1,'RELEASED',now()-interval '2 hours',now()+interval '1 hour',now()-interval '1 hour','Wrong class',8,'Wrong class',now()-interval '30 minutes',now()-interval '20 minutes','{"format":"ams-evaluation-v1","marks":[]}');
             INSERT INTO submission_content_snapshots SELECT sub.submission_id,to_jsonb(a),'[]'::jsonb FROM submissions sub JOIN assignments a ON a.assignment_id=sub.assignment_id;
+            UPDATE assignments SET closed_at=now();
             """);
     }
 
@@ -111,7 +112,7 @@ class StudentResultDatabaseTest {
         var service = service();
 
         assertEquals(
-                List.of(102L, 101L),
+                List.of(102L),
                 service.load(1, 10, null).attempts().stream().map(x -> x.submissionId()).toList());
 
         for (long id : List.of(103L, 104L, 105L, 999L))
@@ -120,6 +121,94 @@ class StudentResultDatabaseTest {
         assertThrows(NoSuchElementException.class, () -> service.load(2, 10, 101L));
         assertThrows(SecurityException.class, () -> service.load(3, 10, 101L));
         assertThrows(SecurityException.class, () -> service.load(999, 10, 101L));
+    }
+
+    @Test
+    void catalogCountsLatestOwnFinalsPagesByTenAndClampsPastTheLastPage() throws Exception {
+        sql("""
+            INSERT INTO assignments(assignment_id,class_id,template_id,title,assignment_purpose,
+                response_type,instructions,maximum_score,status,available_from,due_at,published_at,task_checklist)
+            SELECT n,1,1,'Bài '||n,'REGULAR','ESSAY','',10,'PUBLISHED',
+                now()-interval '2 days',now()+interval '1 day',now()-interval '2 days','[]'::jsonb
+            FROM generate_series(11,22) n;
+            INSERT INTO submissions(submission_id,assignment_id,enrollment_id,attempt_number,status,
+                started_at,deadline_at,submitted_at,content)
+            SELECT 200+n,n,1,1,'SUBMITTED',now()-interval '2 hours',now()+interval '1 hour',
+                now()-interval '1 hour'+n*interval '1 second','Nội dung'
+            FROM generate_series(11,22) n;
+            """);
+        var first = service().catalog(1, 1);
+        assertEquals(13, first.catalogTotal());
+        assertEquals(2, first.catalogPages());
+        assertEquals(1, first.catalogPage());
+        assertEquals(10, first.attempts().size());
+        assertEquals(22, first.attempts().get(0).assignmentId());
+        assertEquals(13, first.attempts().get(9).assignmentId());
+
+        var last = service().catalog(1, 99);
+        assertEquals(2, last.catalogPage());
+        assertEquals(2, last.catalogPages());
+        assertEquals(13, last.catalogTotal());
+        assertEquals(List.of(12L, 11L, 10L),
+                last.attempts().stream().map(x -> x.assignmentId()).toList());
+        assertEquals(102, last.attempts().get(2).submissionId());
+        assertNull(last.attempts().get(2).score());
+
+        var otherStudent = service().catalog(2, 1);
+        assertEquals(1, otherStudent.catalogTotal());
+        assertEquals(103, otherStudent.attempts().get(0).submissionId());
+    }
+
+    @Test
+    void emptyCatalogUsesFirstPageAndRetainsStudentAuthorization() throws Exception {
+        sql("INSERT INTO users VALUES(4,'STUDENT','ACTIVE')");
+        var page = service().catalog(4, 8);
+        assertEquals(0, page.catalogTotal());
+        assertEquals(1, page.catalogPage());
+        assertEquals(1, page.catalogPages());
+        assertTrue(page.attempts().isEmpty());
+        assertThrows(SecurityException.class, () -> service().catalog(3, 1));
+        assertThrows(SecurityException.class, () -> service().catalog(999, 1));
+        assertThrows(IllegalArgumentException.class, () -> service().catalog(1, 100001));
+    }
+
+    @Test
+    void legacyEarlyReleasedWorkHidesEvaluationUntilDeadlineOrPermanentCloseButKeepsExport()
+            throws Exception {
+        sql("UPDATE assignments SET closed_at=NULL;"
+                + "UPDATE submissions SET status='RELEASED',released_at=now()-interval '20 minutes' WHERE submission_id=102");
+        var dao = new StudentResultDAO();
+        var row = dao.detail(connection, 1, 10, 102).orElseThrow();
+
+        assertFalse(row.attempt().released());
+        assertNull(row.attempt().score());
+        assertNull(row.attempt().releasedAt());
+        assertNull(row.assignmentSnapshot());
+        assertNull(row.questionsSnapshot());
+        assertNull(row.content());
+        assertNull(row.answer());
+        assertNull(row.feedback());
+        assertNull(row.evaluation());
+        assertEquals(0, row.revision());
+        assertFalse(dao.catalog(connection, 1, 1).get(0).released());
+
+        var service = service();
+        var pending = service.load(1, 10, 102L);
+
+        assertNull(pending.detail());
+        assertFalse(pending.toString().contains("secret-"));
+        String exported = service.export(1, 10, 102);
+
+        assertTrue(exported.contains("secret-content"));
+        assertFalse(exported.contains("secret-feedback"));
+        assertFalse(exported.contains("secret-mark"));
+        assertThrows(NoSuchElementException.class, () -> service.export(2, 10, 102));
+
+        sql("UPDATE assignments SET closed_at=now()");
+        assertTrue(dao.detail(connection, 1, 10, 102).orElseThrow().attempt().released());
+
+        sql("UPDATE assignments SET closed_at=NULL,due_at=now()-interval '30 minutes'");
+        assertTrue(dao.detail(connection, 1, 10, 102).orElseThrow().attempt().released());
     }
 
     @Test

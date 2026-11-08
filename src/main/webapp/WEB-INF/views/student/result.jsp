@@ -1,4 +1,5 @@
 <%@ page contentType="text/html;charset=UTF-8" import="vn.edu.fpt.ams.dto.StudentResultPage,vn.edu.fpt.ams.util.WebSupport,vn.edu.fpt.ams.util.TeacherSubmissionView,vn.edu.fpt.ams.util.AssignmentListView" %>
+<%@ taglib prefix="ams" tagdir="/WEB-INF/tags" %>
 
 <%
     var resultPage = (StudentResultPage) request.getAttribute("resultPage");
@@ -16,7 +17,7 @@
         <link rel="stylesheet" href="<%=base%>/css/app.css">
         <%@ include file="/WEB-INF/views/shared/assets.jspf" %>
 
-        <link rel="stylesheet" href="<%=base%>/css/student-result.css">
+        <link rel="stylesheet" href="<%=base%>/css/student-result.css?v=20261108-pagination">
         <link rel="stylesheet" href="<%=base%>/css/submission-diagram.css">
         <script src="<%=base%>/js/submission-diagram.js" defer></script>
     </head>
@@ -24,10 +25,11 @@
         <%@ include file="/WEB-INF/views/shared/shell.jspf" %>
 
         <main id="page-content" class="ams-content result-main">
+            <%@ include file="/WEB-INF/views/shared/action-notice.jspf" %>
             <div class="result-page">
                 <nav class="result-breadcrumb" aria-label="Đường dẫn">
                     <a href="<%=base%>/student/dashboard">Bảng điều khiển</a><span aria-hidden="true">/</span>
-                    <a href="<%=base%>/student/results?assignmentId=<%=resultPage.assignmentId()%>">Lịch sử bài nộp</a>
+                    <a href="<%=base%>/student/results">Bài làm đã nộp</a>
 
                     <% if (selected != null) { %>
                         <span aria-hidden="true">/</span><span aria-current="page">Lượt <%=selected.attemptNumber()%></span>
@@ -44,6 +46,10 @@
                     <% } %>
 
                 </header>
+
+                <% if (selected != null) { %>
+                    <p><a class="ams-button" href="<%=base%>/student/results?assignmentId=<%=selected.assignmentId()%>&amp;submissionId=<%=selected.submissionId()%>&amp;download=1">Xuất bài làm của tôi</a></p>
+                <% } %>
 
                 <% if (selected != null && result == null) { %>
                     <section class="result-card result-pending" role="status">
@@ -62,7 +68,8 @@
                         </div>
                         <div class="result-general">
                             <h2>Nhận xét chung</h2>
-                            <p class="result-text"><%=result.feedback()==null||result.feedback().isBlank()?"Chưa có nhận xét chung.":WebSupport.html(result.feedback())%></p>
+                            <p class="result-text <%=result.evaluation().feedbackAi()?"result-ai-feedback":""%>"><%=result.feedback()==null||result.feedback().isBlank()?"Chưa có nhận xét chung.":WebSupport.html(result.feedback())%></p>
+                            <% if (result.evaluation().feedbackAi()) { %><span class="result-ai-label">Nhận xét do AI viết, đã được giảng viên kiểm tra và công bố.</span><% } %>
                         </div>
                     </section>
 
@@ -117,7 +124,8 @@
                                         <p class="result-text"><%=WebSupport.html(requirement.title())%></p>
                                         <div class="result-mark">
                                             <p><strong>Điểm: <%=WebSupport.html(TeacherSubmissionView.score(mark==null?null:mark.score()))%> / <%=WebSupport.html(requirement.points())%></strong></p>
-                                            <p class="result-text"><strong>Nhận xét: </strong><%=mark==null||mark.feedback().isBlank()?"Chưa có nhận xét cho yêu cầu này.":WebSupport.html(mark.feedback())%></p>
+                                            <p class="result-text <%=mark!=null&&mark.aiGenerated()?"result-ai-feedback":""%>"><strong>Nhận xét: </strong><%=mark==null||mark.feedback().isBlank()?"Chưa có nhận xét cho yêu cầu này.":WebSupport.html(mark.feedback())%></p>
+                                            <% if (mark != null && mark.aiGenerated()) { %><span class="result-ai-label">Nhận xét do AI viết, đã được giảng viên kiểm tra và công bố.</span><% } %>
                                         </div>
                                         <h4>Câu trả lời của bạn</h4>
 
@@ -154,7 +162,8 @@
                                 %>
                                             <div class="result-mark">
                                                 <p><strong>Điểm yêu cầu <%=mark.requirementOrder()%>: <%=WebSupport.html(TeacherSubmissionView.score(mark.score()))%></strong></p>
-                                                <p class="result-text"><%=mark.feedback().isBlank()?"Chưa có nhận xét cho yêu cầu này.":WebSupport.html(mark.feedback())%></p>
+                                                <p class="result-text <%=mark.aiGenerated()?"result-ai-feedback":""%>"><%=mark.feedback().isBlank()?"Chưa có nhận xét cho yêu cầu này.":WebSupport.html(mark.feedback())%></p>
+                                                <% if (mark.aiGenerated()) { %><span class="result-ai-label">Nhận xét do AI viết, đã được giảng viên kiểm tra và công bố.</span><% } %>
                                             </div>
                                 <%
                                             }
@@ -231,7 +240,7 @@
                 <% } %>
 
                 <section class="result-card" aria-labelledby="attempt-history">
-                    <h2 id="attempt-history">Các lượt đã nộp</h2>
+                    <h2 id="attempt-history">Bản nộp cuối cùng</h2>
 
                     <% if (resultPage.attempts().isEmpty()) { %>
                         <p>Chưa có lượt nộp hợp lệ để xem.</p>
@@ -241,7 +250,7 @@
                                 <caption class="result-sr-only">Lịch sử nộp bài của bạn</caption>
                                 <thead>
                                     <tr>
-                                        <th scope="col">Lượt</th>
+                                        <th scope="col">Bài tập</th>
                                         <th scope="col">Nộp lúc (UTC+07)</th>
                                         <th scope="col">Kết quả</th>
                                         <th scope="col">Thao tác</th>
@@ -249,20 +258,28 @@
                                 </thead>
                                 <tbody>
 
-                                    <% for (var attempt : resultPage.attempts()) { %>
+                                    <% for (var attempt : resultPage.attempts().stream().limit(10).toList()) { %>
                                         <tr>
-                                            <th scope="row">Lượt <%=attempt.attemptNumber()%></th>
+                                            <th scope="row"><%=WebSupport.html(attempt.title())%><small><%=WebSupport.html(attempt.classCode())%></small></th>
                                             <td><%=WebSupport.html(AssignmentListView.deadline(attempt.submittedAt()))%></td>
                                             <td><%=attempt.released()?"Đã công bố · "+WebSupport.html(TeacherSubmissionView.score(attempt.score()))+" điểm":"Chờ công bố"%></td>
                                             <td><a href="<%=base%>/student/results?assignmentId=<%=attempt.assignmentId()%>&amp;submissionId=<%=attempt.submissionId()%>"
                                                     <%=selected!=null&&selected.submissionId()==attempt.submissionId()?"aria-current=\"page\"":""%>><%=attempt.released()?"Xem kết quả":"Xem trạng thái"%><span class="result-sr-only"> lượt
-                                                        <%=attempt.attemptNumber()%></span></a></td>
+                                                        <%=attempt.attemptNumber()%></span></a>
+                                                · <a href="<%=base%>/student/results?assignmentId=<%=attempt.assignmentId()%>&amp;submissionId=<%=attempt.submissionId()%>&amp;download=1">Xuất bài làm</a></td>
                                         </tr>
                                     <% } %>
 
                                 </tbody>
                             </table>
                         </div>
+                        <% if (request.getAttribute("resultCatalogPage") instanceof Integer) {
+                            int resultNumber = (Integer) request.getAttribute("resultCatalogPage"); %>
+                            <ams:pagination currentPage="<%= resultNumber %>"
+                                totalPages="<%= resultPage.catalogPages() %>"
+                                baseUrl='<%= base + "/student/results?page=" + resultNumber %>'
+                                ariaLabel="Phân trang bài làm" />
+                        <% } %>
                     <% } %>
 
                 </section>

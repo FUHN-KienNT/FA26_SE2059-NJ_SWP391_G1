@@ -246,6 +246,10 @@ public final class AssignmentDetailView {
 
         if (filter.status() != null) url += "&status=" + filter.status().name();
 
+        if (!"DEFAULT".equals(filter.sort())) url += "&sort=" + filter.sort();
+
+        if (filter.page() > 1) url += "&page=" + filter.page();
+
         return url;
     }
 }

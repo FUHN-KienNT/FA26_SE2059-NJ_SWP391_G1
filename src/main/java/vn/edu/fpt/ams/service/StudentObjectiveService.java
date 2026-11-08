@@ -36,7 +36,11 @@ public class StudentObjectiveService {
     public List<StudentObjectiveDAO.Owned> list(long studentId) {
         actor(studentId);
 
-        return transaction(c -> dao.list(c, studentId));
+        return transaction(c -> dao.list(c, studentId).stream()
+                .map(owned -> new StudentObjectiveDAO.Owned(
+                        studentAssignment(owned.assignment(), false),
+                        owned.enrollmentId(), owned.classCode()))
+                .toList());
     }
 
     public StudentObjectivePage page(long studentId, long assignmentId, long submissionId) {
@@ -68,7 +72,7 @@ public class StudentObjectiveService {
                                         : null;
 
                         return new StudentObjectivePage(
-                                frozen,
+                                studentAssignment(frozen, true, owned.assignment().closedAt()),
                                 owned.classCode(),
                                 submissionId,
                                 attempt.attemptNumber(),
@@ -110,18 +114,6 @@ public class StudentObjectiveService {
 
                     requireOpen(owned.assignment(), now);
                     Assignment a = owned.assignment();
-                    int limit =
-                            a.assignmentPurpose() == AssignmentPurpose.PRACTICE
-                                    ? (a.attemptLimit() == null ? 0 : a.attemptLimit())
-                                    : 1;
-                    long used =
-                            attempts.stream()
-                                    .filter(s -> s.status() != SubmissionStatus.VOID)
-                                    .count();
-
-                    if (used >= limit)
-                        throw new IllegalArgumentException("Bạn đã sử dụng hết số lượt làm bài.");
-
                     if (a.responseType() == ResponseType.ESSAY) {
                         if (!AssignmentRules.validMaximum(a.maximumScore()))
                             throw new IllegalStateException(
@@ -155,12 +147,6 @@ public class StudentObjectiveService {
                     }
 
                     Instant deadline = a.dueAt();
-
-                    if (a.timeLimitMinutes() != null) {
-                        Instant timed = now.plusSeconds(a.timeLimitMinutes() * 60L);
-
-                        if (timed.isBefore(deadline)) deadline = timed;
-                    }
 
                     int number =
                             attempts.stream().mapToInt(Submission::attemptNumber).max().orElse(0)
@@ -202,11 +188,12 @@ public class StudentObjectiveService {
 
                     requireOpen(owned.assignment(), now);
                     checkRevision(c, submissionId, expectedRevision);
-                    var grade =
-                            ObjectiveAnswerGrader.grade(
-                                    dao.snapshotQuestions(c, submissionId), selected);
+                    String answers = ObjectiveAnswerGrader.draft(
+                            dao.snapshotQuestions(c, submissionId), selected);
 
-                    dao.submit(c, submissionId, now, now, grade);
+                    dao.save(c, submissionId, expectedRevision, answers);
+                    dao.submitSavedWork(c, submissionId, now);
+                    dao.keepLatestAccepted(c, submissionId);
 
                     return submissionId;
                 });
@@ -311,7 +298,10 @@ public class StudentObjectiveService {
 
                     dao.saveEssay(c, submissionId, expectedRevision, content);
 
-                    if (submit) dao.submitSavedWork(c, submissionId, now);
+                    if (submit) {
+                        dao.submitSavedWork(c, submissionId, now);
+                        dao.keepLatestAccepted(c, submissionId);
+                    }
 
                     return new SaveResult(submit, now, end, expectedRevision + 1);
                 });
@@ -366,6 +356,12 @@ public class StudentObjectiveService {
                                         }
                                     }
 
+                                    if (assignment.get().responseType() == ResponseType.OBJECTIVE) {
+                                        for (Submission accepted : dao.waitingForGrading(c, assignmentId)) {
+                                            if (gradeAccepted(c, accepted)) count++;
+                                        }
+                                    }
+
                                     return count;
                                 });
             } catch (RuntimeException ex) {
@@ -382,15 +378,54 @@ public class StudentObjectiveService {
     }
 
     static Instant deadline(Assignment assignment, Submission attempt) {
-        return assignment.dueAt() != null && assignment.dueAt().isBefore(attempt.deadlineAt())
-                ? assignment.dueAt()
-                : attempt.deadlineAt();
+        Instant deadline = assignment.dueAt();
+
+        if (assignment.closedAt() != null && assignment.closedAt().isBefore(deadline))
+            deadline = assignment.closedAt();
+
+        return deadline;
+    }
+
+    /** A permanent close and all outstanding drafts are finalized under the same assignment lock. */
+    public int closeSubmissions(long teacherId, long assignmentId) {
+        if (teacherId <= 0 || assignmentId <= 0)
+            throw new IllegalArgumentException("Giảng viên hoặc bài tập không hợp lệ.");
+
+        return transaction(c -> {
+            if (!assignments.lockActiveTeacher(c, teacherId))
+                throw new SecurityException("Cần tài khoản giảng viên đang hoạt động.");
+
+            Assignment assignment = assignments.lockOwnedAssignment(c, teacherId, assignmentId);
+
+            if (assignment.status() != AssignmentStatus.PUBLISHED)
+                throw new IllegalArgumentException("Chỉ có thể khóa nộp bài đã công bố.");
+
+            if (assignment.closedAt() != null) return 0;
+
+            Instant now = assignments.currentTime(c);
+            Assignment closed = dao.closeSubmissions(c, assignmentId, now);
+            int completed = 0;
+
+            for (Submission attempt : dao.inProgress(c, assignmentId)) {
+                finishSaved(c, closed, attempt, now);
+                completed++;
+            }
+
+            if (closed.responseType() == ResponseType.OBJECTIVE) {
+                for (Submission accepted : dao.waitingForGrading(c, assignmentId)) {
+                    gradeAccepted(c, accepted);
+                }
+            }
+
+            return completed;
+        });
     }
 
     private void finishSaved(Connection c, Assignment assignment, Submission attempt, Instant now)
             throws SQLException {
         if (assignment.responseType() == ResponseType.ESSAY) {
             dao.submitSavedWork(c, attempt.submissionId(), deadline(assignment, attempt));
+            dao.keepLatestAccepted(c, attempt.submissionId());
 
             return;
         }
@@ -407,15 +442,32 @@ public class StudentObjectiveService {
             // Legacy/malformed data still reaches a final submitted state without losing student
             // work.
             dao.submitSavedWork(c, attempt.submissionId(), deadline(assignment, attempt));
+            dao.keepLatestAccepted(c, attempt.submissionId());
 
             return;
         }
 
         dao.submit(c, attempt.submissionId(), deadline(assignment, attempt), now, grade);
+        dao.keepLatestAccepted(c, attempt.submissionId());
+    }
+
+    private boolean gradeAccepted(Connection connection, Submission submission) throws SQLException {
+        try {
+            var grade = ObjectiveAnswerGrader.grade(
+                    dao.snapshotQuestions(connection, submission.submissionId()),
+                    ObjectiveAnswerGrader.selections(submission.answer()));
+            dao.releaseObjective(connection, submission.submissionId(),
+                    assignments.currentTime(connection), grade);
+
+            return true;
+        } catch (IllegalStateException | IllegalArgumentException invalidSavedWork) {
+            return false;
+        }
     }
 
     private static void requireOpen(Assignment a, Instant now) {
-        if (a.availableFrom() == null
+        if (a.closedAt() != null
+                || a.availableFrom() == null
                 || now.isBefore(a.availableFrom())
                 || a.dueAt() == null
                 || !now.isBefore(a.dueAt()))
@@ -439,7 +491,7 @@ public class StudentObjectiveService {
             Instant now,
             long revision) {
         return new StudentObjectivePage(
-                owned.assignment(),
+                studentAssignment(owned.assignment(), false),
                 owned.classCode(),
                 attempt == null ? 0 : attempt.submissionId(),
                 attempt == null ? 0 : attempt.attemptNumber(),
@@ -451,6 +503,24 @@ public class StudentObjectiveService {
                         ? Map.of()
                         : ObjectiveAnswerGrader.selections(attempt.answer()),
                 revision);
+    }
+
+    private static Assignment studentAssignment(Assignment assignment, boolean includeQuestions) {
+        return studentAssignment(assignment, includeQuestions, assignment.closedAt());
+    }
+
+    private static Assignment studentAssignment(
+            Assignment assignment, boolean includeQuestions, Instant closedAt) {
+        String questions = includeQuestions && assignment.responseType() == ResponseType.ESSAY
+                ? EssayQuestions.studentJson(assignment.taskChecklistJson())
+                : "[]";
+
+        return new Assignment(
+                assignment.assignmentId(), assignment.classId(), assignment.templateId(),
+                assignment.title(), assignment.assignmentPurpose(), assignment.responseType(),
+                assignment.instructions(), null, questions, assignment.maximumScore(),
+                assignment.status(), assignment.availableFrom(), assignment.dueAt(), null, null,
+                assignment.publishedAt(), assignment.cancelledAt(), closedAt);
     }
 
     private static void actor(long id) {

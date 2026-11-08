@@ -20,7 +20,8 @@ public class TeacherSubmissionServlet extends HttpServlet {
     private final TeacherSubmissionService service;
     private final TeacherEvaluationService evaluations;
     private static final Set<String> ACTIONS =
-            Set.of("saveEvaluation", "completeEvaluation", "reopenEvaluation", "releaseEvaluation");
+            Set.of("saveEvaluation", "completeEvaluation", "reopenEvaluation", "releaseEvaluation",
+                    "publishEvaluation", "reviseReleasedEvaluation", "restoreEvaluation");
 
     public TeacherSubmissionServlet() {
         this(new TeacherSubmissionService(), new TeacherEvaluationService());
@@ -76,7 +77,10 @@ public class TeacherSubmissionServlet extends HttpServlet {
                     req.setAttribute(
                             "submissionDetail",
                             service.detailPage(teacherId, assignmentId, submissionId));
-                else showPage(req, evaluations.page(teacherId, assignmentId, submissionId));
+                else showPage(req, req.getParameter("historyPage") == null
+                        ? evaluations.page(teacherId, assignmentId, submissionId)
+                        : evaluations.page(teacherId, assignmentId, submissionId,
+                                WebSupport.page(req.getParameter("historyPage"))));
 
                 String saved = req.getParameter("evaluationSaved");
 
@@ -117,6 +121,11 @@ public class TeacherSubmissionServlet extends HttpServlet {
         Long teacherId = teacher(req, res);
 
         if (teacherId == null) return;
+
+        if ("aiEvaluation".equals(req.getParameter("action"))) {
+            aiPost(req, res, teacherId);
+            return;
+        }
 
         TeacherEvaluationPage page = null;
         long assignmentId = 0, submissionId = 0;
@@ -160,7 +169,8 @@ public class TeacherSubmissionServlet extends HttpServlet {
             List<SubmissionEvaluation.Mark> marks = List.of();
             String feedback = "";
 
-            if (action.equals("saveEvaluation") || action.equals("completeEvaluation")) {
+            if (Set.of("saveEvaluation", "completeEvaluation", "publishEvaluation",
+                    "reviseReleasedEvaluation").contains(action)) {
                 marks = marks(req, page);
                 feedback = optional(req, "feedback");
 
@@ -169,13 +179,22 @@ public class TeacherSubmissionServlet extends HttpServlet {
                             "Nhận xét chung không được vượt quá 5000 ký tự.");
             }
 
-            if (action.equals("releaseEvaluation")
+            if ((action.equals("releaseEvaluation") || action.equals("publishEvaluation"))
                     && !"yes".equals(req.getParameter("confirmRelease")))
                 throw new IllegalArgumentException(
                         "Vui lòng xác nhận công bố điểm và nhận xét cho sinh viên.");
 
-            evaluations.apply(
-                    teacherId, assignmentId, submissionId, action, revision, marks, feedback);
+            String reason = optional(req, "changeReason");
+            boolean feedbackAi = booleanField(req, "feedbackAi");
+            long historyId = action.equals("restoreEvaluation")
+                    ? positiveId(req.getParameter("historyId")) : 0;
+
+            if (Set.of("saveEvaluation", "completeEvaluation", "reopenEvaluation", "releaseEvaluation")
+                            .contains(action)
+                    && reason.isEmpty() && !feedbackAi && marks.stream().noneMatch(SubmissionEvaluation.Mark::aiGenerated))
+                evaluations.apply(teacherId, assignmentId, submissionId, action, revision, marks, feedback);
+            else evaluations.apply(teacherId, assignmentId, submissionId, action, revision, marks, feedback,
+                    reason, feedbackAi, historyId);
             res.setStatus(HttpServletResponse.SC_SEE_OTHER);
             res.setHeader(
                     "Location",
@@ -281,7 +300,10 @@ public class TeacherSubmissionServlet extends HttpServlet {
                     (name, input) -> {
                         if ((name.startsWith("score_")
                                         || name.startsWith("requirementFeedback_")
-                                        || name.equals("feedback"))
+                                        || name.startsWith("ai_")
+                                        || name.equals("feedback")
+                                        || name.equals("feedbackAi")
+                                        || name.equals("changeReason"))
                                 && input != null
                                 && input.length > 0) values.put(name, input[0]);
                     });
@@ -302,6 +324,7 @@ public class TeacherSubmissionServlet extends HttpServlet {
 
                 fields.add(scoreName);
                 fields.add(feedbackName);
+                fields.add("ai_" + suffix);
                 String value = optional(req, scoreName), feedback = optional(req, feedbackName);
                 BigDecimal score = null;
 
@@ -327,14 +350,15 @@ public class TeacherSubmissionServlet extends HttpServlet {
 
                 marks.add(
                         new SubmissionEvaluation.Mark(
-                                task.order(), requirement.order(), score, feedback));
+                                task.order(), requirement.order(), score, feedback,
+                                booleanField(req, "ai_" + suffix)));
             }
 
         Map<String, String[]> parameters = req.getParameterMap();
 
         if (parameters != null)
             for (String name : parameters.keySet()) {
-                if ((name.startsWith("score_") || name.startsWith("requirementFeedback_"))
+                if ((name.startsWith("score_") || name.startsWith("requirementFeedback_") || name.startsWith("ai_"))
                         && !fields.contains(name))
                     throw new IllegalArgumentException(
                             "Biểu mẫu chứa yêu cầu không thuộc bài tập này.");
@@ -350,9 +374,59 @@ public class TeacherSubmissionServlet extends HttpServlet {
                     "Đã hoàn tất chấm. Kết quả chưa được công bố cho sinh viên.";
             case "reopenEvaluation" -> "Đã mở lại đánh giá để chỉnh sửa.";
             case "releaseEvaluation" ->
-                    "Đã công bố điểm và nhận xét cho sinh viên. Đánh giá đã được khóa.";
+                    "Đã công bố điểm và nhận xét cho sinh viên.";
+            case "publishEvaluation" -> "Đã lưu và công bố điểm, nhận xét cho sinh viên.";
+            case "reviseReleasedEvaluation" -> "Đã sửa kết quả công bố và ghi nhận lý do vào nhật ký.";
+            case "restoreEvaluation" -> "Đã khôi phục bản chấm và ghi nhận vào nhật ký.";
             default -> "";
         };
+    }
+
+    private static boolean booleanField(HttpServletRequest req, String name) {
+        String value = req.getParameter(name);
+
+        if (value == null || value.equals("false") || value.isEmpty()) return false;
+        if (value.equals("true")) return true;
+
+        throw new IllegalArgumentException("Nguồn nhận xét không hợp lệ.");
+    }
+
+    private void aiPost(HttpServletRequest req, HttpServletResponse res, long teacherId)
+            throws IOException {
+        res.setCharacterEncoding("UTF-8");
+        res.setContentType("application/json;charset=UTF-8");
+        com.google.gson.JsonObject body = new com.google.gson.JsonObject();
+
+        try {
+            singletonParameters(req);
+            WebSupport.checkCsrf(req);
+
+            if (evaluations == null) throw new IllegalArgumentException("Dịch vụ chấm AI chưa sẵn sàng.");
+
+            var suggestion = evaluations.aiSuggestion(teacherId, positiveId(req.getParameter("assignmentId")),
+                    positiveId(req.getParameter("submissionId")), revision(req.getParameter("revision")));
+            body = com.google.gson.JsonParser.parseString(suggestion.json()).getAsJsonObject();
+            body.addProperty("feedback", suggestion.feedback());
+            body.addProperty("message", "AI đã đề xuất điểm và nhận xét. Hãy kiểm tra rồi lưu hoặc công bố.");
+        } catch (ConcurrentModificationException ex) {
+            res.setStatus(409);
+            body.addProperty("error", ex.getMessage());
+        } catch (SecurityException ex) {
+            res.setStatus(403);
+            body.addProperty("error", "Phiên biểu mẫu không hợp lệ hoặc bạn không có quyền chấm bài này.");
+        } catch (NoSuchElementException ex) {
+            res.setStatus(404);
+            body.addProperty("error", "Không tìm thấy bài nộp.");
+        } catch (IllegalArgumentException ex) {
+            res.setStatus(400);
+            body.addProperty("error", ex.getMessage());
+        } catch (IllegalStateException ex) {
+            res.setStatus(503);
+            body.addProperty("error", "AI chưa chấm được bài. Kiểm tra cấu hình, hạn mức hoặc thử lại sau.");
+            getServletContext().log("AI evaluation unavailable", ex);
+        }
+
+        res.getWriter().write(body.toString());
     }
 
     private Long teacher(HttpServletRequest req, HttpServletResponse res) throws IOException {

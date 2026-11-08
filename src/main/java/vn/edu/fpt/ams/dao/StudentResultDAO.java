@@ -26,10 +26,12 @@ public class StudentResultDAO {
               AND sub.submitted_at>=sub.started_at AND sub.submitted_at<=sub.deadline_at
               AND sub.submitted_at<=CURRENT_TIMESTAMP
             """;
+    private static final String CATALOG_OWNED = OWNED.replace(" AND a.assignment_id=?", "");
     private static final String RELEASED =
             """
             (sub.status='RELEASED' AND sub.graded_at>=sub.submitted_at
-             AND sub.released_at>=sub.graded_at AND sub.released_at<=CURRENT_TIMESTAMP)
+             AND sub.released_at>=sub.graded_at AND sub.released_at<=CURRENT_TIMESTAMP
+             AND (a.due_at<=CURRENT_TIMESTAMP OR a.closed_at IS NOT NULL))
             """;
     private static final String SUMMARY =
             """
@@ -76,7 +78,7 @@ public class StudentResultDAO {
                         SUMMARY
                                 + " "
                                 + OWNED
-                                + " ORDER BY sub.attempt_number DESC,sub.submission_id DESC")) {
+                                + " ORDER BY sub.attempt_number DESC,sub.submission_id DESC LIMIT 1")) {
             statement.setLong(1, studentId);
             statement.setLong(2, assignmentId);
 
@@ -126,6 +128,65 @@ public class StudentResultDAO {
                                 rows.getString("visible_feedback"),
                                 rows.getString("visible_evaluation"),
                                 rows.getLong("visible_revision")));
+            }
+        }
+    }
+
+    public List<StudentResultPage.Attempt> catalog(
+            Connection connection, long studentId, int page) throws SQLException {
+        String sql = "SELECT * FROM ("
+                + SUMMARY.replace("SELECT sub.submission_id", "SELECT DISTINCT ON (a.assignment_id) sub.submission_id")
+                + " " + CATALOG_OWNED
+                + " ORDER BY a.assignment_id DESC,sub.attempt_number DESC,sub.submission_id DESC) latest"
+                + " ORDER BY submitted_at DESC,submission_id DESC LIMIT " + StudentResultPage.PAGE_SIZE + " OFFSET ?";
+
+        try (var statement = connection.prepareStatement(sql)) {
+            statement.setLong(1, studentId);
+            statement.setLong(2, (long) (page - 1) * StudentResultPage.PAGE_SIZE);
+
+            try (var rows = statement.executeQuery()) {
+                var result = new ArrayList<StudentResultPage.Attempt>();
+
+                while (rows.next()) result.add(attempt(rows));
+
+                return result;
+            }
+        }
+    }
+
+    public long countCatalog(Connection connection, long studentId) throws SQLException {
+        try (var statement = connection.prepareStatement(
+                "SELECT count(DISTINCT a.assignment_id) " + CATALOG_OWNED)) {
+            statement.setLong(1, studentId);
+
+            try (var rows = statement.executeQuery()) {
+                rows.next();
+
+                return rows.getLong(1);
+            }
+        }
+    }
+
+    /** Own accepted content is exportable after expiry, without opening the evaluation gate. */
+    public Optional<Row> exportRow(
+            Connection connection, long studentId, long assignmentId, long submissionId)
+            throws SQLException {
+        String sql = SUMMARY + ",a.maximum_score,snapshot.assignment_data AS assignment_snapshot,"
+                + "snapshot.questions_data AS questions_snapshot,sub.content AS visible_content,"
+                + "sub.answer AS visible_answer " + OWNED + " AND sub.submission_id=?";
+
+        try (var statement = connection.prepareStatement(sql)) {
+            statement.setLong(1, studentId);
+            statement.setLong(2, assignmentId);
+            statement.setLong(3, submissionId);
+
+            try (var rows = statement.executeQuery()) {
+                if (!rows.next()) return Optional.empty();
+
+                return Optional.of(new Row(attempt(rows), rows.getBigDecimal("maximum_score"),
+                        rows.getString("assignment_snapshot"), rows.getString("questions_snapshot"),
+                        rows.getString("visible_content"), rows.getString("visible_answer"),
+                        null, null, 0));
             }
         }
     }

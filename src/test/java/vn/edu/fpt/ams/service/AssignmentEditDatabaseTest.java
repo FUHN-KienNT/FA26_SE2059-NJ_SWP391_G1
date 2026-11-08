@@ -291,8 +291,8 @@ class AssignmentEditDatabaseTest {
                         assertEquals(
                                 LocalDateTime.of(2026, 10, 13, 23, 59),
                                 LocalDateTime.parse(form.value("dueAt"))),
-                () -> assertEquals("25", form.value("timeLimitMinutes")),
-                () -> assertEquals("3", form.value("attemptLimit")));
+                () -> assertEquals("", form.value("timeLimitMinutes")),
+                () -> assertEquals("", form.value("attemptLimit")));
         var entered = questions(form);
 
         assertEquals(List.of(1001L, 1002L), questionIds(entered));
@@ -477,8 +477,8 @@ class AssignmentEditDatabaseTest {
                             assertEquals(
                                     Instant.parse("2026-10-16T11:45:00Z"),
                                     rows.getTimestamp("due_at").toInstant()),
-                    () -> assertEquals(40, rows.getInt("time_limit_minutes")),
-                    () -> assertEquals(5, rows.getInt("attempt_limit")),
+                    () -> assertNull(rows.getObject("time_limit_minutes")),
+                    () -> assertNull(rows.getObject("attempt_limit")),
                     () -> assertEquals("DRAFT", rows.getString("status")));
         }
 

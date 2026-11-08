@@ -47,8 +47,8 @@ public final class AssignmentPublicationValidator {
 
         String title = assignment.title();
 
-        if (blank(title) || title.codePointCount(0, title.length()) > 200)
-            errors.put("title", "Nhập tiêu đề từ 1 đến 200 ký tự.");
+        if (blank(title) || AssignmentRules.length(title) > AssignmentRules.MAX_SCENARIO)
+            errors.put("title", "Nhập tình huống chung từ 1 đến 4000 ký tự.");
 
         if (assignment.assignmentPurpose() == null)
             errors.put("purpose", "Chọn mục đích bài tập hợp lệ.");
@@ -65,9 +65,8 @@ public final class AssignmentPublicationValidator {
         if (!validMaximum)
             errors.put("maximumScore", "Điểm tối đa phải là số nguyên từ 1 đến 100.");
 
-        if (blank(assignment.instructions()))
-            errors.put("instructions", "Nhập hướng dẫn trước khi công bố.");
-        else if (AssignmentRules.length(assignment.instructions())
+        // Instructions are retained only for older assignments; new authoring omits this field.
+        if (AssignmentRules.length(assignment.instructions())
                 > AssignmentRules.MAX_INSTRUCTIONS)
             errors.put("instructions", "Hướng dẫn không được vượt quá 500 ký tự.");
 
@@ -79,19 +78,6 @@ public final class AssignmentPublicationValidator {
                 || (assignment.availableFrom() != null
                         && !assignment.dueAt().isAfter(assignment.availableFrom())))
             errors.put("dueAt", "Hạn nộp phải sau thời gian mở bài và thời gian hiện tại.");
-
-        if (assignment.timeLimitMinutes() != null
-                && (assignment.timeLimitMinutes() < AssignmentRules.MIN_MINUTES
-                        || assignment.timeLimitMinutes() > AssignmentRules.MAX_MINUTES))
-            errors.put("timeLimitMinutes", "Thời gian làm bài phải từ 20 đến 720 phút (12 giờ).");
-
-        if (assignment.assignmentPurpose() == AssignmentPurpose.REGULAR
-                && assignment.attemptLimit() != null)
-            errors.put("attemptLimit", "Giới hạn số lượt làm chỉ áp dụng cho bài luyện tập.");
-
-        if (assignment.assignmentPurpose() == AssignmentPurpose.PRACTICE
-                && (assignment.attemptLimit() == null || assignment.attemptLimit() <= 0))
-            errors.put("attemptLimit", "Nhập số lượt làm tối đa từ 1 trở lên cho bài luyện tập.");
 
         List<Question> savedQuestions = questions == null ? List.of() : questions;
 

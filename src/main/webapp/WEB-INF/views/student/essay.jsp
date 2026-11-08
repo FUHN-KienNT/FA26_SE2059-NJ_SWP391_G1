@@ -4,6 +4,11 @@
     var data = (StudentObjectivePage) request.getAttribute("assignmentPage");
     String base = request.getContextPath();
     boolean working = data.status() == SubmissionStatus.IN_PROGRESS;
+    boolean open = data.assignment().closedAt() == null
+            && data.assignment().availableFrom() != null
+            && !data.serverTime().isBefore(data.assignment().availableFrom())
+            && data.assignment().dueAt() != null
+            && data.serverTime().isBefore(data.assignment().dueAt());
     var tasks =
             working
                     ? EssayQuestions.read(data.assignment().taskChecklistJson())
@@ -31,6 +36,7 @@
         <%@ include file="../shared/shell.jspf" %>
 
         <main id="page-content" class="ams-content student-work">
+            <%@ include file="/WEB-INF/views/shared/action-notice.jspf" %>
             <div class="student-work-inner">
                 <p><a href="<%=base%>/student/dashboard">Bảng điều khiển</a> / <a
                         href="<%=base%>/student/classes?classId=<%=data.assignment().classId()%>">Chi tiết lớp</a> / Bài tự luận
@@ -39,19 +45,26 @@
                 <p>Lớp: <%=WebSupport.html(data.classCode())%> · Điểm tối đa: <%=WebSupport.html(data.assignment().maximumScore())%></p>
 
                 <section class="work-card">
-                    <h2>Hướng dẫn</h2><p class="pre-wrap"><%=WebSupport.html(data.assignment().instructions())%></p>
+                    <h2>Thông tin bài tập</h2>
+                    <% if (data.assignment().instructions() != null && !data.assignment().instructions().isBlank()) { %>
+                        <p class="pre-wrap"><%=WebSupport.html(data.assignment().instructions())%></p>
+                    <% } %>
                     <p>Mở bài: <%=WebSupport.html(AssignmentListView.deadline(data.assignment().availableFrom()))%> · Hạn nộp: <%=WebSupport.html(AssignmentListView.deadline(data.assignment().dueAt()))%> (UTC+07)</p>
-                    <p>Thời gian làm bài: <%=data.assignment().timeLimitMinutes()==null?"Đến hạn nộp":data.assignment().timeLimitMinutes()+" phút"%>. Bài tự nộp khi hết thời gian làm bài hoặc đến hạn nộp, tùy
-                        thời điểm nào đến trước.</p>
+                    <p>Bạn có thể làm và nộp lại trong thời gian mở bài. Hệ thống chỉ giữ bản nộp cuối cùng.
+                        Phần bài làm đã lưu được tự nộp khi đến hạn hoặc giảng viên khóa nộp bài.</p>
                 </section>
 
                 <% if (data.submissionId() == 0) { %>
                     <p>Nội dung câu hỏi và các yêu cầu sẽ hiển thị sau khi bạn bắt đầu lượt làm trong thời gian mở bài.</p>
 
+                    <% if (open) { %>
                     <form method="post" action="<%=base%>/student/assignments"><input type="hidden" name="csrf"
                             value="<%=WebSupport.html(WebSupport.csrf(request))%>"><input type="hidden" name="assignmentId"
                             value="<%=data.assignment().assignmentId()%>"><button type="submit" name="action" value="start">Bắt đầu / tiếp tục
                             làm bài</button></form>
+                    <% } else { %>
+                        <p class="work-notice" role="status">Bài tập chưa mở, đã hết hạn hoặc đã khóa nộp bài.</p>
+                    <% } %>
                 <% } else if (working) { %>
                     <p class="work-notice">Lượt <%=data.attemptNumber()%> · Nộp trước <%=WebSupport.html(AssignmentListView.deadline(data.deadline()))%> (UTC+07). Trả lời riêng từng
                         yêu cầu; sơ đồ được lưu cùng bài làm.</p>
@@ -90,11 +103,16 @@
 
                                         <% if (!r.answerType().equals("TEXT")) { %>
                                             <div class="essay-diagram">
-                                                <div class="essay-diagram-actions"><button type="button" class="open-diagram">Mở trình
-                                                        vẽ draw.io</button><button type="button" class="open-plantuml">Vẽ bằng
-                                                        PlantUML</button><button type="button" class="remove-diagram"
+                                                <div class="essay-diagram-actions">
+                                                    <% if (r.allowedTools().contains("DRAWIO")) { %>
+                                                        <button type="button" class="open-diagram">Mở trình vẽ draw.io</button>
+                                                    <% } %>
+                                                    <% if (r.allowedTools().contains("PLANTUML")) { %>
+                                                        <button type="button" class="open-plantuml">Vẽ bằng PlantUML</button>
+                                                    <% } %>
+                                                    <button type="button" class="remove-diagram"
                                                         <%=answer.image().isBlank()?"hidden":""%>>Xóa sơ đồ</button></div>
-                                                <p class="essay-hint">Chọn draw.io để kéo thả hoặc PlantUML để viết mã sơ đồ. Hình được
+                                                <p class="essay-hint">Sử dụng công cụ giảng viên cho phép ở yêu cầu này. Hình được
                                                     tự cắt khoảng trắng và lưu vào đúng yêu cầu này; mở lại cùng trình vẽ để tiếp tục
                                                     sửa. draw.io cần kết nối Internet.</p>
                                                 <textarea class="diagram-xml" name="diagram_xml_<%=task.order()%>_<%=r.order()%>" hidden><%=WebSupport.html(answer.xml())%></textarea><textarea class="diagram-plantuml" name="diagram_plantuml_<%=task.order()%>_<%=r.order()%>" hidden><%=WebSupport.html(answer.plantuml())%></textarea><textarea class="diagram-image" name="diagram_image_<%=task.order()%>_<%=r.order()%>" hidden><%=WebSupport.html(answer.image())%></textarea><img
@@ -155,8 +173,16 @@
                         %>
                             <p><a
                                     href="<%=base%>/student/results?assignmentId=<%=data.assignment().assignmentId()%>&amp;submissionId=<%=data.submissionId()%>"><%=data.status()==SubmissionStatus.RELEASED?"Xem kết quả":"Xem trạng thái kết quả"%></a>
-                                · <a href="<%=base%>/student/results?assignmentId=<%=data.assignment().assignmentId()%>">Lịch sử nộp bài</a>
+                                · <a href="<%=base%>/student/results?assignmentId=<%=data.assignment().assignmentId()%>&amp;submissionId=<%=data.submissionId()%>&amp;download=1">Xuất bài làm của tôi</a>
                             </p>
+                        <% } %>
+
+                        <% if (open && data.status() != SubmissionStatus.VOID) { %>
+                            <form method="post" action="<%=base%>/student/assignments">
+                                <input type="hidden" name="csrf" value="<%=WebSupport.html(WebSupport.csrf(request))%>">
+                                <input type="hidden" name="assignmentId" value="<%=data.assignment().assignmentId()%>">
+                                <button type="submit" name="action" value="start">Làm lại bài</button>
+                            </form>
                         <% } %>
 
                         <a href="<%=base%>/student/classes?classId=<%=data.assignment().classId()%>">Quay về bài tập của lớp</a>

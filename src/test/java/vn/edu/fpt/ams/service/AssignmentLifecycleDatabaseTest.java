@@ -412,7 +412,7 @@ class AssignmentLifecycleDatabaseTest {
     void incompleteAndPastDueDraftsShowErrorsAndFailedPublishChangesNothing() throws SQLException {
         var service = service();
 
-        for (long assignmentId : new long[] {105, 106, 107, 108}) {
+        for (long assignmentId : new long[] {105, 106, 107}) {
             var before = snapshot(assignmentId);
             var page = service.lifecyclePage(1, assignmentId, "publish");
 
@@ -435,12 +435,12 @@ class AssignmentLifecycleDatabaseTest {
 
         var errors = service.lifecyclePage(1, 105, "publish").errors();
 
-        assertTrue(errors.containsKey("instructions"));
+        assertFalse(errors.containsKey("instructions"));
         assertTrue(errors.containsKey("availableFrom"));
         assertTrue(errors.containsKey("dueAt"));
         assertTrue(errors.containsKey("questionsJson"));
         assertTrue(service.lifecyclePage(1, 106, "publish").errors().containsKey("dueAt"));
-        assertTrue(service.lifecyclePage(1, 108, "publish").errors().containsKey("attemptLimit"));
+        assertFalse(service.lifecyclePage(1, 108, "publish").errors().containsKey("attemptLimit"));
     }
 
     @Test
@@ -485,14 +485,14 @@ class AssignmentLifecycleDatabaseTest {
     }
 
     @Test
-    void essayNeedsInstructionsAndScoredQuestionsButNoScopeBeforePublication() throws SQLException {
+    void essayNeedsScoredQuestionsButNoInstructionsOrScopeBeforePublication() throws SQLException {
         execute(
                 "UPDATE assignments SET instructions=' ',scope_text='',task_checklist='[]'::jsonb WHERE assignment_id=102");
         var service = service();
         var before = snapshot(102);
         var page = service.lifecyclePage(1, 102, "publish");
 
-        assertTrue(page.errors().containsKey("instructions"));
+        assertFalse(page.errors().containsKey("instructions"));
         assertFalse(page.errors().containsKey("scopeText"));
         assertTrue(page.errors().containsKey("tasksJson"));
         assertThrows(
@@ -508,11 +508,15 @@ class AssignmentLifecycleDatabaseTest {
         assertTrue(service.lifecyclePage(1, 102, "publish").errors().containsKey("tasksJson"));
         execute(
                 """
-                UPDATE assignments SET scope_text='',
+                UPDATE assignments SET scope_text='',instructions='',
                     task_checklist='[{"task_order":1,"title":"Valid task","description":"Details","maximum_points":10}]'::jsonb
                 WHERE assignment_id=102
                 """);
-        assertTrue(service.lifecyclePage(1, 102, "publish").errors().isEmpty());
+        var publishable = service.lifecyclePage(1, 102, "publish");
+        assertTrue(publishable.errors().isEmpty());
+        service.publishAssignment(1, 102, publishable.revision());
+        assertEquals("PUBLISHED", snapshot(102).assignment().get("status").getAsString());
+        assertEquals("", snapshot(102).assignment().get("instructions").getAsString());
     }
 
     @Test

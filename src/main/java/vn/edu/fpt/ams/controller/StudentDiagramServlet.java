@@ -113,9 +113,11 @@ public class StudentDiagramServlet extends HttpServlet {
                 EssayQuestions.read(page.assignment().taskChecklistJson()).stream()
                         .filter(t -> t.order() == task)
                         .flatMap(t -> t.requirements().stream())
-                        .anyMatch(r -> r.order() == requirement && !"TEXT".equals(r.answerType()));
+                        .anyMatch(r -> r.order() == requirement
+                                && !"TEXT".equals(r.answerType())
+                                && r.allowedTools().contains("PLANTUML"));
 
         if (!allowed)
-            throw new IllegalArgumentException("Yêu cầu này không nhận câu trả lời bằng sơ đồ.");
+            throw new IllegalArgumentException("Giảng viên không cho phép dùng PlantUML ở yêu cầu này.");
     }
 }

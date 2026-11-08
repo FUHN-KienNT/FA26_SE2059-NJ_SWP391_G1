@@ -1,3 +1,6 @@
 <%@ page pageEncoding="UTF-8" %>
 <link rel="stylesheet" href="${pageContext.request.contextPath}/css/common-ui.css">
+<link rel="stylesheet" href="${pageContext.request.contextPath}/css/pagination.css?v=20261108-numeric">
+<link rel="stylesheet" href="${pageContext.request.contextPath}/css/publish-confirmation.css?v=20261108">
 <script src="${pageContext.request.contextPath}/js/common-ui.js" defer></script>
+<script src="${pageContext.request.contextPath}/js/publish-confirmation.js?v=20261108-custom-validation" defer></script>

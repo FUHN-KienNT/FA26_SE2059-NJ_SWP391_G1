@@ -13,7 +13,7 @@ else if("teacher".equals(uiArea)) uiLinks = new String[][]{
     {"/teacher/classes","Lớp phụ trách"},
     {"/teacher/templates","Mẫu bài tập"}
 };
-else uiLinks = new String[][]{{"/student/dashboard","Bảng điều khiển"},{"/student/subjects","Môn học"},{"/student/classes","Lớp của tôi"},{"/student/assignments","Bài tập"}};
+else uiLinks = new String[][]{{"/student/dashboard","Bảng điều khiển"},{"/student/subjects","Môn học"},{"/student/classes","Lớp của tôi"}};
 %>
 <a class="ams-skip" href="#page-content">Đến nội dung chính</a>
 <header class="ams-header">
@@ -24,7 +24,7 @@ else uiLinks = new String[][]{{"/student/dashboard","Bảng điều khiển"},{"
 </header>
 <div class="ams-layout">
 <aside class="ams-sidebar" id="ams-navigation"><nav aria-label="Điều hướng chính">
-<% for(String[] uiLink:uiLinks){ boolean uiActive=uiLink[0].equals(uiPath) || ("/admin/terms".equals(uiLink[0]) && "/admin/master-data".equals(uiPath)); %>
+<% for(String[] uiLink:uiLinks){ boolean uiActive=uiLink[0].equals(uiPath) || ("/admin/terms".equals(uiLink[0]) && "/admin/master-data".equals(uiPath)) || ("/student/classes".equals(uiLink[0]) && "/student/assignments".equals(uiPath)); %>
 <a href="${pageContext.request.contextPath}<%=uiLink[0]%>" <%=uiActive?"aria-current=\"page\"":""%>><%=uiLink[1]%></a>
 <% } %>
 </nav><p class="ams-sidebar-note"><%=vn.edu.fpt.ams.util.WebSupport.html(uiRoleLabel)%></p></aside>

@@ -287,3 +287,83 @@
         padding: 0
     }
 }
+.multi-combobox {
+    border: 1px solid #bdcce1;
+    border-radius: 8px;
+    background: #fff;
+    margin: 8px 0 14px;
+}
+
+.multi-combobox summary {
+    cursor: pointer;
+    padding: 12px 14px;
+    color: #183956;
+}
+
+.multi-combobox-options {
+    padding: 0 14px 12px;
+    max-height: 240px;
+    overflow-y: auto;
+}
+
+.multi-combobox-options label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    margin: 0;
+}
+
+.multi-combobox-options input[type="checkbox"] {
+    width: 18px;
+    min-height: 18px;
+    height: 18px;
+    margin: 0;
+}
+
+.assignment-create .drawing-tools {
+    margin: 8px 0 14px;
+    padding: 12px 14px;
+    border: 1px solid #bdcce1;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.assignment-create .selected-drawing-tools {
+    margin: 0 0 12px;
+    color: #183956;
+}
+
+.assignment-create .drawing-tool-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 24px;
+}
+
+.assignment-create .drawing-tool-choice {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    cursor: pointer;
+}
+
+.assignment-create .drawing-tool-choice input[type="checkbox"] {
+    width: 18px;
+    min-height: 18px;
+    height: 18px;
+    margin: 0;
+}
+
+.rubric-field {
+    display: block;
+    margin-top: 16px;
+    padding: 14px;
+    border-radius: 8px;
+    background: #f4f0ff;
+    color: #49347b;
+}
+
+#client-form-error:empty {
+    display: none;
+}

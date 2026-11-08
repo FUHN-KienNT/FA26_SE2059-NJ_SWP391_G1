@@ -33,8 +33,8 @@ public final class AssignmentDraftValidator {
         long templateId = id(form.value("templateId"), "templateId", errors);
         String title = form.value("title").strip();
 
-        if (title.isBlank() || title.codePointCount(0, title.length()) > 200)
-            errors.put("title", "Nhập tiêu đề từ 1 đến 200 ký tự.");
+        if (title.isBlank() || AssignmentRules.length(title) > AssignmentRules.MAX_SCENARIO)
+            errors.put("title", "Nhập tình huống chung từ 1 đến 4000 ký tự.");
 
         AssignmentPurpose purpose =
                 enumValue(AssignmentPurpose.class, form.value("purpose"), "purpose", errors);
@@ -55,20 +55,9 @@ public final class AssignmentDraftValidator {
         if (opens != null && due != null && !due.isAfter(opens))
             errors.put("dueAt", "Hạn nộp phải sau thời gian mở bài.");
 
-        Integer minutes =
-                positiveInteger(form.value("timeLimitMinutes"), "timeLimitMinutes", errors);
-
-        if (minutes != null
-                && (minutes < AssignmentRules.MIN_MINUTES || minutes > AssignmentRules.MAX_MINUTES))
-            errors.put("timeLimitMinutes", "Thời gian làm bài phải từ 20 đến 720 phút (12 giờ).");
-
-        Integer attempts = positiveInteger(form.value("attemptLimit"), "attemptLimit", errors);
-
-        if (purpose == AssignmentPurpose.PRACTICE && attempts == null)
-            errors.put("attemptLimit", "Số lượt làm tối đa phải là số nguyên từ 1 trở lên.");
-
-        if (purpose == AssignmentPurpose.REGULAR && attempts != null)
-            errors.put("attemptLimit", "Giới hạn số lượt làm chỉ áp dụng cho bài luyện tập.");
+        // The opening/deadline window is the sole time restriction; repeat submissions are unlimited.
+        Integer minutes = null;
+        Integer attempts = null;
 
         JsonArray tasks = new JsonArray();
 

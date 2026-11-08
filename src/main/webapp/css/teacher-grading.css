@@ -1,0 +1,174 @@
+.grading-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    align-items: start;
+    gap: 24px;
+}
+
+.grading-main, .grading-sidebar {
+    min-width: 0;
+}
+
+.grading-tabs {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 4px 0 16px;
+}
+
+.grading-tabs button {
+    flex-shrink: 0;
+    padding: 12px 16px;
+    background: #fff;
+    color: #23476c;
+    border: 1px solid #bdcfe5;
+    border-radius: 8px;
+    font: inherit;
+    cursor: pointer;
+}
+
+.grading-tabs button[aria-selected="true"] {
+    color: #fff;
+    background: #285eaa;
+    border-color: #285eaa;
+}
+
+.grading-layout [hidden], .evaluation-dialog[hidden] {
+    display: none !important;
+}
+
+.grading-layout .detail-card {
+    margin-bottom: 22px;
+}
+
+.grading-layout .content-text {
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+}
+
+.grading-question h2 {
+    font-size: 21px;
+    line-height: 1.6;
+}
+
+.grading-requirement, .grading-rubric {
+    margin-top: 22px;
+    padding: 18px;
+    border: 1px solid #d4dfed;
+    border-radius: 9px;
+    background: #f7f9fd;
+}
+
+.grading-rubric {
+    border-left: 4px solid #7293bf;
+}
+
+.grading-sidebar .requirement-evaluation {
+    display: block;
+    padding: 0;
+    border: 0;
+}
+
+.grading-sidebar label {
+    display: block;
+    margin: 16px 0 8px;
+    font-weight: 600;
+}
+
+.grading-sidebar textarea, .grading-sidebar input[type="text"] {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 11px;
+    border: 1px solid #b9cce4;
+    border-radius: 7px;
+    font: inherit;
+    color: inherit;
+}
+
+.grading-sidebar .evaluation-score-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.grading-sidebar .evaluation-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.grading-sidebar .metadata {
+    display: block;
+}
+
+.grading-sidebar .metadata dt {
+    margin-top: 14px;
+}
+
+.grading-sidebar .metadata dd {
+    margin: 4px 0 0;
+    overflow-wrap: anywhere;
+}
+
+.ai-feedback {
+    background: #f4ecff !important;
+    border-color: #b896dc !important;
+    color: #5b2e86;
+}
+
+.ai-feedback-label {
+    display: block;
+    margin-top: 7px;
+    color: #75449c;
+    font-size: 13px;
+}
+
+.evaluation-notice {
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    border-radius: 9px;
+    border: 1px solid #aec9b9;
+    background: #effaf3;
+    color: #1b603d;
+}
+
+.evaluation-notice.evaluation-error {
+    color: #a02222;
+    background: #fff2f2;
+    border-color: #edb6b6;
+}
+
+.evaluation-dialog {
+    max-width: 540px;
+    width: calc(100vw - 60px);
+    border: 1px solid #c0cfe2;
+    border-radius: 12px;
+    padding: 25px;
+    color: #17395b;
+}
+
+.evaluation-dialog::backdrop {
+    background: #17395b70;
+}
+
+.evaluation-dialog textarea {
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    margin: 12px 0;
+    padding: 10px;
+    font: inherit;
+}
+
+.evaluation-history .table-scroll {
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+@media (max-width: 1000px) {
+    .grading-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

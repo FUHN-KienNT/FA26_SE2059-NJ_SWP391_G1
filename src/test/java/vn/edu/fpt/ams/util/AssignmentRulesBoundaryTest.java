@@ -115,34 +115,16 @@ class AssignmentRulesBoundaryTest {
     }
 
     @Test
-    void timeAndPracticeAttemptsRejectExpressionsAndInvalidBounds() {
-        for (String value : List.of("19", "721", "20.0", "20+20", "2e1", "abc", "0")) {
-            var form = essay();
-
-            form.put("timeLimitMinutes", value);
-            invalid(form, "timeLimitMinutes");
-        }
-
-        for (String value : List.of("", "20", "720")) {
-            var form = essay();
-
-            form.put("timeLimitMinutes", value);
-            assertDoesNotThrow(() -> validate(form));
-        }
-
-        for (String value : List.of("", "0", "1.0", "1+1", "abc", "2147483648")) {
+    void removedTimeAndAttemptValuesAreIgnoredForEveryPurpose() {
+        for (String value : List.of("", "19", "721", "20.0", "20+20", "abc", "0", "2147483648")) {
             var form = objective("10");
-
             form.put("purpose", "PRACTICE");
+            form.put("timeLimitMinutes", value);
             form.put("attemptLimit", value);
-            invalid(form, "attemptLimit");
+            var assignment = validate(form).assignment();
+            assertNull(assignment.timeLimitMinutes());
+            assertNull(assignment.attemptLimit());
         }
-
-        var form = objective("10");
-
-        form.put("purpose", "PRACTICE");
-        form.put("attemptLimit", "1");
-        assertEquals(1, validate(form).assignment().attemptLimit());
     }
 
     @Test

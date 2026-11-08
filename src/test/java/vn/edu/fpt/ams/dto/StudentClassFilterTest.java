@@ -25,7 +25,7 @@ class StudentClassFilterTest {
                 })
             assertEquals(status, StudentClassFilter.from("", "OBJECTIVE", status, "1").status());
 
-        assertEquals(12, StudentClassFilter.PAGE_SIZE);
+        assertEquals(10, StudentClassFilter.PAGE_SIZE);
     }
 
     @Test
@@ -71,5 +71,29 @@ class StudentClassFilterTest {
 
         assertEquals(new StudentClassFilter("Essay", "ESSAY", "SUBMITTED", 3), filter.withPage(3));
         assertThrows(IllegalArgumentException.class, () -> filter.withPage(-1));
+    }
+
+    @Test
+    void timeSortIsValidatedAndSurvivesPaginationAndWorkTabs() {
+        var original = StudentClassFilter.from("Câu hỏi", "essay", "not_started", "3", " due_desc ");
+        assertEquals("DUE_DESC", original.sort());
+        assertEquals("DUE_DESC", original.withPage(4).sort());
+        assertEquals("DUE_DESC", original.withStatus("DONE").sort());
+        assertEquals(1, original.withStatus("DONE").page());
+        assertEquals("DUE_ASC", original.nextDeadlineSort());
+        assertEquals("DUE_DESC", original.withSort(original.nextDeadlineSort()).nextDeadlineSort());
+        var opening = original.withSort(original.nextOpenSort());
+        assertEquals("OPEN_DESC", opening.sort());
+        assertEquals(1, opening.page());
+        assertEquals("Câu hỏi", opening.search());
+        assertEquals("ESSAY", opening.responseType());
+        assertEquals("NOT_STARTED", opening.status());
+        assertEquals("OPEN_ASC", opening.nextOpenSort());
+        assertEquals("descending", opening.sortDirection());
+        assertEquals("ascending", opening.withSort("OPEN_ASC").sortDirection());
+        assertEquals("none", opening.withSort("DEFAULT").sortDirection());
+        for (String sort : new String[] {"DUE", "newest", "due_at DESC", "OPEN_DESC,DUE_ASC", "DUE_DESC;DROP TABLE assignments"})
+            assertThrows(IllegalArgumentException.class,
+                    () -> StudentClassFilter.from("", "", "", "1", sort));
     }
 }

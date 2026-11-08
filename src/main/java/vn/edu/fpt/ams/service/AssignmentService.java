@@ -68,53 +68,48 @@ public class AssignmentService {
     }
 
     public long createAssignment(long teacherId, AssignmentForm form) {
+        return createAssignment(teacherId, form, false);
+    }
+
+    public long createAssignment(long teacherId, AssignmentForm form, boolean publish) {
         var draft = AssignmentDraftValidator.validate(form);
         Assignment assignment = draft.assignment();
+        List<Long> targetIds = form.selectedClassIds();
 
         try (Connection connection = connections.open()) {
             connection.setAutoCommit(false);
-
             try {
-                // Keep authorization valid until both parent and nested content are saved.
                 if (!dao.lockActiveTeacher(connection, teacherId))
                     throw new SecurityException("Cần tài khoản giảng viên đang hoạt động.");
 
-                requireSelectable(
-                        connection,
-                        SettingType.ASSIGNMENT_TYPE,
-                        assignment.assignmentPurpose().name(),
-                        "purpose");
-                requireSelectable(
-                        connection,
-                        SettingType.RESPONSE_TYPE,
-                        assignment.responseType().name(),
-                        "responseType");
+                requireSelectable(connection, SettingType.ASSIGNMENT_TYPE,
+                        assignment.assignmentPurpose().name(), "purpose");
+                requireSelectable(connection, SettingType.RESPONSE_TYPE,
+                        assignment.responseType().name(), "responseType");
                 var context = dao.findCreatePage(connection, teacherId, assignment.classId(), true);
+                authorizeTargets(connection, teacherId, context.subjectId(), targetIds);
+                if (!dao.lockActiveTemplate(connection, assignment.templateId(), context.subjectId()))
+                    throw new AssignmentDraftValidator.ValidationException(Map.of("templateId",
+                            "Hãy chọn mẫu đang hoạt động thuộc môn học của lớp này."));
 
-                if (!dao.lockActiveTemplate(
-                        connection, assignment.templateId(), context.subjectId()))
-                    throw new AssignmentDraftValidator.ValidationException(
-                            Map.of(
-                                    "templateId",
-                                    "Hãy chọn mẫu đang hoạt động thuộc môn học của lớp này."));
-
-                long id = dao.insertDraft(connection, assignment);
-
-                dao.insertDraftQuestions(connection, id, draft.questions());
-                connection.commit();
-
-                return id;
-            } catch (SQLException | RuntimeException ex) {
-                try {
-                    connection.rollback();
-                } catch (SQLException rollback) {
-                    ex.addSuppressed(rollback);
+                var now = publish ? dao.currentTime(connection) : null;
+                if (publish) validatePublication(assignment, draft.questions(), now);
+                long primaryId = 0;
+                for (long targetId : targetIds) {
+                    long id = dao.insertDraft(connection, forClass(assignment, targetId));
+                    dao.insertDraftQuestions(connection, id, draft.questions());
+                    if (publish) dao.markPublished(connection, id, now);
+                    if (primaryId == 0 || targetId == assignment.classId()) primaryId = id;
                 }
 
+                connection.commit();
+                return primaryId;
+            } catch (SQLException | RuntimeException ex) {
+                try { connection.rollback(); } catch (SQLException rollback) { ex.addSuppressed(rollback); }
                 throw ex;
             }
         } catch (SQLException ex) {
-            throw new IllegalStateException("Không thể lưu bản nháp.", ex);
+            throw new IllegalStateException("Không thể lưu bài tập cho các lớp đã chọn.", ex);
         }
     }
 
@@ -166,7 +161,7 @@ public class AssignmentService {
                                     context.className(),
                                     context.subjectCode(),
                                     context.subjectName(),
-                                    List.copyOf(templates));
+                                    List.copyOf(templates), context.eligibleClasses());
                 }
 
                 connection.commit();
@@ -188,6 +183,10 @@ public class AssignmentService {
     }
 
     public void updateAssignment(long teacherId, long assignmentId, AssignmentForm form) {
+        updateAssignment(teacherId, assignmentId, form, false);
+    }
+
+    public void updateAssignment(long teacherId, long assignmentId, AssignmentForm form, boolean publish) {
         if (teacherId <= 0) throw new SecurityException("Cần tài khoản giảng viên đang hoạt động.");
 
         if (assignmentId <= 0) throw new IllegalArgumentException("Bài tập không hợp lệ.");
@@ -245,8 +244,26 @@ public class AssignmentService {
                                     "templateId",
                                     "Hãy chọn mẫu đang hoạt động thuộc môn học của lớp này."));
 
+                var targetIds = form.selectedClassIds();
+                authorizeTargets(connection, teacherId, context.subjectId(), targetIds);
+                boolean creatingCopies = targetIds.stream().anyMatch(id -> id != stored.classId());
+                if (creatingCopies && !dao.lockActiveTemplate(connection,
+                        draft.assignment().templateId(), context.subjectId()))
+                    throw new AssignmentDraftValidator.ValidationException(Map.of("templateId",
+                            "Chọn mẫu đang hoạt động trước khi giao bản sao sang lớp khác."));
+
+                var now = publish ? dao.currentTime(connection) : null;
+                if (publish) validatePublication(draft.assignment(), draft.questions(), now);
                 dao.updateDraft(connection, assignmentId, draft.assignment());
                 dao.replaceDraftQuestions(connection, assignmentId, existing, draft.questions());
+                if (publish) dao.markPublished(connection, assignmentId, now);
+                for (long targetId : targetIds) {
+                    if (targetId == stored.classId()) continue;
+                    long copyId = dao.insertDraft(connection, forClass(draft.assignment(), targetId));
+                    dao.insertDraftQuestions(connection, copyId, draft.questions());
+                    if (publish) dao.markPublished(connection, copyId, now);
+                }
+
                 connection.commit();
             } catch (SQLException | RuntimeException ex) {
                 try {
@@ -260,6 +277,42 @@ public class AssignmentService {
         } catch (SQLException ex) {
             throw new IllegalStateException("Không thể lưu thay đổi của bản nháp.", ex);
         }
+    }
+
+    private void authorizeTargets(Connection connection, long teacherId, long subjectId,
+                                  List<Long> targetIds) throws SQLException {
+        for (long classId : targetIds) {
+            var target = dao.findCreatePage(connection, teacherId, classId, true);
+            if (target.subjectId() != subjectId)
+                throw new AssignmentDraftValidator.ValidationException(Map.of("targetClassIds",
+                        "Chỉ giao cùng đề cho các lớp thuộc cùng môn học."));
+        }
+    }
+
+    private static Assignment forClass(Assignment assignment, long classId) {
+        return new Assignment(0, classId, assignment.templateId(), assignment.title(),
+                assignment.assignmentPurpose(), assignment.responseType(), assignment.instructions(),
+                assignment.scopeText(), assignment.taskChecklistJson(), assignment.maximumScore(),
+                AssignmentStatus.DRAFT, assignment.availableFrom(), assignment.dueAt(), null, null,
+                null, null);
+    }
+
+    private static void validatePublication(Assignment assignment, List<Question> questions,
+                                            java.time.Instant now) {
+        Assignment candidate = new Assignment(1, assignment.classId(), assignment.templateId(),
+                assignment.title(), assignment.assignmentPurpose(), assignment.responseType(),
+                assignment.instructions(), assignment.scopeText(), assignment.taskChecklistJson(),
+                assignment.maximumScore(), AssignmentStatus.DRAFT, assignment.availableFrom(),
+                assignment.dueAt(), null, null, null, null);
+        List<Question> candidateQuestions = new java.util.ArrayList<>();
+        for (int index = 0; index < questions.size(); index++) {
+            var question = questions.get(index);
+            candidateQuestions.add(new Question(index + 1, 1, index + 1, question.questionText(),
+                    question.maximumPoints(), question.options()));
+        }
+
+        var errors = AssignmentPublicationValidator.errors(candidate, candidateQuestions, now);
+        if (!errors.isEmpty()) throw new AssignmentDraftValidator.ValidationException(errors);
     }
 
     private static void requireDraft(Assignment a) {
@@ -313,8 +366,13 @@ public class AssignmentService {
                     throw new SecurityException("Bạn không có quyền xem bài tập của lớp này.");
 
                 Long selected = classId;
+                long total = dao.countForTeacher(connection, teacherId, selected, filter);
+                int lastPage = (int) Math.max(1,
+                        (total + AssignmentListFilter.PAGE_SIZE - 1) / AssignmentListFilter.PAGE_SIZE);
+                AssignmentListFilter effective = filter.withPage(Math.min(filter.page(), lastPage));
                 List<Assignment> assignments =
-                        dao.findForTeacher(connection, teacherId, selected, filter);
+                        dao.findForTeacher(connection, teacherId, selected, effective);
+                var creationTimes = dao.creationTimes(connection, teacherId, selected);
                 java.util.Set<Long> submissionAssignmentIds = new java.util.HashSet<>();
 
                 for (Assignment assignment : assignments) {
@@ -330,7 +388,8 @@ public class AssignmentService {
                 connection.commit();
 
                 return new AssignmentListPage(
-                        classes, selected, filter, assignments, submissionAssignmentIds);
+                        classes, selected, effective, assignments, submissionAssignmentIds,
+                        total, creationTimes);
             } catch (SQLException | RuntimeException ex) {
                 try {
                     connection.rollback();

@@ -320,7 +320,7 @@ class AssignmentEditServletTest {
             else assertEquals(createdId, exchange.session.get("createdAssignmentId"));
 
             for (String field : AssignmentForm.FIELDS)
-                assertEquals(exchange.params.get(field), service.submitted.value(field));
+                assertEquals(exchange.params.getOrDefault(field, ""), service.submitted.value(field));
 
             assertNull(exchange.forward);
         }

@@ -1,4 +1,5 @@
 <%@ page contentType="text/html;charset=UTF-8" import="vn.edu.fpt.ams.dto.StudentClassPage,vn.edu.fpt.ams.util.WebSupport,vn.edu.fpt.ams.util.AssignmentListView,vn.edu.fpt.ams.util.StudentClassView,vn.edu.fpt.ams.util.Vietnamese" %>
+<%@ taglib prefix="ams" tagdir="/WEB-INF/tags" %>
 
 <%
     var classPage = (StudentClassPage) request.getAttribute("classPage");
@@ -6,7 +7,7 @@
     var classFilter = classPage.filter();
     String classContext = request.getContextPath();
     String[] workOptions = {
-        "NOT_STARTED", "IN_PROGRESS", "SUBMITTED", "GRADED", "RELEASED", "EXPIRED", "VOID"
+        "NOT_STARTED", "IN_PROGRESS", "DONE", "SUBMITTED", "GRADED", "RELEASED", "EXPIRED", "VOID"
     };
 %>
 
@@ -20,12 +21,13 @@
         <%@ include file="/WEB-INF/views/shared/assets.jspf" %>
 
         <link rel="stylesheet" href="${pageContext.request.contextPath}/css/student-dashboard.css?v=20261021-iter2">
-        <link rel="stylesheet" href="${pageContext.request.contextPath}/css/student-class.css?v=20261103">
+        <link rel="stylesheet" href="${pageContext.request.contextPath}/css/student-class.css?v=20261108-time-sort">
     </head>
     <body class="ams-ui student-dashboard student-class">
         <%@ include file="/WEB-INF/views/shared/shell.jspf" %>
 
         <main class="ams-content student-main" id="page-content">
+            <%@ include file="/WEB-INF/views/shared/action-notice.jspf" %>
             <div class="student-page">
                 <nav class="class-breadcrumb" aria-label="Đường dẫn">
                     <a href="${pageContext.request.contextPath}/student/dashboard">Bảng điều khiển</a>
@@ -35,12 +37,16 @@
                 <header class="student-heading">
                     <div>
                         <p class="student-eyebrow">LỚP HỌC CỦA TÔI</p>
-                        <h1><%=classroom == null ? "Lớp học của tôi" : WebSupport.html(classroom.classCode())%></h1>
+                        <h1><%=classroom == null ? "Lớp học của tôi" : "Bài tập"%></h1>
                         <p><%=classroom == null ? "Theo dõi thông tin lớp và bài tập được giao cho bạn." : WebSupport.html(classroom.className())%></p>
                     </div>
 
                     <% if (classroom != null) { %>
                         <form class="class-switch" method="get" action="${pageContext.request.contextPath}/student/classes">
+                            <input type="hidden" name="q" value="<%=WebSupport.html(classFilter.search())%>">
+                            <input type="hidden" name="responseType" value="<%=WebSupport.html(classFilter.responseType())%>">
+                            <input type="hidden" name="status" value="<%=WebSupport.html(classFilter.status())%>">
+                            <input type="hidden" name="sort" value="<%=WebSupport.html(classFilter.sort())%>">
                             <label for="class-picker">Chọn lớp đang tham gia</label>
                             <div><select id="class-picker" name="classId">
 
@@ -89,7 +95,7 @@
                     <section class="student-summary class-summary" aria-label="Tổng quan bài tập của lớp">
                         <article class="student-summary-card">
                             <h2>Tổng bài tập</h2><strong><%=classPage.counts().total()%></strong>
-                            <p>Bài đã công bố hoặc đã hủy</p>
+                            <p>Bài đã công bố còn hạn</p>
                         </article>
 
                         <article class="student-summary-card">
@@ -112,15 +118,24 @@
                         <header class="student-panel-heading">
                             <div>
                                 <h2 id="class-assignments-title">Bài tập trong lớp</h2>
-                                <p>Trạng thái lượt làm hiển thị lượt mới nhất của bạn. Thời gian theo giờ Việt Nam (UTC+07).
+                                <p>Các bài còn hạn. <%=WebSupport.html(StudentClassView.sortSummary(classFilter))%> Thời gian theo giờ Việt Nam (UTC+07).
                                 </p>
                             </div>
                             <span class="student-count"><%=classPage.total()%> bài tập</span>
                         </header>
 
+                        <nav class="class-work-tabs" aria-label="Trạng thái bài làm">
+                            <a class="<%=classFilter.status().isEmpty()?"active":""%>" href="<%=WebSupport.html(StudentClassView.pageUrl(classContext, classroom.classId(), classFilter.withStatus(""),1))%>">Tất cả</a>
+                            <a class="<%="NOT_STARTED".equals(classFilter.status())?"active":""%>" href="<%=WebSupport.html(StudentClassView.pageUrl(classContext, classroom.classId(), classFilter.withStatus("NOT_STARTED"),1))%>">Chưa làm</a>
+                            <a class="<%="DONE".equals(classFilter.status())?"active":""%>" href="<%=WebSupport.html(StudentClassView.pageUrl(classContext, classroom.classId(), classFilter.withStatus("DONE"),1))%>">Đã làm</a>
+                            <a class="<%="IN_PROGRESS".equals(classFilter.status())?"active":""%>" href="<%=WebSupport.html(StudentClassView.pageUrl(classContext, classroom.classId(), classFilter.withStatus("IN_PROGRESS"),1))%>">Lưu nháp</a>
+                            <a href="<%=classContext%>/student/results">Bài làm đã nộp / xuất file</a>
+                        </nav>
+
                         <form class="class-filters" method="get"
                             action="${pageContext.request.contextPath}/student/classes">
                             <input type="hidden" name="classId" value="<%=classroom.classId()%>">
+                            <input type="hidden" name="sort" value="<%=WebSupport.html(classFilter.sort())%>">
                             <label for="class-search">Tìm bài tập<input id="class-search" type="search" name="q"
                                     maxlength="200" value="<%=WebSupport.html(classFilter.search())%>" placeholder="Nhập tên bài tập"></label>
                             <label for="class-response">Hình thức<select id="class-response" name="responseType">
@@ -146,8 +161,9 @@
 
                         <% if (classPage.counts().total() == 0) { %>
                             <div class="student-empty">
-                                <h3>Chưa có bài tập trong lớp</h3>
-                                <p>Bài tập sẽ xuất hiện khi giảng viên công bố cho lớp này.</p>
+                                <h3>Hiện tại không có bài tập còn hạn</h3>
+                                <p>Bài tập sẽ xuất hiện khi giảng viên công bố. Bạn vẫn có thể xem và xuất bài đã nộp.</p>
+                                <a href="<%=classContext%>/student/results">Xem bài làm đã nộp</a>
                             </div>
                         <% } else if (classPage.assignments().isEmpty()) { %>
                             <div class="student-empty">
@@ -166,7 +182,16 @@
                                             <th scope="col">Bài tập</th>
                                             <th scope="col">Hình thức / mục đích</th>
                                             <th scope="col">Điểm tối đa</th>
-                                            <th scope="col">Thời gian (UTC+07)</th>
+                                            <th scope="col" aria-sort="<%=classFilter.sortDirection()%>">
+                                                Thời gian (UTC+07)
+                                                <span class="class-time-sort">
+                                                    <a href="<%=WebSupport.html(StudentClassView.pageUrl(classContext, classroom.classId(), classFilter.withSort(classFilter.nextOpenSort()), 1))%>"
+                                                        title="<%="OPEN_DESC".equals(classFilter.nextOpenSort()) ? "Ngày mở bài: mới nhất đến cũ nhất" : "Ngày mở bài: cũ nhất đến mới nhất"%>">Mở <span aria-hidden="true"><%="OPEN_DESC".equals(classFilter.sort()) ? "↓" : "OPEN_ASC".equals(classFilter.sort()) ? "↑" : "↕"%></span></a>
+                                                    <span aria-hidden="true">·</span>
+                                                    <a href="<%=WebSupport.html(StudentClassView.pageUrl(classContext, classroom.classId(), classFilter.withSort(classFilter.nextDeadlineSort()), 1))%>"
+                                                        title="<%="DUE_DESC".equals(classFilter.nextDeadlineSort()) ? "Hạn nộp: mới nhất đến cũ nhất" : "Hạn nộp: cũ nhất đến mới nhất"%>">Hạn nộp <span aria-hidden="true"><%="DUE_DESC".equals(classFilter.sort()) ? "↓" : "DUE_ASC".equals(classFilter.sort()) ? "↑" : "↕"%></span></a>
+                                                </span>
+                                            </th>
                                             <th scope="col">Trạng thái bài tập</th>
                                             <th scope="col">Lượt làm của bạn</th>
                                             <th scope="col">Thao tác</th>
@@ -229,31 +254,12 @@
                                 </table>
                             </div>
                             <div class="class-list-footer">
-                                <p>Trang <%=classPage.page()%> / <%=classPage.totalPages()%> · <%=classPage.total()%> bài tập</p>
+                                <p>Hiển thị <%=classPage.assignments().size()%> trên <%=classPage.total()%> bài tập</p>
 
                                 <% if (classPage.totalPages() > 1) { %>
-                                    <nav class="class-pagination" aria-label="Phân trang bài tập">
-                                        <% if (classPage.page() > 1) { %>
-                                            <a href="<%=WebSupport.html(StudentClassView.pageUrl(classContext, classroom.classId(), classFilter, classPage.page() - 1))%>" rel="prev">Trước</a>
-                                        <% } %>
-
-                                        <%
-                                            for (int classPageNumber = Math.max(1, classPage.page() - 2);
-                                                    classPageNumber <= Math.min(classPage.totalPages(), classPage.page() + 2);
-                                                    classPageNumber++) {
-                                        %>
-                                            <% if (classPageNumber == classPage.page()) { %>
-                                                <span aria-current="page"><%=classPageNumber%></span>
-                                            <% } else { %>
-                                                <a href="<%=WebSupport.html(StudentClassView.pageUrl(classContext, classroom.classId(), classFilter, classPageNumber))%>" aria-label="Trang <%=classPageNumber%>"><%=classPageNumber%></a>
-                                            <% } %>
-                                        <% } %>
-
-                                        <% if (classPage.page() < classPage.totalPages()) { %>
-                                            <a href="<%=WebSupport.html(StudentClassView.pageUrl(classContext, classroom.classId(), classFilter, classPage.page() + 1))%>" rel="next">Sau</a>
-                                        <% } %>
-
-                                    </nav>
+                                    <ams:pagination currentPage="<%=classPage.page()%>" totalPages="<%=classPage.totalPages()%>"
+                                        baseUrl="<%=StudentClassView.pageUrl(classContext, classroom.classId(), classFilter, classPage.page())%>"
+                                        ariaLabel="Phân trang bài tập"/>
                                 <% } %>
 
                             </div>

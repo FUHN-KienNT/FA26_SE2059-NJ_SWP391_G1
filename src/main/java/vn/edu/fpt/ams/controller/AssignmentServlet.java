@@ -70,12 +70,7 @@ public class AssignmentServlet extends HttpServlet {
                 if (assignmentId <= 0)
                     throw new IllegalArgumentException("Mã bài tập không hợp lệ.");
 
-                var filter =
-                        AssignmentListFilter.from(
-                                req.getParameter("search"),
-                                req.getParameter("purpose"),
-                                req.getParameter("responseType"),
-                                req.getParameter("status"));
+                var filter = readFilters(req);
                 var page = service.detailPage(teacherId, assignmentId);
 
                 req.setAttribute("assignmentDetail", page);
@@ -120,12 +115,7 @@ public class AssignmentServlet extends HttpServlet {
                 }
 
                 long classId = WebSupport.id(rawClassId);
-                var filter =
-                        AssignmentListFilter.from(
-                                req.getParameter("search"),
-                                req.getParameter("purpose"),
-                                req.getParameter("responseType"),
-                                req.getParameter("status"));
+                var filter = readFilters(req);
                 var page = service.listPage(teacherId, classId, filter);
 
                 req.setAttribute("assignmentPage", page);
@@ -223,6 +213,13 @@ public class AssignmentServlet extends HttpServlet {
             values.put(field, req.getParameter(field) == null ? "" : req.getParameter(field));
 
         AssignmentForm form = new AssignmentForm(values);
+        String submitMode = req.getParameter("submitMode");
+        boolean publish = "publish".equals(submitMode);
+        if (submitMode != null && !submitMode.isBlank()
+                && !"draft".equals(submitMode) && !publish) {
+            res.sendError(400, "Thao tác lưu bài tập không hợp lệ.");
+            return;
+        }
 
         req.setAttribute("assignmentForm", form);
         req.setAttribute("assignmentEdit", editing);
@@ -266,16 +263,26 @@ public class AssignmentServlet extends HttpServlet {
                 long id;
 
                 if (editing) {
-                    service.updateAssignment(teacherId, assignmentId, form);
+                    if (publish) service.updateAssignment(teacherId, assignmentId, form, true);
+                    else service.updateAssignment(teacherId, assignmentId, form);
                     id = assignmentId;
                     session.setAttribute("updatedAssignmentId", id);
 
                     if (Long.valueOf(id).equals(session.getAttribute("createdAssignmentId")))
                         session.removeAttribute("createdAssignmentId");
                 } else {
-                    id = service.createAssignment(teacherId, form);
+                    id = publish ? service.createAssignment(teacherId, form, true)
+                            : service.createAssignment(teacherId, form);
+                    var selected = form.selectedClassIds();
+                    if (!selected.contains(classId)) classId = selected.get(0);
                     session.setAttribute("createdAssignmentId", id);
                 }
+
+                if (publish) session.setAttribute("publishedAssignmentId", id);
+                session.setAttribute("actionNotice", publish
+                        ? "Đã lưu và công bố bài tập cho các lớp đã chọn."
+                        : "Đã lưu bản nháp bài tập thành công.");
+                session.setAttribute("actionNoticeType", "success");
 
                 res.sendRedirect(
                         req.getContextPath()
@@ -447,7 +454,9 @@ public class AssignmentServlet extends HttpServlet {
                 req.getParameter("search"),
                 req.getParameter("purpose"),
                 req.getParameter("responseType"),
-                req.getParameter("status"));
+                req.getParameter("status"),
+                req.getParameter("page"),
+                req.getParameter("sort"));
     }
 
     private static void editContext(HttpServletRequest req, AssignmentEditPage page) {

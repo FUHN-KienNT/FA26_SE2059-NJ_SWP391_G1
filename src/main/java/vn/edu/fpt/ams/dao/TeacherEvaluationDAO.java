@@ -2,9 +2,12 @@ package vn.edu.fpt.ams.dao;
 
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.ConcurrentModificationException;
 import java.util.NoSuchElementException;
 import vn.edu.fpt.ams.dto.SubmissionEvaluation;
+import vn.edu.fpt.ams.dto.TeacherEvaluationHistory;
 
 /** Evaluation persistence; the service owns authorization, lock order and the transaction. */
 public class TeacherEvaluationDAO {
@@ -103,7 +106,7 @@ public class TeacherEvaluationDAO {
                 UPDATE submissions SET evaluation=CAST(? AS jsonb),evaluation_revision=evaluation_revision+1,
                     score=?,feedback=?,graded_by=?,graded_at=CASE WHEN ? THEN clock_timestamp() ELSE NULL END,
                     status=?,released_at=NULL
-                WHERE submission_id=? AND evaluation_revision=? AND status='SUBMITTED' AND submitted_at IS NOT NULL
+                WHERE submission_id=? AND evaluation_revision=? AND status IN ('SUBMITTED','GRADED') AND submitted_at IS NOT NULL
                 """)) {
             statement.setString(1, evaluation.json());
             statement.setBigDecimal(2, evaluation.total());
@@ -143,6 +146,137 @@ public class TeacherEvaluationDAO {
             statement.setLong(2, revision);
             requireUpdated(statement.executeUpdate());
         }
+    }
+
+    public void reviseReleased(
+            Connection connection, long submissionId, long teacherId, SubmissionEvaluation evaluation)
+            throws SQLException {
+        try (var statement = connection.prepareStatement("""
+                UPDATE submissions SET evaluation=CAST(? AS jsonb),evaluation_revision=evaluation_revision+1,
+                    score=?,feedback=?,graded_by=?,graded_at=clock_timestamp(),released_at=clock_timestamp()
+                WHERE submission_id=? AND evaluation_revision=? AND status='RELEASED' AND submitted_at IS NOT NULL
+                """)) {
+            statement.setString(1, evaluation.json());
+            statement.setBigDecimal(2, evaluation.total());
+            statement.setString(3, evaluation.feedback());
+            statement.setLong(4, teacherId);
+            statement.setLong(5, submissionId);
+            statement.setLong(6, evaluation.revision());
+            requireUpdated(statement.executeUpdate());
+        }
+    }
+
+    public void journal(
+            Connection connection,
+            long assignmentId,
+            long submissionId,
+            long studentId,
+            long teacherId,
+            String action,
+            String reason,
+            SubmissionEvaluation previous,
+            SubmissionEvaluation next,
+            BigDecimal previousScore,
+            BigDecimal nextScore,
+            String previousStatus,
+            String nextStatus) throws SQLException {
+        try (var statement = connection.prepareStatement("""
+                INSERT INTO submission_evaluation_history
+                    (submission_id,assignment_id,student_id,actor_id,action,reason,
+                     previous_evaluation,next_evaluation,previous_score,next_score,previous_status,next_status)
+                VALUES(?,?,?,?,?,?,CAST(? AS jsonb),CAST(? AS jsonb),?,?,?,?)
+                """)) {
+            statement.setLong(1, submissionId);
+            statement.setLong(2, assignmentId);
+            statement.setLong(3, studentId);
+            statement.setLong(4, teacherId);
+            statement.setString(5, action);
+            statement.setString(6, reason);
+            statement.setString(7, envelope(previous));
+            statement.setString(8, envelope(next));
+            statement.setBigDecimal(9, previousScore);
+            statement.setBigDecimal(10, nextScore);
+            statement.setString(11, previousStatus);
+            statement.setString(12, nextStatus);
+            statement.executeUpdate();
+        }
+    }
+
+    public TeacherEvaluationHistory history(
+            Connection connection, long assignmentId, long studentId, int requestedPage)
+            throws SQLException {
+        long count;
+
+        try (var statement = connection.prepareStatement("""
+                SELECT count(*) FROM submission_evaluation_history WHERE assignment_id=? AND student_id=?
+                """)) {
+            statement.setLong(1, assignmentId);
+            statement.setLong(2, studentId);
+
+            try (var rows = statement.executeQuery()) {
+                rows.next();
+                count = rows.getLong(1);
+            }
+        }
+
+        int page = (int) Math.min(Math.max(1, requestedPage), Math.max(1, (count + 9) / 10));
+        var entries = new ArrayList<TeacherEvaluationHistory.Entry>();
+
+        try (var statement = connection.prepareStatement("""
+                SELECT h.*,u.full_name AS actor_name FROM submission_evaluation_history h
+                LEFT JOIN users u ON u.user_id=h.actor_id
+                WHERE h.assignment_id=? AND h.student_id=?
+                ORDER BY h.created_at DESC,h.history_id DESC LIMIT 10 OFFSET ?
+                """)) {
+            statement.setLong(1, assignmentId);
+            statement.setLong(2, studentId);
+            statement.setLong(3, ((long) page - 1) * 10);
+
+            try (var rows = statement.executeQuery()) {
+                while (rows.next()) {
+                    long id = rows.getLong("submission_id");
+                    Long submission = rows.wasNull() ? null : id;
+                    entries.add(new TeacherEvaluationHistory.Entry(
+                            rows.getLong("history_id"), submission, rows.getString("actor_name"),
+                            rows.getString("action"), rows.getString("reason"),
+                            rows.getBigDecimal("previous_score"), rows.getBigDecimal("next_score"),
+                            rows.getString("previous_status"), rows.getString("next_status"),
+                            rows.getTimestamp("created_at").toInstant()));
+                }
+            }
+        }
+
+        return new TeacherEvaluationHistory(entries, count, page);
+    }
+
+    public SubmissionEvaluation previousEvaluation(
+            Connection connection, long historyId, long assignmentId, long studentId,
+            long submissionId, long revision) throws SQLException {
+        try (var statement = connection.prepareStatement("""
+                SELECT previous_evaluation::text FROM submission_evaluation_history
+                WHERE history_id=? AND assignment_id=? AND student_id=? AND submission_id=?
+                """)) {
+            statement.setLong(1, historyId);
+            statement.setLong(2, assignmentId);
+            statement.setLong(3, studentId);
+            statement.setLong(4, submissionId);
+
+            try (var rows = statement.executeQuery()) {
+                if (!rows.next())
+                    throw new NoSuchElementException("Không tìm thấy bản chấm trước của bài nộp hiện tại.");
+
+                var root = com.google.gson.JsonParser.parseString(rows.getString(1)).getAsJsonObject();
+                String feedback = root.has("feedback") && !root.get("feedback").isJsonNull()
+                        ? root.get("feedback").getAsString() : "";
+                return SubmissionEvaluation.read(root.toString(), revision, feedback);
+            }
+        }
+    }
+
+    private static String envelope(SubmissionEvaluation evaluation) {
+        var root = com.google.gson.JsonParser.parseString(evaluation.json()).getAsJsonObject();
+        root.addProperty("feedback", evaluation.feedback());
+        return root.toString();
     }
 
     private static void requireUpdated(int count) {

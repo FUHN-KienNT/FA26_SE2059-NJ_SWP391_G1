@@ -42,6 +42,27 @@ class StudentClassViewTest {
     }
 
     @Test
+    void canonicalClassEntrySupportsAutomaticClassSelectionWithoutLosingFilters() {
+        assertEquals(
+                "/ams/student/classes?q=C%C3%A2u+%26+100%25_&responseType=ESSAY&status=DONE&page=2",
+                StudentClassView.listUrl(
+                        "/ams", null, new StudentClassFilter("Câu & 100%_", "ESSAY", "DONE", 2)));
+    }
+
+    @Test
+    void dateSortLinksRetainSearchStatusAndTypeAndResetOnlyThePage() {
+        var filter = new StudentClassFilter("Câu & 100%_", "ESSAY", "DONE", 4, "DUE_DESC");
+        assertEquals(
+                "/ams/student/classes?classId=9&q=C%C3%A2u+%26+100%25_&responseType=ESSAY&status=DONE&page=2&sort=DUE_DESC",
+                StudentClassView.pageUrl("/ams", 9, filter, 2));
+        assertEquals(
+                "/ams/student/classes?classId=9&q=C%C3%A2u+%26+100%25_&responseType=ESSAY&status=DONE&page=1&sort=DUE_ASC",
+                StudentClassView.pageUrl("/ams", 9, filter.withSort(filter.nextDeadlineSort()), 1));
+        assertEquals("Hạn nộp: mới nhất đến cũ nhất.", StudentClassView.sortSummary(filter));
+        assertEquals("Ngày mở bài: cũ nhất đến mới nhất.", StudentClassView.sortSummary(filter.withSort("OPEN_ASC")));
+    }
+
+    @Test
     void linksOpenTheSpecificAttemptButNeverOpenCancelledWorkOrPretendResultsExist() {
         var submitted = row("PUBLISHED", "RELEASED", 44, NOW.minusSeconds(1), NOW.plusSeconds(1));
 

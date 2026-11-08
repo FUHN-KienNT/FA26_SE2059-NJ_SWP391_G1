@@ -55,13 +55,14 @@
         <link rel="stylesheet" href="<%= html(base) %>/css/assignment-list.css">
         <%@ include file="/WEB-INF/views/shared/assets.jspf" %>
 
-        <link rel="stylesheet" href="<%= html(base) %>/css/assignment-form.css">
-        <script src="<%= html(base) %>/js/assignment-form.js?v=20261102-excel" defer></script>
+        <link rel="stylesheet" href="<%= html(base) %>/css/assignment-form.css?v=20261108-authoring">
+        <script src="<%= html(base) %>/js/assignment-form.js?v=20261108-authoring" defer></script>
     </head>
     <body class="ams-ui teacher-app">
         <%@ include file="/WEB-INF/views/shared/shell.jspf" %>
 
         <main class="ams-content assignment-create" id="page-content">
+            <%@ include file="/WEB-INF/views/shared/action-notice.jspf" %>
             <nav class="breadcrumb" aria-label="Đường dẫn">
                 <a href="<%= html(base) %>/teacher/dashboard">Bảng điều khiển</a><span>/</span><a
                     href="<%= html(back) %>">Bài tập</a><span>/</span><span><%= editing ? "Chỉnh sửa" : "Tạo mới" %></span>
@@ -74,6 +75,8 @@
                 </div>
                 <span class="badge draft"><%= editing ? "Bản nháp" : "Bản nháp mới" %></span>
             </div>
+
+            <p class="notice error" id="client-form-error" role="alert" tabindex="-1"></p>
 
             <% if (createError != null) { %>
                 <div class="notice error" role="alert">
@@ -140,6 +143,8 @@
                     data-saved-essay-content="<%= savedEssayContent %>"
                     data-saved-objective-content="<%= savedObjectiveContent %>">
                     <input type="hidden" name="action" value="<%= editing ? "update" : "create" %>">
+                    <input type="hidden" id="submit-mode" name="submitMode" value="draft">
+                    <input type="hidden" id="target-class-ids" name="targetClassIds" value="<%= html(form.value("targetClassIds")) %>">
                     <input type="hidden" name="csrf" value="<%= html(WebSupport.csrf(request)) %>">
                     <input type="hidden" name="classId" value="<%= context.classId() %>">
 
@@ -154,6 +159,19 @@
 
                     <section class="form-card" aria-labelledby="general-heading">
                         <h2 id="general-heading"> Thông tin chung </h2>
+                        <label>Giao bài cho lớp</label>
+                        <details class="multi-combobox class-combobox">
+                            <summary id="target-class-summary">Lớp hiện tại nếu không chọn lớp khác</summary>
+                            <div class="multi-combobox-options">
+                                <% for (var item : context.eligibleClasses()) { %>
+                                    <label><input type="checkbox" data-target-class value="<%= item.classId() %>"
+                                        <%= java.util.Arrays.asList(form.value("targetClassIds").split(",")).contains(Long.toString(item.classId())) ? "checked" : "" %>>
+                                        <span><%= html(item.classCode()) %> — <%= html(item.className()) %></span></label>
+                                <% } %>
+                            </div>
+                        </details>
+                        <small class="field-error" id="targetClassIds-error"><%= html(errors.get("targetClassIds")) %></small>
+                        <p class="form-hint"><%= editing ? "Bản nháp hiện tại luôn được cập nhật. Các lớp khác được chọn sẽ nhận bản sao mới của đề." : "Có thể chọn nhiều lớp cùng môn. Khi không chọn lớp nào, đề được giao cho lớp đang mở." %></p>
                         <label for="templateId"> Mẫu bài tập * </label>
                         <select id="templateId" name="templateId" required aria-describedby="templateId-error">
                             <option value=""> Chọn mẫu bài tập </option>
@@ -176,7 +194,7 @@
 
                         </select>
                         <small class="field-error" id="templateId-error"><%= html(errors.get("templateId")) %></small>
-                        <p class="form-hint"> Chọn mẫu để điền sẵn tiêu đề, hướng dẫn và điểm tối đa. Bạn có thể chỉnh sửa
+                        <p class="form-hint"> Chọn mẫu để điền sẵn tình huống chung và điểm tối đa. Bạn có thể chỉnh sửa
                             các thông tin này. </p>
                         <div class="form-grid">
                             <div>
@@ -238,19 +256,12 @@
                                 <small class="field-error" id="responseType-error"><%= html(errors.get("responseType")) %></small>
                             </div>
                         </div>
-                        <label for="title"> Tiêu đề * </label>
-                        <input
-                            id="title"
-                            name="title"
-                            maxlength="200"
-                            required
-                            value="<%= html(form.value("title")) %>"
-                            aria-describedby="title-error">
+                        <label for="title"> Tình huống chung của cả bài làm * </label>
+                        <textarea id="title" name="title" rows="4" data-character-limit="4000" required
+                            aria-describedby="title-count title-error"><%= html(form.value("title")) %></textarea>
+                        <small class="character-count" id="title-count" aria-live="polite"></small>
                         <small class="field-error" id="title-error"><%= html(errors.get("title")) %></small>
-                        <label for="instructions"> Hướng dẫn </label>
-                        <textarea id="instructions" name="instructions" rows="5" data-character-limit="500" aria-describedby="instructions-count instructions-error"><%= html(form.value("instructions")) %></textarea>
-                        <small class="character-count" id="instructions-count" aria-live="polite"></small><small
-                            class="field-error" id="instructions-error"><%= html(errors.get("instructions")) %></small>
+                        <textarea id="instructions" name="instructions" hidden><%= html(form.value("instructions")) %></textarea>
                         <label for="maximumScore"> Điểm tối đa * </label>
                         <input
                             id="maximumScore"
@@ -390,10 +401,9 @@
                     </section>
 
                     <section class="form-card" aria-labelledby="timing-heading">
-                        <h2 id="timing-heading"> Thời gian và giới hạn </h2>
+                        <h2 id="timing-heading"> Thời gian mở và hạn nộp </h2>
                         <p class="form-hint"> Tất cả thời gian theo giờ Việt Nam (UTC+07). Có thể để trống thời gian mở bài
-                            và hạn nộp khi lưu nháp; cần điền trước khi công bố. Bài được tự động nộp khi hết thời gian làm
-                            bài hoặc đến hạn nộp, tùy thời điểm nào đến trước. </p>
+                            và hạn nộp khi lưu nháp; cần điền trước khi công bố. Sinh viên được làm và nộp lại trong thời gian còn hạn; chỉ bản nộp mới nhất được dùng để chấm. </p>
                         <div class="form-grid">
                             <div>
                                 <label for="availableFrom"> Thời gian mở bài (UTC+07) </label>
@@ -410,37 +420,7 @@
                                 <input id="dueAt" name="dueAt" type="datetime-local" step="any" value="<%= html(form.value("dueAt")) %>">
                                 <small class="field-error" id="dueAt-error"><%= html(errors.get("dueAt")) %></small>
                             </div>
-                            <div>
-                                <label for="timeLimitMinutes"> Thời gian làm bài (phút) </label>
-                                <input
-                                    id="timeLimitMinutes"
-                                    name="timeLimitMinutes"
-                                    type="text"
-                                    inputmode="numeric"
-                                    pattern="[0-9]+"
-                                    data-integer-min="20"
-                                    data-integer-max="720"
-                                    value="<%= html(form.value("timeLimitMinutes")) %>">
-                                <small class="field-error" id="timeLimitMinutes-error"><%= html(errors.get("timeLimitMinutes")) %></small>
-                                <p class="form-hint"> Không bắt buộc. Nhập từ 20 đến 720 phút (12 giờ). Để trống nếu chỉ
-                                    giới hạn theo hạn nộp. Ví dụ: hạn nộp 19:00, bắt đầu lúc 18:30 thì chỉ còn 30 phút dù
-                                    giới hạn là 60 phút. </p>
-                            </div>
-                            <div id="attempt-field">
-                                <label for="attemptLimit"> Số lượt làm tối đa * </label>
-                                <input
-                                    id="attemptLimit"
-                                    name="attemptLimit"
-                                    type="text"
-                                    inputmode="numeric"
-                                    pattern="[0-9]+"
-                                    data-integer-min="1"
-                                    data-integer-max="2147483647"
-                                    value="<%= html(form.value("attemptLimit")) %>">
-                                <small class="field-error" id="attemptLimit-error"><%= html(errors.get("attemptLimit")) %></small>
-                                <p class="form-hint"> Chỉ áp dụng cho luyện tập. Nhập số nguyên từ 1 trở lên trước khi lưu.
-                                </p>
-                            </div>
+
                         </div>
                     </section>
 
@@ -448,8 +428,6 @@
                     <noscript>
                         <p role="alert"> Bật JavaScript để chọn mẫu và chỉnh sửa câu hỏi. </p>
                     </noscript>
-                    <p class="field-error" id="client-form-error" role="alert" tabindex="-1">
-                    </p>
                     <div class="form-actions">
                         <button
                             type="submit"
@@ -457,6 +435,7 @@
                             class="button primary"
                             disabled
                             data-can-save="<%= !context.templates().isEmpty() && !editConflict && (editing || assignmentConfigAvailable) %>"> <%= editing ? "Lưu thay đổi" : "Lưu bản nháp" %> </button>
+                        <button type="submit" id="publish-assignment" class="button primary" data-confirm-publish="assignment" disabled>Công bố bài tập</button>
                         <a class="button leave-form" href="<%= html(back) %>">Về danh sách bài tập</a>
                     </div>
                 </form>

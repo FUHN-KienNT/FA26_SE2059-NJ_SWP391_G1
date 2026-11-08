@@ -280,7 +280,7 @@ class TeacherSubmissionDatabaseTest {
     @Test
     @Tag("database")
     void unsubmittedAttemptsRemainInRosterButCannotBeOpened() {
-        assertTrue(ids(null, null).containsAll(List.of(4L, 5L, 6L)));
+        assertFalse(ids(null, null).stream().anyMatch(List.of(4L, 5L, 6L)::contains));
 
         for (long id : List.of(4L, 5L, 6L))
             assertThrows(NoSuchElementException.class, () -> service().detailPage(1, 501, id));
@@ -362,12 +362,12 @@ class TeacherSubmissionDatabaseTest {
     @Test
     @Tag("database")
     void ownedListGroupsStudentsAndOrdersTheirAttemptsNewestFirst() {
-        assertEquals(List.of(4L, 1L, 5L, 2L, 7L, 6L, 3L), ids(null, null));
+        assertEquals(List.of(7L, 3L, 2L, 1L), ids(null, null));
         var page = service().listPage(1, 501, TeacherSubmissionFilter.from(null, null));
 
         assertEquals("A1", page.assignment().classCode());
-        assertEquals(9, page.submissions().size());
-        assertEquals(9, page.totalCount());
+        assertEquals(6, page.submissions().size());
+        assertEquals(6, page.totalCount());
         assertThrows(UnsupportedOperationException.class, () -> page.submissions().clear());
     }
 
@@ -378,17 +378,7 @@ class TeacherSubmissionDatabaseTest {
 
         assertEquals(6, all.totalStudents());
         assertEquals(
-                java.util.Map.of(
-                        "NOT_STARTED",
-                        2L,
-                        "SUBMITTED",
-                        1L,
-                        "EXPIRED",
-                        1L,
-                        "VOID",
-                        1L,
-                        "IN_PROGRESS",
-                        1L),
+                java.util.Map.of("NOT_STARTED",2L,"SUBMITTED",2L,"RELEASED",1L,"GRADED",1L),
                 all.studentCounts());
         var filtered =
                 service()
@@ -425,7 +415,7 @@ class TeacherSubmissionDatabaseTest {
 
         assertEquals(2, page.totalCount());
         assertEquals(
-                List.of(107L, 108L),
+                List.of(108L, 107L),
                 page.submissions().stream().map(row -> row.studentId()).toList());
 
         for (var row : page.submissions()) {
@@ -463,11 +453,11 @@ class TeacherSubmissionDatabaseTest {
     @Test
     @Tag("database")
     void searchesStudentNameOrEmailLiterallyWithCaseInsensitiveMatching() {
-        assertEquals(List.of(4L, 1L), ids("  ALICE  ", null));
-        assertEquals(List.of(6L, 3L), ids("quang@EXAMPLE.test", null));
-        assertEquals(List.of(4L, 1L), ids("100%_", null));
-        assertEquals(List.of(4L, 1L), ids("%", null));
-        assertEquals(List.of(4L, 1L), ids("_", null));
+        assertEquals(List.of(1L), ids("  ALICE  ", null));
+        assertEquals(List.of(3L), ids("quang@EXAMPLE.test", null));
+        assertEquals(List.of(1L), ids("100%_", null));
+        assertEquals(List.of(1L), ids("%", null));
+        assertEquals(List.of(1L), ids("_", null));
         assertEquals(List.of(7L), ids("' OR 1=1 --", null));
         assertEquals(List.of(), ids("does not exist", null));
     }
@@ -475,12 +465,12 @@ class TeacherSubmissionDatabaseTest {
     @Test
     @Tag("database")
     void filtersAllSixStatusesAndCombinesWithSearch() {
-        assertEquals(List.of(6L), ids(null, "IN_PROGRESS"));
-        assertEquals(List.of(1L, 7L), ids(null, "SUBMITTED"));
+        assertEquals(List.of(), ids(null, "IN_PROGRESS"));
+        assertEquals(List.of(7L, 1L), ids(null, "SUBMITTED"));
         assertEquals(List.of(2L), ids(null, "GRADED"));
         assertEquals(List.of(3L), ids(null, "RELEASED"));
-        assertEquals(List.of(4L), ids(null, "EXPIRED"));
-        assertEquals(List.of(5L), ids(null, "VOID"));
+        assertEquals(List.of(), ids(null, "EXPIRED"));
+        assertEquals(List.of(), ids(null, "VOID"));
         assertEquals(List.of(1L), ids("alice", " submitted "));
         assertEquals(ids(null, null), ids(" ", " ALL "));
     }
@@ -524,10 +514,7 @@ class TeacherSubmissionDatabaseTest {
     @Test
     @Tag("database")
     void reassignmentImmediatelyChangesWhoCanReadOnNextRequest() throws SQLException {
-        assertEquals(
-                9,
-                service()
-                        .listPage(1, 501, TeacherSubmissionFilter.from(null, null))
+        assertEquals(6, service().listPage(1, 501, TeacherSubmissionFilter.from(null, null))
                         .submissions()
                         .size());
         execute("UPDATE subject_classes SET teacher_id=2 WHERE class_id=10");
@@ -545,7 +532,7 @@ class TeacherSubmissionDatabaseTest {
         assertEquals("quang@example.test", detail.row().studentEmail());
         assertEquals(SubmissionStatus.RELEASED, detail.row().submission().status());
         assertEquals("Teacher B", detail.row().graderName());
-        assertTrue(ids(null, null).contains(6L));
+        assertFalse(ids(null, null).contains(6L));
     }
 
     @Test

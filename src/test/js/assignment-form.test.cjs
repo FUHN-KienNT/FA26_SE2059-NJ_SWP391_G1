@@ -10,6 +10,8 @@ function harness({
     questions = [],
     responseType = 'ESSAY',
     maximum = '10',
+    templates = [],
+    instructions = '',
     fetchResult,
     status = 200
 } = {}) {
@@ -153,7 +155,7 @@ function harness({
         (!input.customError && (!input.required || input.value.trim()) && (!input.pattern || !input.value || new RegExp(
             `^(?:${input.pattern})$`).test(input.value))));
     const values = {
-        'template-data': '[]',
+        'template-data': JSON.stringify(templates),
         'tasks-data': JSON.stringify(tasks),
         'questions-data': JSON.stringify(questions),
         maximumScore: maximum,
@@ -161,13 +163,15 @@ function harness({
         purpose: 'REGULAR',
         title: 'Bài tập',
         templateId: '1',
-        instructions: '',
+        instructions,
+        'submit-mode': 'draft',
         attemptLimit: ''
     };
 
     Object.entries(values).forEach(([id, value]) => {
         element(id, id.endsWith('-data') ? 'textarea' : 'input', form).value = value;
     });
+    element('publish-assignment', 'button', form);
 
     ids.get('maximumScore').dataset = {
         integerMin: '1',
@@ -290,6 +294,54 @@ const task = (points = '5', requirements = [requirement()]) => ({
     requirements
 });
 
+test('rubrics and selected drawing tools survive form serialization and explicit tool changes', async () => {
+    const h = harness({tasks: [{
+        ...task('5', [{...requirement('5', 'DIAGRAM'), rubric: 'Đúng ký hiệu', allowed_tools: ['PLANTUML']}]),
+        rubric: 'Đánh giá cấu trúc'
+    }]});
+    assert.equal(h.data()[0].rubric, 'Đánh giá cấu trúc');
+    assert.equal(h.data()[0].requirements[0].rubric, 'Đúng ký hiệu');
+    assert.deepEqual(h.data()[0].requirements[0].allowed_tools, ['PLANTUML']);
+    const toolGroup = h.ids.get('task-editor').querySelector('.drawing-tools');
+    assert.equal(toolGroup.querySelector('summary'), null);
+    assert.match(toolGroup.querySelector('.selected-drawing-tools').textContent, /Công cụ được chọn: PlantUML/);
+    const tools = h.ids.get('task-editor').querySelectorAll('input').filter(input => input.type === 'checkbox');
+    assert.equal(tools.length, 2);
+    tools[0].checked = true;
+    await tools[0].fire('change');
+    assert.deepEqual(h.data()[0].requirements[0].allowed_tools, ['PLANTUML', 'DRAWIO']);
+    assert.match(toolGroup.querySelector('.selected-drawing-tools').textContent, /PlantUML, draw\.io/);
+    tools[0].checked = false;
+    await tools[0].fire('change');
+    tools[1].checked = false;
+    await tools[1].fire('change');
+    assert.equal(toolGroup.querySelector('.selected-drawing-tools').textContent, 'Chưa chọn công cụ vẽ');
+    assert.equal((await h.submit()).prevented, true);
+    assert.match(h.ids.get('client-form-error').textContent, /chọn ít nhất một công cụ vẽ/i);
+});
+
+test('selecting a template changes visible defaults without injecting or overwriting hidden instructions', async () => {
+    for (const legacy of ['', 'Hướng dẫn cũ dòng một.\nHướng dẫn cũ dòng hai.']) {
+        const h = harness({
+            instructions: legacy,
+            templates: [{templateId: 2, title: 'Tình huống từ mẫu', instructions: 'Không tự chép hướng dẫn này.', maximumScore: 20}]
+        });
+        h.ids.get('templateId').value = '2';
+        await h.ids.get('templateId').fire('change');
+        assert.equal(h.ids.get('title').value, 'Tình huống từ mẫu');
+        assert.equal(h.ids.get('maximumScore').value, '20');
+        assert.equal(h.ids.get('instructions').value, legacy);
+    }
+});
+
+test('publish submitter sends the explicit publish mode', async () => {
+    const h = harness({tasks: [task()]});
+    const event = await h.form.fire('submit', {submitter: h.ids.get('publish-assignment')});
+    assert.equal(event.prevented, false);
+    assert.equal(h.ids.get('submit-mode').value, 'publish');
+    assert.equal(h.ids.get('publish-assignment').disabled, true);
+});
+
 test('legacy essay content becomes one ordered TEXT requirement without losing description', async () => {
     const h = harness({
         tasks: [{
@@ -302,12 +354,15 @@ test('legacy essay content becomes one ordered TEXT requirement without losing d
         task_order: 1,
         title: 'Đề cũ\nChi tiết',
         description: '',
+        rubric: '',
         maximum_points: '5',
         requirements: [{
             requirement_order: 1,
             title: 'Trả lời câu hỏi',
             maximum_points: '5',
-            answer_type: 'TEXT'
+            answer_type: 'TEXT',
+            rubric: '',
+            allowed_tools: []
         }]
     }]);
     assert.equal((await h.submit()).prevented, false);

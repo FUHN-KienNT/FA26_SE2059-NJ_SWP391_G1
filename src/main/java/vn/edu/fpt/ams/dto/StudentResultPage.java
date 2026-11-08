@@ -8,9 +8,21 @@ import vn.edu.fpt.ams.util.TeacherSubmissionView;
 
 /** Only explicitly released evaluations can populate detail; pending attempts contain metadata only. */
 public record StudentResultPage(
-        long assignmentId, List<Attempt> attempts, Attempt selected, Released detail) {
+        long assignmentId, List<Attempt> attempts, Attempt selected, Released detail,
+        int catalogPage, long catalogTotal) {
+    public static final int PAGE_SIZE = 10;
+
+    public StudentResultPage(
+            long assignmentId, List<Attempt> attempts, Attempt selected, Released detail) {
+        this(assignmentId, attempts, selected, detail, 1, attempts.size());
+    }
+
     public StudentResultPage {
         attempts = List.copyOf(attempts);
+    }
+
+    public int catalogPages() {
+        return (int) Math.max(1, Math.min(Integer.MAX_VALUE, (catalogTotal + PAGE_SIZE - 1) / PAGE_SIZE));
     }
 
     public record Attempt(

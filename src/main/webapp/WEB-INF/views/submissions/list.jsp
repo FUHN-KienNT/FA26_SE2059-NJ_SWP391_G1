@@ -1,4 +1,5 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
+<%@ taglib prefix="ams" tagdir="/WEB-INF/tags" %>
 <%@ page import="vn.edu.fpt.ams.dto.*,vn.edu.fpt.ams.model.*" %>
 <%@ page import="vn.edu.fpt.ams.util.TeacherSubmissionView" %>
 <%@ page import="vn.edu.fpt.ams.util.TeacherSubmissionNavigation" %>
@@ -36,6 +37,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Danh sách bài nộp | AMS</title>
         <link rel="stylesheet" href="<%= escape(base) %>/css/assignment-list.css">
+        <link rel="stylesheet" href="<%= escape(base) %>/css/assignment-dialog.css">
         <%@ include file="/WEB-INF/views/shared/assets.jspf" %>
 
         <link rel="stylesheet" href="<%= escape(base) %>/css/submissions.css">
@@ -240,22 +242,14 @@
                 <footer class="results">
                     <p role="status"> Hiển thị <strong><%= data.firstRow() %>–<%= data.lastRow() %></strong> trên
                         <strong><%= data.totalCount() %></strong> dòng </p>
-                    <p> Sinh viên chưa làm vẫn có trong danh sách. Nếu làm nhiều lượt, mỗi lượt có một dòng riêng. </p>
+                    <p> Mỗi sinh viên hiển thị bản nộp mới nhất. Bản nháp đang làm tiếp được giữ đến khi nộp thành công. </p>
                 </footer>
 
                 <% if (data.totalPages() > 1) { %>
-                    <nav class="filter-actions" aria-label="Các trang bài nộp">
-                        <% if (data.hasPrevious()) { %>
-                            <a class="button" rel="prev" href="<%= escape(TeacherSubmissionNavigation.listUrl(base, assignment.assignmentId(), filters.withPage(filters.page() - 1))) %>">Trang trước</a>
-                        <% } %>
-
-                        <span aria-current="page">Trang <%= filters.page() %> trên <%= data.totalPages() %></span>
-
-                        <% if (data.hasNext()) { %>
-                            <a class="button" rel="next" href="<%= escape(TeacherSubmissionNavigation.listUrl(base, assignment.assignmentId(), filters.withPage(filters.page() + 1))) %>">Trang sau</a>
-                        <% } %>
-
-                    </nav>
+                    <ams:pagination currentPage="<%= filters.page() %>"
+                        totalPages="<%= data.totalPages() %>"
+                        baseUrl="<%= TeacherSubmissionNavigation.listUrl(base, assignment.assignmentId(), filters) %>"
+                        ariaLabel="Các trang bài nộp" />
                 <% } %>
             <% } %>
 

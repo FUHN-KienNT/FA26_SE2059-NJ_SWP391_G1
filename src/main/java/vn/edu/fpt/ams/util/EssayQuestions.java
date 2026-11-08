@@ -22,13 +22,26 @@ public final class EssayQuestions {
 
     private EssayQuestions() {}
 
-    public record Task(int order, String title, BigDecimal points, List<Requirement> requirements) {
+    public record Task(int order, String title, BigDecimal points, List<Requirement> requirements, String rubric) {
+        public Task(int order, String title, BigDecimal points, List<Requirement> requirements) {
+            this(order, title, points, requirements, "");
+        }
+
         public Task {
             requirements = List.copyOf(requirements);
         }
     }
 
-    public record Requirement(int order, String title, BigDecimal points, String answerType) {}
+    public record Requirement(int order, String title, BigDecimal points, String answerType,
+                              String rubric, List<String> allowedTools) {
+        public Requirement(int order, String title, BigDecimal points, String answerType) {
+            this(order, title, points, answerType, "", defaultTools(answerType));
+        }
+
+        public Requirement {
+            allowedTools = List.copyOf(allowedTools);
+        }
+    }
 
     /** Reads saved content without repairing malformed scores, orders, or explicit requirements. */
     public static List<Task> read(String json) {
@@ -55,6 +68,15 @@ public final class EssayQuestions {
         if (maximum != null && total.compareTo(maximum) > 0)
             throw invalid("Tổng điểm các câu hỏi không được vượt quá điểm tối đa của bài tập.");
 
+        return json(tasks, true);
+    }
+
+    /** Public projection excludes all grading criteria, including unrecognized private metadata. */
+    public static String studentJson(String savedJson) {
+        return json(read(savedJson), false).toString();
+    }
+
+    private static JsonArray json(List<Task> tasks, boolean teacher) {
         JsonArray result = new JsonArray();
 
         for (Task task : tasks) {
@@ -64,6 +86,7 @@ public final class EssayQuestions {
             output.addProperty("title", task.title());
             output.addProperty("description", "");
             output.addProperty("maximum_points", task.points());
+            if (teacher) output.addProperty("rubric", task.rubric());
             JsonArray requirements = new JsonArray();
 
             for (Requirement requirement : task.requirements()) {
@@ -73,6 +96,10 @@ public final class EssayQuestions {
                 child.addProperty("title", requirement.title());
                 child.addProperty("maximum_points", requirement.points());
                 child.addProperty("answer_type", requirement.answerType());
+                if (teacher) child.addProperty("rubric", requirement.rubric());
+                JsonArray tools = new JsonArray();
+                requirement.allowedTools().forEach(tools::add);
+                child.add("allowed_tools", tools);
                 requirements.add(child);
             }
 
@@ -113,7 +140,8 @@ public final class EssayQuestions {
                                 order,
                                 AssignmentRules.normalizeLines(title),
                                 points,
-                                requirements));
+                                requirements,
+                                rubric(source, 5000)));
             } catch (IllegalArgumentException ex) {
                 throw invalid(prefix + ex.getMessage());
             }
@@ -158,7 +186,8 @@ public final class EssayQuestions {
 
                 requirements.add(
                         new Requirement(
-                                order, AssignmentRules.normalizeLines(title), points, answerType));
+                                order, AssignmentRules.normalizeLines(title), points, answerType,
+                                rubric(source, 2000), allowedTools(source, answerType)));
                 total = total.add(points);
             } catch (IllegalArgumentException ex) {
                 throw invalid("Yêu cầu " + (i + 1) + ": " + ex.getMessage());
@@ -171,6 +200,40 @@ public final class EssayQuestions {
         if (saved) requirements.sort(Comparator.comparingInt(Requirement::order));
 
         return List.copyOf(requirements);
+    }
+
+    private static String rubric(JsonObject source, int maximum) {
+        String value = AssignmentRules.normalizeLines(optionalText(source, "rubric")).strip();
+        if (AssignmentRules.length(value) > maximum)
+            throw invalid("Tiêu chí chấm điểm tối đa " + maximum + " ký tự.");
+
+        return value;
+    }
+
+    private static List<String> defaultTools(String answerType) {
+        return "TEXT".equals(answerType) ? List.of() : List.of("DRAWIO", "PLANTUML");
+    }
+
+    private static List<String> allowedTools(JsonObject source, String answerType) {
+        if (!source.has("allowed_tools")) return defaultTools(answerType);
+        JsonElement raw = source.get("allowed_tools");
+        if (raw == null || !raw.isJsonArray() || raw.getAsJsonArray().size() > 2)
+            throw invalid("Chọn công cụ vẽ hợp lệ.");
+
+        Set<String> selected = new java.util.LinkedHashSet<>();
+        for (JsonElement entry : raw.getAsJsonArray()) {
+            if (!entry.isJsonPrimitive() || !entry.getAsJsonPrimitive().isString()
+                    || !Set.of("DRAWIO", "PLANTUML").contains(entry.getAsString())
+                    || !selected.add(entry.getAsString()))
+                throw invalid("Công cụ vẽ phải là draw.io hoặc PlantUML, không trùng nhau.");
+        }
+
+        if ("TEXT".equals(answerType) && !selected.isEmpty())
+            throw invalid("Yêu cầu viết tự luận không sử dụng công cụ vẽ.");
+        if (!"TEXT".equals(answerType) && selected.isEmpty())
+            throw invalid("Chọn ít nhất một công cụ vẽ cho yêu cầu sơ đồ.");
+
+        return List.copyOf(selected);
     }
 
     private static BigDecimal points(JsonElement value, boolean saved) {

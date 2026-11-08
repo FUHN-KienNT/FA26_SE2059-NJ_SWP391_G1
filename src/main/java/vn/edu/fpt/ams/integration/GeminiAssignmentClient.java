@@ -199,11 +199,14 @@ public class GeminiAssignmentClient {
             {"type":"object","properties":{"tasks":{"type":"array","items":{
               "type":"object","properties":{
                 "task_order":{"type":"integer"},"title":{"type":"string"},"description":{"type":"string"},
+                "rubric":{"type":"string"},
                 "maximum_points":{"type":"number","minimum":0.01,"maximum":100},
                 "requirements":{"type":"array","items":{"type":"object","properties":{
                   "requirement_order":{"type":"integer"},"title":{"type":"string"},
                   "maximum_points":{"type":"number","minimum":0.01,"maximum":100},
-                  "answer_type":{"type":"string","enum":["TEXT","DIAGRAM","BOTH"]}},
+                  "answer_type":{"type":"string","enum":["TEXT","DIAGRAM","BOTH"]},
+                  "rubric":{"type":"string"},
+                  "allowed_tools":{"type":"array","items":{"type":"string","enum":["DRAWIO","PLANTUML"]}}},
                   "required":["requirement_order","title","maximum_points","answer_type"]}}},
                 "required":["task_order","title","description","maximum_points","requirements"]}}},"required":["tasks"]}
             """)

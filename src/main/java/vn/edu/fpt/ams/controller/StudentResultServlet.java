@@ -37,11 +37,38 @@ public class StudentResultServlet extends HttpServlet {
                 throw new SecurityException(
                         "Vui lòng đăng nhập bằng tài khoản sinh viên đang hoạt động.");
 
+            if (req.getParameter("assignmentId") == null) {
+                int page = WebSupport.page(req.getParameter("page"));
+                var catalog = service.catalog(WebSupport.actor(req), page);
+
+                req.setAttribute("resultPage", catalog);
+                req.setAttribute("resultCatalogPage", catalog.catalogPage());
+                req.setAttribute("resultCatalogPages", catalog.catalogPages());
+                req.setAttribute("resultHasNext", catalog.catalogPage() < catalog.catalogPages());
+                req.getRequestDispatcher("/WEB-INF/views/student/result.jsp").forward(req, res);
+
+                return;
+            }
+
             long assignmentId = WebSupport.id(req.getParameter("assignmentId"));
             Long submissionId =
                     req.getParameter("submissionId") == null
                             ? null
                             : WebSupport.id(req.getParameter("submissionId"));
+
+            if ("1".equals(req.getParameter("download"))) {
+                if (submissionId == null)
+                    throw new IllegalArgumentException("Chọn bài làm cần xuất.");
+
+                String html = service.export(WebSupport.actor(req), assignmentId, submissionId);
+
+                res.setContentType("text/html;charset=UTF-8");
+                res.setHeader("Content-Disposition", "attachment; filename=bai-lam-" + assignmentId + ".html");
+                res.setHeader("X-Content-Type-Options", "nosniff");
+                res.getWriter().write(html);
+
+                return;
+            }
 
             req.setAttribute(
                     "resultPage", service.load(WebSupport.actor(req), assignmentId, submissionId));

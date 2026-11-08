@@ -314,7 +314,28 @@ public class AssignmentDAO {
                         rows.getString("class_name"),
                         rows.getString("subject_code"),
                         rows.getString("subject_name"),
-                        lockClass ? List.of() : findActiveTemplates(connection, subjectId));
+                        lockClass ? List.of() : findActiveTemplates(connection, subjectId),
+                        lockClass ? List.of() : findEligibleClasses(connection, teacherId, subjectId));
+            }
+        }
+    }
+
+    private List<AssignmentClassOption> findEligibleClasses(
+            Connection connection, long teacherId, long subjectId) throws SQLException {
+        try (var statement = connection.prepareStatement("""
+                SELECT c.class_id,c.class_code,c.class_name FROM subject_classes c
+                JOIN subject_terms st ON st.subject_term_id=c.subject_term_id
+                WHERE c.teacher_id=? AND st.subject_id=? ORDER BY c.class_code,c.class_id
+                """)) {
+            statement.setLong(1, teacherId);
+            statement.setLong(2, subjectId);
+            try (var rows = statement.executeQuery()) {
+                List<AssignmentClassOption> result = new ArrayList<>();
+                while (rows.next())
+                    result.add(new AssignmentClassOption(rows.getLong("class_id"),
+                            rows.getString("class_code"), rows.getString("class_name")));
+
+                return List.copyOf(result);
             }
         }
     }
@@ -479,40 +500,19 @@ public class AssignmentDAO {
     public List<Assignment> findForTeacher(
             Connection connection, long teacherId, long classId, AssignmentListFilter filter)
             throws SQLException {
-        StringBuilder sql =
-                new StringBuilder(
-                        """
-                SELECT a.* FROM assignments a
-                JOIN subject_classes c ON c.class_id = a.class_id
-                JOIN users u ON u.user_id = c.teacher_id
-                WHERE c.teacher_id = ? AND c.class_id = ?
-                  AND u.role = 'TEACHER' AND u.account_status = 'ACTIVE'
-                """);
+        String order = switch (filter.sort()) {
+            case "OLDEST" -> "a.created_at ASC NULLS LAST,a.assignment_id ASC";
+            case "DUE_ASC" -> "a.due_at ASC NULLS LAST,a.assignment_id DESC";
+            case "DUE_DESC" -> "a.due_at DESC NULLS LAST,a.assignment_id DESC";
+            default -> "a.created_at DESC NULLS LAST,a.assignment_id DESC";
+        };
+        String sql = "SELECT a.* " + listFilterSql(filter) + " ORDER BY " + order
+                + " LIMIT ? OFFSET ?";
 
-        if (!filter.search().isEmpty()) sql.append(" AND strpos(lower(a.title), lower(?)) > 0");
-
-        if (filter.purpose() != null) sql.append(" AND a.assignment_purpose = ?");
-
-        if (filter.responseType() != null) sql.append(" AND a.response_type = ?");
-
-        if (filter.status() != null) sql.append(" AND a.status = ?");
-
-        sql.append(" ORDER BY a.assignment_id DESC");
-
-        try (var statement = connection.prepareStatement(sql.toString())) {
-            int index = 1;
-
-            statement.setLong(index++, teacherId);
-            statement.setLong(index++, classId);
-
-            if (!filter.search().isEmpty()) statement.setString(index++, filter.search());
-
-            if (filter.purpose() != null) statement.setString(index++, filter.purpose().name());
-
-            if (filter.responseType() != null)
-                statement.setString(index++, filter.responseType().name());
-
-            if (filter.status() != null) statement.setString(index++, filter.status().name());
+        try (var statement = connection.prepareStatement(sql)) {
+            int index = bindListFilter(statement, teacherId, classId, filter);
+            statement.setInt(index++, AssignmentListFilter.PAGE_SIZE);
+            statement.setLong(index, filter.offset());
 
             try (var rows = statement.executeQuery()) {
                 List<Assignment> assignments = new ArrayList<>();
@@ -522,6 +522,58 @@ public class AssignmentDAO {
                 return assignments;
             }
         }
+    }
+
+    public long countForTeacher(Connection connection, long teacherId, long classId,
+            AssignmentListFilter filter) throws SQLException {
+        try (var statement = connection.prepareStatement("SELECT count(*) " + listFilterSql(filter))) {
+            bindListFilter(statement, teacherId, classId, filter);
+
+            try (var rows = statement.executeQuery()) {
+                rows.next();
+                return rows.getLong(1);
+            }
+        }
+    }
+
+    public java.util.Map<Long, java.time.Instant> creationTimes(Connection connection,
+            long teacherId, long classId) throws SQLException {
+        var result = new java.util.HashMap<Long, java.time.Instant>();
+        try (var p = connection.prepareStatement(
+                "SELECT a.assignment_id,a.created_at FROM assignments a"
+                        + " JOIN subject_classes c ON c.class_id=a.class_id"
+                        + " WHERE c.teacher_id=? AND c.class_id=? AND a.created_at IS NOT NULL")) {
+            p.setLong(1, teacherId);
+            p.setLong(2, classId);
+            try (var rows = p.executeQuery()) {
+                while (rows.next()) result.put(rows.getLong(1), rows.getTimestamp(2).toInstant());
+            }
+        }
+        return result;
+    }
+
+    private static String listFilterSql(AssignmentListFilter filter) {
+        String sql = "FROM assignments a JOIN subject_classes c ON c.class_id=a.class_id"
+                + " JOIN users u ON u.user_id=c.teacher_id"
+                + " WHERE c.teacher_id=? AND c.class_id=?"
+                + " AND u.role='TEACHER' AND u.account_status='ACTIVE'";
+        if (!filter.search().isEmpty()) sql += " AND strpos(lower(a.title),lower(?))>0";
+        if (filter.purpose() != null) sql += " AND a.assignment_purpose=?";
+        if (filter.responseType() != null) sql += " AND a.response_type=?";
+        if (filter.status() != null) sql += " AND a.status=?";
+        return sql;
+    }
+
+    private static int bindListFilter(java.sql.PreparedStatement p, long teacherId,
+            long classId, AssignmentListFilter filter) throws SQLException {
+        int index = 1;
+        p.setLong(index++, teacherId);
+        p.setLong(index++, classId);
+        if (!filter.search().isEmpty()) p.setString(index++, filter.search());
+        if (filter.purpose() != null) p.setString(index++, filter.purpose().name());
+        if (filter.responseType() != null) p.setString(index++, filter.responseType().name());
+        if (filter.status() != null) p.setString(index++, filter.status().name());
+        return index;
     }
 
     public Optional<AssignmentDetailPage> findDetailForTeacher(
@@ -654,7 +706,17 @@ public class AssignmentDAO {
                 timeLimit,
                 attemptLimit,
                 ResultSetSupport.instant(rs, "published_at"),
-                ResultSetSupport.instant(rs, "cancelled_at"));
+                ResultSetSupport.instant(rs, "cancelled_at"),
+                optionalClosedAt(rs));
+    }
+
+    private static java.time.Instant optionalClosedAt(ResultSet rows) throws SQLException {
+        var metadata = rows.getMetaData();
+        for (int column = 1; column <= metadata.getColumnCount(); column++)
+            if ("closed_at".equalsIgnoreCase(metadata.getColumnLabel(column)))
+                return ResultSetSupport.instant(rows, "closed_at");
+
+        return null;
     }
 
     static Question mapQuestion(ResultSet rs) throws SQLException {

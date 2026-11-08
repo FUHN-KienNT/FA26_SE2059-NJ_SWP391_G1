@@ -37,6 +37,7 @@ class StudentObjectiveDatabaseTest {
                     "ALTER TABLE submissions ALTER COLUMN submission_id SET DEFAULT nextval('student_objective_test_ids')");
             s.execute(
                     "CREATE TEMP TABLE submission_content_snapshots(submission_id BIGINT PRIMARY KEY,assignment_data JSONB,questions_data JSONB)");
+            s.execute("CREATE TEMP TABLE submission_evaluation_history(history_id BIGINT GENERATED ALWAYS AS IDENTITY,submission_id BIGINT,assignment_id BIGINT,student_id BIGINT,actor_id BIGINT,action TEXT,reason TEXT,previous_evaluation JSONB,next_evaluation JSONB,previous_score NUMERIC,next_score NUMERIC,previous_status TEXT,next_status TEXT,created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP)");
             s.execute("SET search_path TO pg_temp");
             s.execute(
                     "INSERT INTO users VALUES(1,'STUDENT','ACTIVE'),(2,'STUDENT','ACTIVE'),(3,'TEACHER','ACTIVE')");
@@ -63,7 +64,65 @@ class StudentObjectiveDatabaseTest {
     }
 
     @Test
-    void regularAssignmentListRetainsOwnershipAndHidesPracticeWithoutDeletingIt() throws Exception {
+    void replacementStaysUngradedUntilPermanentCloseAndOnlyLatestFinalRemains() throws Exception {
+        sql("ALTER TABLE subject_classes ADD COLUMN teacher_id BIGINT DEFAULT 3");
+        var service = service();
+        long first = service.start(1, 50);
+
+        service.submit(1, 50, first, 0, Map.of(51L, List.of("A", "C"), 52L, List.of("A")));
+        assertEquals(SubmissionStatus.SUBMITTED, service.page(1, 50, first).status());
+        assertTrue(service.page(1, 50, first).questions().isEmpty());
+        long replacement = service.start(1, 50);
+
+        assertEquals(2, count("submissions"));
+        assertEquals(SubmissionStatus.SUBMITTED, service.page(1, 50, first).status());
+        service.submit(1, 50, replacement, 0, Map.of(51L, List.of("B"), 52L, List.of("A")));
+
+        assertEquals(1, count("submissions"));
+        assertEquals(1, count("submission_content_snapshots"));
+        assertThrows(NoSuchElementException.class, () -> service.page(1, 50, first));
+
+        try (var statement = connection.createStatement();
+                var rows = statement.executeQuery("SELECT score,answer,released_at FROM submissions")) {
+            assertTrue(rows.next());
+            assertNull(rows.getBigDecimal("score"));
+            assertNull(rows.getTimestamp("released_at"));
+            assertFalse(rows.getString("answer").contains("awarded_points"));
+        }
+
+        assertEquals(0, service.closeSubmissions(3, 50));
+        assertEquals(SubmissionStatus.RELEASED, service.page(1, 50, replacement).status());
+
+        try (var statement = connection.createStatement();
+                var rows = statement.executeQuery("SELECT score FROM submissions")) {
+            assertTrue(rows.next());
+            assertEquals(5, rows.getBigDecimal("score").intValue());
+        }
+
+        assertThrows(IllegalArgumentException.class, () -> service.start(1, 50));
+        assertEquals(0, service.closeSubmissions(3, 50));
+    }
+
+    @Test
+    void resumingLegacyTimedWorkExtendsItsStoredDeadlineToTheAssignmentDeadline() throws Exception {
+        var service = service();
+        long id = service.start(1, 50);
+
+        sql("UPDATE submissions SET deadline_at=CURRENT_TIMESTAMP+INTERVAL '20 minutes'");
+        var page = service.page(1, 50, id);
+
+        assertEquals(page.assignment().dueAt(), page.deadline());
+
+        try (var statement = connection.createStatement();
+                var rows = statement.executeQuery(
+                        "SELECT sub.deadline_at=a.due_at FROM submissions sub JOIN assignments a USING(assignment_id)")) {
+            assertTrue(rows.next());
+            assertTrue(rows.getBoolean(1));
+        }
+    }
+
+    @Test
+    void currentAssignmentListRetainsOwnershipIncludesPracticeAndOrdersNewestFirst() throws Exception {
         sql(
                 """
                 INSERT INTO assignments(assignment_id,class_id,template_id,title,assignment_purpose,response_type,
@@ -77,7 +136,7 @@ class StudentObjectiveDatabaseTest {
                         CURRENT_TIMESTAMP-INTERVAL '1 hour',CURRENT_TIMESTAMP+INTERVAL '1 day',CURRENT_TIMESTAMP)
                 """);
         assertEquals(
-                List.of(60L, 63L),
+                List.of(63L, 60L, 50L),
                 service().list(1).stream().map(x -> x.assignment().assignmentId()).toList());
         assertEquals(
                 List.of(61L),
@@ -155,15 +214,19 @@ class StudentObjectiveDatabaseTest {
         try (var s = connection.createStatement();
                 var r = s.executeQuery("SELECT * FROM submissions")) {
             r.next();
-            assertEquals("RELEASED", r.getString("status"));
-            assertEquals(5, r.getBigDecimal("score").intValue());
-            assertEquals(r.getObject("graded_at"), r.getObject("released_at"));
-            assertNotNull(r.getObject("released_at"));
+            assertEquals("SUBMITTED", r.getString("status"));
+            assertNull(r.getBigDecimal("score"));
+            assertNull(r.getObject("graded_at"));
+            assertNull(r.getObject("released_at"));
             assertNull(r.getObject("graded_by"));
             assertTrue(r.getString("answer").contains("selected_option_ids"));
+            assertFalse(r.getString("answer").contains("awarded_points"));
         }
 
         service.submit(1, 50, id, 0, Map.of(51L, List.of("B")));
+        assertEquals(SubmissionStatus.SUBMITTED, service.page(1, 50, id).status());
+        sql("UPDATE assignments SET closed_at=CURRENT_TIMESTAMP");
+        assertEquals(1, service.finishOverdue());
         assertEquals(SubmissionStatus.RELEASED, service.page(1, 50, id).status());
 
         try (var s = connection.createStatement();
@@ -197,7 +260,7 @@ class StudentObjectiveDatabaseTest {
     }
 
     @Test
-    void invalidSelectionsRollbackAndAttemptLimitIsEnforced() throws Exception {
+    void invalidSelectionsRollbackAndRepeatSubmissionsKeepOnlyLatestFinal() throws Exception {
         var service = service();
         long id = service.start(1, 50);
 
@@ -206,11 +269,12 @@ class StudentObjectiveDatabaseTest {
                 () -> service.submit(1, 50, id, 0, Map.of(51L, List.of("foreign"))));
         assertEquals(SubmissionStatus.IN_PROGRESS, service.page(1, 50, id).status());
         service.submit(1, 50, id, 0, Map.of());
+        sql("UPDATE assignments SET due_at=CURRENT_TIMESTAMP+INTERVAL '1 hour'");
         long second = service.start(1, 50);
 
         assertNotEquals(id, second);
         service.submit(1, 50, second, 0, Map.of());
-        assertThrows(IllegalArgumentException.class, () -> service.start(1, 50));
+        assertTrue(service.start(1, 50) > second);
         assertEquals(2, count("submissions"));
     }
 
@@ -222,6 +286,7 @@ class StudentObjectiveDatabaseTest {
         assertFalse(service.save(1, 50, id, 0, Map.of(51L, List.of("A", "C"))).finished());
         sql(
                 "UPDATE submissions SET started_at=CURRENT_TIMESTAMP-INTERVAL '21 minutes',deadline_at=CURRENT_TIMESTAMP-INTERVAL '1 minute'");
+        sql("UPDATE assignments SET due_at=CURRENT_TIMESTAMP-INTERVAL '1 minute'");
         service.submit(1, 50, id, 0, Map.of(51L, List.of("B"), 52L, List.of("A")));
         assertEquals(SubmissionStatus.RELEASED, service.page(1, 50, id).status());
 
@@ -297,10 +362,10 @@ class StudentObjectiveDatabaseTest {
                 "UPDATE assignments SET available_from='2026-10-16T10:00:00Z',due_at='2026-10-16T12:00:00Z',published_at='2026-10-16T09:00:00Z',time_limit_minutes=20");
         long id = service.start(1, 50);
 
-        assertEquals(Instant.parse("2026-10-16T11:50:00Z"), service.page(1, 50, id).deadline());
-        clock[0] = Instant.parse("2026-10-16T11:49:59.999Z");
+        assertEquals(Instant.parse("2026-10-16T12:00:00Z"), service.page(1, 50, id).deadline());
+        clock[0] = Instant.parse("2026-10-16T11:59:59.999Z");
         service.save(1, 50, id, 0, Map.of(51L, List.of("A", "C")));
-        clock[0] = Instant.parse("2026-10-16T11:50:00Z");
+        clock[0] = Instant.parse("2026-10-16T12:00:00Z");
         assertTrue(
                 service.save(1, 50, id, 0, Map.of(51L, List.of("B"), 52L, List.of("A")))
                         .finished());
@@ -323,6 +388,7 @@ class StudentObjectiveDatabaseTest {
         service.save(1, 50, id, 0, Map.of(51L, List.of("A", "C")));
         sql(
                 "UPDATE submissions SET started_at=CURRENT_TIMESTAMP-INTERVAL '21 minutes',deadline_at=CURRENT_TIMESTAMP-INTERVAL '1 minute'");
+        sql("UPDATE assignments SET due_at=CURRENT_TIMESTAMP-INTERVAL '1 minute'");
         assertEquals(1, service.finishOverdue());
         assertEquals(0, service.finishOverdue());
 
@@ -333,6 +399,7 @@ class StudentObjectiveDatabaseTest {
             assertTrue(r.getBoolean(2));
         }
 
+        sql("UPDATE assignments SET due_at=CURRENT_TIMESTAMP+INTERVAL '1 hour'");
         long second = service.start(1, 50);
 
         sql(
@@ -363,6 +430,7 @@ class StudentObjectiveDatabaseTest {
         service.save(1, 50, id, 0, Map.of(52L, List.of("A")));
         sql(
                 "UPDATE submissions SET started_at=CURRENT_TIMESTAMP-INTERVAL '21 minutes',deadline_at=CURRENT_TIMESTAMP-INTERVAL '1 minute'");
+        sql("UPDATE assignments SET due_at=CURRENT_TIMESTAMP-INTERVAL '1 minute'");
         assertEquals(SubmissionStatus.RELEASED, service.page(1, 50, id).status());
 
         try (var s = connection.createStatement();
@@ -388,7 +456,7 @@ class StudentObjectiveDatabaseTest {
                 () -> service.submit(1, 50, id, 0L, Map.of(51L, List.of("B"))));
         assertEquals(List.of("A", "C"), service.page(1, 50, id).selected().get(51L));
         service.submit(1, 50, id, 1L, Map.of(51L, List.of("A", "C")));
-        assertEquals(SubmissionStatus.RELEASED, service.page(1, 50, id).status());
+        assertEquals(SubmissionStatus.SUBMITTED, service.page(1, 50, id).status());
     }
 
     @Test
@@ -412,6 +480,7 @@ class StudentObjectiveDatabaseTest {
         sql(
                 "UPDATE submissions SET started_at=CURRENT_TIMESTAMP-INTERVAL '21 minutes',deadline_at=CURRENT_TIMESTAMP-INTERVAL '1 minute' WHERE submission_id="
                         + valid);
+        sql("UPDATE assignments SET due_at=CURRENT_TIMESTAMP-INTERVAL '1 minute'");
         assertEquals(2, service.finishOverdue());
 
         try (var s = connection.createStatement();
@@ -447,6 +516,7 @@ class StudentObjectiveDatabaseTest {
                 VALUES(50,1,1,CURRENT_TIMESTAMP-INTERVAL '21 minutes',CURRENT_TIMESTAMP-INTERVAL '1 minute',
                 'Nội dung tự luận đã lưu','[{"task_id":1,"answer_text":"Câu trả lời đã lưu"}]')
                 """);
+        sql("UPDATE assignments SET due_at=CURRENT_TIMESTAMP-INTERVAL '1 minute'");
         assertEquals(1, service().finishOverdue());
 
         try (var s = connection.createStatement();
@@ -469,6 +539,7 @@ class StudentObjectiveDatabaseTest {
 
         sql(
                 "UPDATE submissions SET answer='[{\"question_id\":51,\"selected_option_id\":null},{\"question_id\":52,\"selected_option_id\":\"A\"}]',started_at=CURRENT_TIMESTAMP-INTERVAL '21 minutes',deadline_at=CURRENT_TIMESTAMP-INTERVAL '1 minute'");
+        sql("UPDATE assignments SET due_at=CURRENT_TIMESTAMP-INTERVAL '1 minute'");
         assertEquals(1, service.finishOverdue());
 
         try (var s = connection.createStatement();
@@ -481,11 +552,13 @@ class StudentObjectiveDatabaseTest {
             assertEquals(5, r.getInt(2));
         }
 
+        sql("UPDATE assignments SET due_at=CURRENT_TIMESTAMP+INTERVAL '1 hour'");
         long malformed = service.start(1, 50);
 
         sql(
                 "UPDATE submissions SET answer='[{\"question_id\":51.5,\"selected_option_id\":\"A\"}]',started_at=CURRENT_TIMESTAMP-INTERVAL '21 minutes',deadline_at=CURRENT_TIMESTAMP-INTERVAL '1 minute' WHERE submission_id="
                         + malformed);
+        sql("UPDATE assignments SET due_at=CURRENT_TIMESTAMP-INTERVAL '1 minute'");
         assertEquals(1, service.finishOverdue());
         assertEquals(0, service.finishOverdue());
 
@@ -509,6 +582,8 @@ class StudentObjectiveDatabaseTest {
 
         sql("DELETE FROM questions");
         service.submit(1, 50, id, 0, Map.of(51L, List.of("A", "C"), 52L, List.of("A")));
+        sql("UPDATE assignments SET closed_at=CURRENT_TIMESTAMP");
+        assertEquals(1, service.finishOverdue());
 
         try (var s = connection.createStatement();
                 var r = s.executeQuery("SELECT score FROM submissions")) {

@@ -69,6 +69,7 @@ class TeacherEvaluationDatabaseTest {
                                 + table
                                 + " INCLUDING ALL)");
 
+            statement.execute("CREATE TEMP TABLE submission_evaluation_history (LIKE public.submission_evaluation_history INCLUDING ALL)");
             statement.execute("SET search_path TO pg_temp");
             statement.execute(
                     "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS evaluation JSONB NOT NULL DEFAULT '{\"format\":\"ams-evaluation-v1\",\"marks\":[]}'::jsonb");
@@ -95,6 +96,7 @@ class TeacherEvaluationDatabaseTest {
                         (200,20,1,'Foreign','REGULAR','ESSAY','Explain','Course','[]',10,'PUBLISHED',
                         now()-interval '3 days',now()+interval '1 day',now()-interval '3 days')
                     """);
+            statement.execute("UPDATE assignments SET closed_at=CURRENT_TIMESTAMP");
             statement.execute(
                     """
                     INSERT INTO submissions(submission_id,assignment_id,enrollment_id,attempt_number,status,
@@ -171,6 +173,7 @@ class TeacherEvaluationDatabaseTest {
         for (String table :
                 List.of(
                         "submissions",
+                        "submission_evaluation_history",
                         "submission_content_snapshots",
                         "assignments",
                         "class_enrollments",
@@ -528,5 +531,137 @@ class TeacherEvaluationDatabaseTest {
 
         service(dao, assignments).apply(1, 100, 1000, "saveEvaluation", 0, complete(), "");
         assertEquals(List.of("teacher", "assignment", "class", "submission"), locks);
+    }
+
+    @Test
+    @Tag("database")
+    void futureDeadlineBlocksEveryGradingActionUntilPermanentlyClosed() throws SQLException {
+        execute("UPDATE assignments SET closed_at=NULL WHERE assignment_id=100");
+        String before = snapshot();
+
+        assertTrue(service().page(1, 100, 1000).blockedReason().contains("Chỉ được chấm"));
+
+        for (String action : List.of("saveEvaluation", "completeEvaluation", "publishEvaluation"))
+            assertThrows(IllegalArgumentException.class, () -> apply(action, 0, complete(), "blocked"));
+
+        assertEquals(before, snapshot());
+        execute("UPDATE assignments SET closed_at=clock_timestamp() WHERE assignment_id=100");
+        assertNull(service().page(1, 100, 1000).blockedReason());
+        apply("completeEvaluation", 0, complete(), "allowed after closure");
+
+        // A frozen snapshot containing closed_at must not authorize a changed current assignment.
+        execute("UPDATE assignments SET closed_at=NULL WHERE assignment_id=100");
+        assertNotNull(service().page(1, 100, 1000).blockedReason());
+        assertThrows(IllegalArgumentException.class, () -> apply("releaseEvaluation", 1, null, null));
+    }
+
+    @Test
+    @Tag("database")
+    void deadlinePassedAllowsAtomicSaveAndPublicationWithoutManualClosure() throws SQLException {
+        execute("UPDATE assignments SET closed_at=NULL,due_at=clock_timestamp()-interval '1 second' WHERE assignment_id=100");
+        assertNull(service().page(1, 100, 1000).blockedReason());
+        apply("publishEvaluation", 0, complete(), "published directly");
+        var page = service().page(1, 100, 1000);
+
+        assertEquals(SubmissionStatus.RELEASED, page.detail().row().submission().status());
+        assertEquals(new BigDecimal("6.25"), page.detail().row().submission().score());
+        assertEquals(2, page.evaluation().revision());
+        assertEquals("published directly", page.evaluation().feedback());
+        assertEquals(1, page.history().total());
+        assertEquals("publishEvaluation", page.history().entries().get(0).action());
+    }
+
+    @Test
+    @Tag("database")
+    void releasedAmendmentRequiresReasonAndCanRestoreMatchingPriorEvaluation() throws SQLException {
+        apply("publishEvaluation", 0, complete(), "original overall");
+        var revised = List.of(
+                new Mark(1, 1, new BigDecimal("1.75"), "AI text", true),
+                new Mark(1, 2, new BigDecimal("2"), "Diagram", true),
+                new Mark(2, 1, new BigDecimal("3"), "Other", false));
+        String before = snapshot();
+
+        assertThrows(IllegalArgumentException.class, () -> service().apply(1, 100, 1000,
+                "reviseReleasedEvaluation", 2, revised, "new", "   ", true, 0));
+        assertThrows(IllegalArgumentException.class, () -> service().apply(1, 100, 1000,
+                "reviseReleasedEvaluation", 2, revised, "new", "x".repeat(2001), true, 0));
+        assertEquals(before, snapshot());
+
+        service().apply(1, 100, 1000, "reviseReleasedEvaluation", 2, revised, "AI overall",
+                "Đối chiếu lại tiêu chí chấm.", true, 0);
+        var changed = service().page(1, 100, 1000);
+
+        assertEquals(SubmissionStatus.RELEASED, changed.detail().row().submission().status());
+        assertEquals(new BigDecimal("6.75"), changed.evaluation().total());
+        assertTrue(changed.evaluation().feedbackAi());
+        assertTrue(changed.evaluation().mark(1, 1).aiGenerated());
+        assertEquals(2, changed.history().total());
+        var change = changed.history().entries().get(0);
+        assertEquals("Teacher A", change.actor());
+        assertEquals("Đối chiếu lại tiêu chí chấm.", change.reason());
+        assertEquals(new BigDecimal("6.25"), change.previousScore());
+        assertEquals(new BigDecimal("6.75"), change.nextScore());
+
+        assertThrows(IllegalArgumentException.class, () -> service().apply(1, 100, 1000,
+                "restoreEvaluation", 3, null, null, "", false, change.id()));
+        service().apply(1, 100, 1000, "restoreEvaluation", 3, null, null,
+                "Khôi phục sau khi đối chiếu.", false, change.id());
+        var restored = service().page(1, 100, 1000);
+
+        assertEquals(SubmissionStatus.RELEASED, restored.detail().row().submission().status());
+        assertEquals(new BigDecimal("6.25"), restored.evaluation().total());
+        assertEquals("original overall", restored.evaluation().feedback());
+        assertFalse(restored.evaluation().feedbackAi());
+        assertEquals(3, restored.history().total());
+    }
+
+    @Test
+    @Tag("database")
+    void historyOfPreviousSubmittedWorkCannotBeRestoredIntoAReplacementSubmission() throws SQLException {
+        apply("saveEvaluation", 0, complete(), "old work");
+        long historyId = service().page(1, 100, 1000).history().entries().get(0).id();
+        execute("""
+                INSERT INTO submissions(submission_id,assignment_id,enrollment_id,attempt_number,status,
+                    started_at,deadline_at,submitted_at,content,answer)
+                SELECT 1003,assignment_id,enrollment_id,2,'SUBMITTED',started_at,deadline_at,
+                    submitted_at,'Replacement content','[]' FROM submissions WHERE submission_id=1000
+                """);
+        String before = snapshot();
+
+        assertThrows(NoSuchElementException.class, () -> service().apply(1, 100, 1003,
+                "restoreEvaluation", 0, null, null, "Should not restore", false, historyId));
+        assertEquals(before, snapshot());
+    }
+
+    @Test
+    @Tag("database")
+    void gradeJournalUsesTenRowsPerPageAndClampsPageAfterFilteringByStudent() {
+        for (int i = 0; i < 11; i++) apply("saveEvaluation", i, complete(), "revision " + i);
+        var first = service().page(1, 100, 1000, 1).history();
+        var second = service().page(1, 100, 1000, 2).history();
+
+        assertEquals(11, first.total());
+        assertEquals(10, first.entries().size());
+        assertEquals(1, second.entries().size());
+        assertTrue(first.entries().get(0).id() > second.entries().get(0).id());
+        assertEquals(2, service().page(1, 100, 1000, 999).history().page());
+    }
+
+    @Test
+    void evaluationRoundTripKeepsAiProvenanceAndReadsLegacyMarksWithoutIt() {
+        var original = new SubmissionEvaluation(7,
+                List.of(new Mark(1, 1, new BigDecimal("0.50"), "Nhận xét AI", true)), "Chung AI", true);
+        var read = SubmissionEvaluation.read(original.json(), 7, original.feedback());
+
+        assertEquals(original, read);
+        var legacy = SubmissionEvaluation.read("""
+                {"format":"ams-evaluation-v1","marks":[{"task_order":1,"requirement_order":1,
+                  "score":0,"feedback":"Old"}]}
+                """, 0, "Old overall");
+        assertFalse(legacy.feedbackAi());
+        assertFalse(legacy.mark(1, 1).aiGenerated());
+        assertThrows(IllegalArgumentException.class, () -> SubmissionEvaluation.read("""
+                {"format":"ams-evaluation-v1","feedback_ai":"true","marks":[]}
+                """, 0, ""));
     }
 }

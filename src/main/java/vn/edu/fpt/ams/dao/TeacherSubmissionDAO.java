@@ -37,12 +37,36 @@ public class TeacherSubmissionDAO {
             JOIN subject_registrations r ON r.registration_id = e.registration_id
                                        AND r.subject_term_id = c.subject_term_id
             JOIN users student ON student.user_id = r.student_id
-            LEFT JOIN submissions sub ON sub.assignment_id = a.assignment_id
-                                     AND sub.enrollment_id = e.enrollment_id
+            LEFT JOIN submissions sub ON sub.assignment_id=a.assignment_id
+                AND EXISTS (SELECT 1 FROM class_enrollments work_e
+                    JOIN subject_registrations work_r ON work_r.registration_id=work_e.registration_id
+                    WHERE work_e.enrollment_id=sub.enrollment_id AND work_e.class_id=c.class_id
+                      AND work_r.student_id=student.user_id AND work_r.subject_term_id=c.subject_term_id)
+                AND NOT EXISTS (SELECT 1 FROM submissions newer
+                    JOIN class_enrollments newer_e ON newer_e.enrollment_id=newer.enrollment_id
+                    JOIN subject_registrations newer_r ON newer_r.registration_id=newer_e.registration_id
+                    WHERE newer.assignment_id=a.assignment_id AND newer_e.class_id=c.class_id
+                      AND newer_r.student_id=student.user_id
+                      AND newer_r.subject_term_id=c.subject_term_id
+                      AND (CASE WHEN newer.submitted_at IS NOT NULL AND newer.status IN ('SUBMITTED','GRADED','RELEASED')
+                                THEN 1 ELSE 0 END >
+                           CASE WHEN sub.submitted_at IS NOT NULL AND sub.status IN ('SUBMITTED','GRADED','RELEASED')
+                                THEN 1 ELSE 0 END
+                        OR (CASE WHEN newer.submitted_at IS NOT NULL AND newer.status IN ('SUBMITTED','GRADED','RELEASED')
+                                 THEN 1 ELSE 0 END =
+                            CASE WHEN sub.submitted_at IS NOT NULL AND sub.status IN ('SUBMITTED','GRADED','RELEASED')
+                                 THEN 1 ELSE 0 END AND newer.submission_id>sub.submission_id)))
             LEFT JOIN users grader ON grader.user_id = sub.graded_by
             LEFT JOIN submission_content_snapshots snapshot ON snapshot.submission_id = sub.submission_id
             WHERE c.teacher_id = ? AND a.assignment_id = ?
               AND teacher.role = 'TEACHER' AND teacher.account_status = 'ACTIVE'
+              AND e.enrollment_id = (
+                  SELECT selected_e.enrollment_id FROM class_enrollments selected_e
+                  JOIN subject_registrations selected_r ON selected_r.registration_id=selected_e.registration_id
+                  WHERE selected_e.class_id=c.class_id AND selected_r.student_id=student.user_id
+                    AND selected_r.subject_term_id=c.subject_term_id
+                  ORDER BY (selected_e.status='ACTIVE' AND selected_r.status='ACTIVE') DESC,
+                           selected_e.enrollment_id DESC LIMIT 1)
               AND (sub.submission_id IS NOT NULL
                    OR (e.status = 'ACTIVE' AND r.status = 'ACTIVE' AND student.role = 'STUDENT'
                        AND NOT EXISTS (
@@ -74,8 +98,8 @@ public class TeacherSubmissionDAO {
                 new StringBuilder(SELECT_COLUMNS).append(FROM_ROSTER).append(filterSql(filter));
 
         sql.append(
-                " ORDER BY student.full_name, student.user_id, sub.attempt_number DESC,"
-                        + " sub.submission_id DESC LIMIT ? OFFSET ?");
+                " ORDER BY COALESCE(sub.submitted_at,sub.started_at) DESC NULLS LAST,"
+                        + " sub.submission_id DESC NULLS LAST,student.user_id DESC LIMIT ? OFFSET ?");
 
         try (var statement = connection.prepareStatement(sql.toString())) {
             int index = bindFilter(statement, teacherId, assignmentId, filter);

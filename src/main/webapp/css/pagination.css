@@ -1,0 +1,56 @@
+.ams-ui .ams-pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 24px 0 12px;
+}
+
+.ams-ui .ams-pagination .ams-page-control,
+.ams-ui .ams-pagination .ams-page-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    min-width: 44px;
+    height: 44px;
+    padding: 0 12px;
+    border: 1px solid #c0cee0;
+    border-radius: 4px;
+    background: #fff;
+    color: #23456a;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1;
+}
+
+.ams-ui .ams-pagination a:hover {
+    border-color: #2861d8;
+    background: #eef4ff;
+}
+
+.ams-ui .ams-pagination a:focus-visible {
+    outline: 3px solid #9dbbff;
+    outline-offset: 2px;
+}
+
+.ams-ui .ams-pagination .is-current {
+    border-color: #2861d8;
+    background: #2861d8;
+    color: #fff;
+    font-weight: 700;
+}
+
+.ams-ui .ams-pagination [aria-disabled="true"] {
+    opacity: .45;
+    cursor: default;
+}
+
+.ams-ui .ams-pagination .ams-page-gap {
+    display: inline-flex;
+    justify-content: center;
+    min-width: 22px;
+    color: #657992;
+}

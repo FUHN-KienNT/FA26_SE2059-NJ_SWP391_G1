@@ -15,6 +15,7 @@ import vn.edu.fpt.ams.util.EssaySubmissionView;
 import vn.edu.fpt.ams.util.EssayEvaluationRules;
 import vn.edu.fpt.ams.util.SubmissionContentSnapshot;
 import vn.edu.fpt.ams.util.TeacherSubmissionView;
+import vn.edu.fpt.ams.util.StudentWorkExport;
 
 /** A read-only projection: no GET can finalize, grade, or release an attempt. */
 public class StudentResultService {
@@ -87,6 +88,67 @@ public class StudentResultService {
             }
         } catch (SQLException ex) {
             throw new IllegalStateException("Không tải được kết quả. Vui lòng thử lại.", ex);
+        }
+    }
+
+    public StudentResultPage catalog(long studentId, int page) {
+        if (studentId <= 0 || page < 1 || page > 100_000)
+            throw new IllegalArgumentException("Trang bài làm không hợp lệ.");
+
+        try (var connection = connections.open()) {
+            connection.setReadOnly(true);
+            connection.setTransactionIsolation(Connection.TRANSACTION_REPEATABLE_READ);
+            connection.setAutoCommit(false);
+
+            try {
+                dao.requireStudent(connection, studentId);
+                long total = dao.countCatalog(connection, studentId);
+                int pages = (int) Math.max(1, Math.min(Integer.MAX_VALUE,
+                        (total + StudentResultPage.PAGE_SIZE - 1) / StudentResultPage.PAGE_SIZE));
+                int selectedPage = Math.min(page, pages);
+                var result = new StudentResultPage(
+                        0, dao.catalog(connection, studentId, selectedPage), null, null, selectedPage, total);
+                connection.commit();
+
+                return result;
+            } catch (SQLException | RuntimeException ex) {
+                try {
+                    connection.rollback();
+                } catch (SQLException rollback) {
+                    ex.addSuppressed(rollback);
+                }
+
+                throw ex;
+            }
+        } catch (SQLException ex) {
+            throw new IllegalStateException("Không tải được danh sách bài làm.", ex);
+        }
+    }
+
+    public String export(long studentId, long assignmentId, long submissionId) {
+        if (studentId <= 0 || assignmentId <= 0 || submissionId <= 0)
+            throw new IllegalArgumentException("Bài làm không hợp lệ.");
+
+        try (var connection = connections.open()) {
+            connection.setReadOnly(true);
+            connection.setTransactionIsolation(Connection.TRANSACTION_REPEATABLE_READ);
+            connection.setAutoCommit(false);
+
+            try {
+                dao.requireStudent(connection, studentId);
+                var row = dao.exportRow(connection, studentId, assignmentId, submissionId)
+                        .orElseThrow(() -> new NoSuchElementException("Không tìm thấy bài làm của bạn."));
+                String html = StudentWorkExport.html(row);
+                connection.commit();
+
+                return html;
+            } catch (SQLException | RuntimeException ex) {
+                connection.rollback();
+
+                throw ex;
+            }
+        } catch (SQLException ex) {
+            throw new IllegalStateException("Không xuất được bài làm. Vui lòng thử lại.", ex);
         }
     }
 

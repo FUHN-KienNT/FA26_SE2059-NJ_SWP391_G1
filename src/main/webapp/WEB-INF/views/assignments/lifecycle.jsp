@@ -237,7 +237,7 @@
                                 type="hidden"
                                 name="status"
                                 value="<%= filters.status() == null ? "" : escape(filters.status().name()) %>">
-                            <button type="submit" class="<%= cancelling ? "lifecycle-cancel-button" : "ams-button-primary" %>"> <%= publishing ? "Xác nhận công bố" : "Xác nhận hủy" %> </button>
+                            <button type="submit" <%= publishing ? "data-confirm-publish=\"assignment\"" : "" %> class="<%= cancelling ? "lifecycle-cancel-button" : "ams-button-primary" %>"> <%= publishing ? "Xác nhận công bố" : "Xác nhận hủy" %> </button>
                             <a class="ams-button" href="<%= escape(detailUrl) %>">Quay về chi tiết</a>
                             <a href="<%= escape(backUrl) %>">Quay về danh sách</a>
                         </form>

@@ -100,6 +100,12 @@ public final class EssayAnswerCodec {
                 if (!xml.isBlank() && !plantuml.isBlank())
                     throw bad("Mỗi yêu cầu chỉ lưu một sơ đồ draw.io hoặc PlantUML.");
 
+                if (!xml.isBlank() && !expected.allowedTools().contains("DRAWIO"))
+                    throw bad("Giảng viên không cho phép dùng draw.io ở yêu cầu này.");
+
+                if (!plantuml.isBlank() && !expected.allowedTools().contains("PLANTUML"))
+                    throw bad("Giảng viên không cho phép dùng PlantUML ở yêu cầu này.");
+
                 if ((xml.isBlank() && plantuml.isBlank()) != image.isBlank())
                     throw bad("Sơ đồ phải có cả dữ liệu chỉnh sửa và ảnh xem trước.");
 

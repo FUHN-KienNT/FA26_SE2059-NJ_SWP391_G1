@@ -78,11 +78,54 @@ class StudentAssignmentServletTest {
                                     if (m.getName().equals("setHeader"))
                                         headers.put((String) a[0], (String) a[1]);
 
+                                    if (m.getName().equals("sendRedirect")) {
+                                        status = 302;
+                                        headers.put("Location", (String) a[0]);
+                                    }
+
                                     if (m.getName().equals("getWriter"))
                                         return new PrintWriter(body);
 
                                     return null;
                                 });
+    }
+
+    @Test
+    void legacyListEntryRedirectsToClassesAndPreservesTheClassFilters() throws Exception {
+        var e = new Exchange();
+        e.params.remove("assignmentId");
+        e.params.put("classId", new String[] {"9"});
+        e.params.put("q", new String[] {"Câu & 100%_"});
+        e.params.put("responseType", new String[] {"ESSAY"});
+        e.params.put("status", new String[] {"IN_PROGRESS"});
+        e.params.put("page", new String[] {"2"});
+        e.params.put("sort", new String[] {"OPEN_ASC"});
+
+        new StudentAssignmentServlet(new StudentObjectiveService()).doGet(e.request, e.response);
+
+        assertEquals(302, e.status);
+        assertEquals(
+                "/ams/student/classes?classId=9&q=C%C3%A2u+%26+100%25_&responseType=ESSAY&status=IN_PROGRESS&page=2&sort=OPEN_ASC",
+                e.headers.get("Location"));
+    }
+
+    @Test
+    void canonicalListEntryStillRequiresAnActiveStudentAndValidFilters() throws Exception {
+        var invalid = new Exchange();
+        invalid.params.remove("assignmentId");
+        invalid.params.put("page", new String[] {"0"});
+        new StudentAssignmentServlet(new StudentObjectiveService())
+                .doGet(invalid.request, invalid.response);
+        assertEquals(400, invalid.status);
+        assertFalse(invalid.headers.containsKey("Location"));
+
+        var teacher = new Exchange();
+        teacher.params.remove("assignmentId");
+        teacher.session.put("role", UserRole.TEACHER);
+        new StudentAssignmentServlet(new StudentObjectiveService())
+                .doGet(teacher.request, teacher.response);
+        assertEquals(403, teacher.status);
+        assertFalse(teacher.headers.containsKey("Location"));
     }
 
     @Test

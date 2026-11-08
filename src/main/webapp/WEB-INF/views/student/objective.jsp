@@ -20,6 +20,7 @@
         <%@ include file="../shared/shell.jspf" %>
 
         <main id="page-content" class="ams-content student-work">
+            <%@ include file="/WEB-INF/views/shared/action-notice.jspf" %>
             <div class="student-work-inner">
                 <p>
                     <a href="<%=base%>/student/dashboard">Bảng điều khiển</a> / <a
@@ -49,13 +50,14 @@
                     <h1> <%=WebSupport.html(data.assignment().title())%> </h1>
                     <p> Lớp: <%=WebSupport.html(data.classCode())%> · Điểm tối đa: <%=WebSupport.html(data.assignment().maximumScore())%> </p>
                     <div class="work-card">
-                        <h2> Hướng dẫn </h2>
-                        <p class="pre-wrap"><%=WebSupport.html(data.assignment().instructions())%></p>
+                        <h2> Thông tin bài tập </h2>
+                        <% if (data.assignment().instructions() != null && !data.assignment().instructions().isBlank()) { %>
+                            <p class="pre-wrap"><%=WebSupport.html(data.assignment().instructions())%></p>
+                        <% } %>
                         <p> Mở: <%=WebSupport.html(AssignmentListView.deadline(data.assignment().availableFrom()))%> · Hạn nộp: <%=WebSupport.html(AssignmentListView.deadline(data.assignment().dueAt()))%> (UTC+07) </p>
-                        <p> Thời gian làm bài: <%=data.assignment().timeLimitMinutes()==null?"Đến hạn nộp":data.assignment().timeLimitMinutes()+" phút"%> · Số lượt: <%=data.assignment().attemptLimit()==null?1:data.assignment().attemptLimit()%> </p>
+                        <p>Bạn có thể làm lại và nộp lại trước hạn. Hệ thống chỉ giữ bản nộp cuối cùng.</p>
                     </div>
-                    <p> Bài được tự động nộp khi hết thời gian làm bài hoặc đến hạn nộp, tùy thời điểm nào đến trước. Chỉ
-                        các đáp án đã được lưu trước thời điểm đó được tính. </p>
+                    <p>Bài được tự động nộp khi đến hạn hoặc giảng viên khóa nộp bài. Chỉ các đáp án đã lưu được tính.</p>
 
                     <% if (request.getAttribute("formError") != null) { %>
                         <p class="work-error" role="alert"> <%=WebSupport.html(request.getAttribute("formError"))%> </p>
@@ -137,6 +139,14 @@
                             <p><a
                                     href="<%=base%>/student/results?assignmentId=<%=data.assignment().assignmentId()%>&amp;submissionId=<%=data.submissionId()%>"><%=data.status()==SubmissionStatus.RELEASED?"Xem kết quả":"Xem trạng thái kết quả"%></a>
                                 · <a href="<%=base%>/student/results?assignmentId=<%=data.assignment().assignmentId()%>">Lịch sử nộp bài</a></p>
+                            <p><a href="<%=base%>/student/results?assignmentId=<%=data.assignment().assignmentId()%>&amp;submissionId=<%=data.submissionId()%>&amp;download=1">Xuất bài làm của tôi</a></p>
+                            <% if (data.assignment().closedAt() == null && data.assignment().dueAt() != null && data.serverTime().isBefore(data.assignment().dueAt())) { %>
+                                <form method="post" action="<%=base%>/student/assignments">
+                                    <input type="hidden" name="csrf" value="<%=WebSupport.html(WebSupport.csrf(request))%>">
+                                    <input type="hidden" name="assignmentId" value="<%=data.assignment().assignmentId()%>">
+                                    <button type="submit" name="action" value="start">Làm lại bài</button>
+                                </form>
+                            <% } %>
                         <% } %>
                 <%
                         }

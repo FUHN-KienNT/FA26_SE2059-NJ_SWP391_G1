@@ -25,6 +25,7 @@
         <title><%= data == null ? "Chi tiết bài tập" : escape(data.assignment().title()) %> | AMS</title>
         <link rel="stylesheet" href="<%= escape(base) %>/css/assignment-list.css">
         <link rel="stylesheet" href="<%= escape(base) %>/css/assignment-detail.css">
+        <link rel="stylesheet" href="<%= escape(base) %>/css/assignment-dialog.css">
         <%@ include file="/WEB-INF/views/shared/assets.jspf" %>
 
         <link rel="stylesheet" href="<%= escape(base) %>/css/assignment-lifecycle.css">
@@ -33,6 +34,7 @@
         <%@ include file="/WEB-INF/views/shared/shell.jspf" %>
 
         <main class="ams-content" id="page-content">
+            <%@ include file="/WEB-INF/views/shared/action-notice.jspf" %>
             <nav class="breadcrumb" aria-label="Đường dẫn">
                 <a href="<%= escape(base) %>/teacher/dashboard">Bảng điều khiển</a><span aria-hidden="true">/</span><a
                     href="<%= escape(backUrl) %>">Bài tập</a>
@@ -64,7 +66,7 @@
                         session.removeAttribute("createdAssignmentId");
                 %>
 
-                    <p class="state-message" role="status"> Đã tạo bản nháp bài tập. </p>
+                    <p class="state-message" role="status"> Đã tạo bài tập. </p>
                 <% } %>
 
                 <%
@@ -73,7 +75,7 @@
                         session.removeAttribute("updatedAssignmentId");
                 %>
 
-                    <p class="state-message" role="status"> Đã lưu thay đổi. Bài tập vẫn ở trạng thái bản nháp. </p>
+                    <p class="state-message" role="status"> Đã lưu thay đổi bài tập. </p>
                 <% } %>
 
                 <%
@@ -105,14 +107,14 @@
 
                         <% if (assignment.status() == AssignmentStatus.DRAFT) { %>
                             <a class="ams-button" href="<%= escape(actionUrl) %>&amp;mode=edit">Sửa bài tập</a>
-                            <a class="ams-button ams-button-primary" href="<%= escape(actionUrl) %>&amp;mode=publish">Công bố bài
+                            <a class="ams-button ams-button-primary" data-lifecycle-dialog href="<%= escape(actionUrl) %>&amp;mode=publish">Công bố bài
                                 tập</a>
                         <%
                             }
                             if (assignment.status() == AssignmentStatus.DRAFT
                                     || assignment.status() == AssignmentStatus.PUBLISHED) {
                         %>
-                            <a class="ams-button" href="<%= escape(actionUrl) %>&amp;mode=cancel">Hủy bài tập</a>
+                            <a class="ams-button" data-lifecycle-dialog href="<%= escape(actionUrl) %>&amp;mode=cancel">Hủy bài tập</a>
                         <%
                             }
                             if (data.canViewSubmissions()) {
@@ -121,9 +123,28 @@
                                 bài nộp</a>
                         <% } %>
 
+                        <% if (assignment.status() == AssignmentStatus.PUBLISHED && assignment.closedAt() == null) { %>
+                            <button class="ams-button" type="button" data-lifecycle-dialog data-close-template="close-assignment-template">Khóa nhận bài để chấm</button>
+                            <template id="close-assignment-template">
+                                <section class="detail-card">
+                                    <h2>Khóa nhận bài vĩnh viễn?</h2>
+                                    <p>Sinh viên sẽ dừng làm và nộp lại. Phần bài làm đã lưu của các lượt đang làm sẽ được chốt. Sau khi khóa, bạn có thể chấm điểm và không thể mở nhận bài trở lại.</p>
+                                    <form method="post" action="<%= escape(base) %>/teacher/assignments/close">
+                                        <input type="hidden" name="assignmentId" value="<%= assignment.assignmentId() %>">
+                                        <input type="hidden" name="csrf" value="<%= escape(vn.edu.fpt.ams.util.WebSupport.csrf(request)) %>">
+                                        <button class="ams-button ams-button-primary" type="submit">Xác nhận khóa vĩnh viễn</button>
+                                    </form>
+                                </section>
+                            </template>
+                        <% } %>
+
                         <a class="ams-button" href="<%= escape(backUrl) %>">Quay về danh sách</a>
                     </div>
                 </div>
+
+                <% if (assignment.closedAt() != null) { %>
+                    <p class="state-message" role="status">Đã khóa nhận bài vĩnh viễn lúc <%= deadline(assignment.closedAt()) %>. Giảng viên có thể chấm điểm các bản nộp cuối cùng.</p>
+                <% } %>
 
                 <% if (assignment.status() == AssignmentStatus.CANCELLED) { %>
                     <p class="state-message"> Bài tập đã bị hủy và không thể mở lại. Sinh viên không thể bắt đầu hoặc tiếp tục
@@ -134,11 +155,8 @@
                     <div class="detail-content">
                         <section class="detail-card" aria-labelledby="instructions-heading">
                             <h2 id="instructions-heading"> Nội dung bài tập </h2>
-                            <h3> Hướng dẫn </h3>
-
-                            <% if (assignment.instructions() == null || assignment.instructions().isBlank()) { %>
-                                <p> Chưa có hướng dẫn. </p>
-                            <% } else { %>
+                            <% if (assignment.instructions() != null && !assignment.instructions().isBlank()) { %>
+                                <h3> Hướng dẫn </h3>
                                 <div class="content-text">
                                     <%= escape(assignment.instructions()) %>
                                 </div>
@@ -160,6 +178,28 @@
                                 <% if (checklist.invalid()) { %>
                                     <p class="content-warning" role="alert"> Một số câu hỏi không thể hiển thị vì dữ liệu đã lưu
                                         không hợp lệ. </p>
+                                <% } %>
+
+                                <%
+                                    java.util.List<vn.edu.fpt.ams.util.EssayQuestions.Task> rubricTasks = java.util.List.of();
+                                    try {
+                                        rubricTasks = vn.edu.fpt.ams.util.EssayQuestions.read(assignment.taskChecklistJson());
+                                    } catch (IllegalArgumentException invalidQuestions) { }
+                                    for (var rubricTask : rubricTasks) {
+                                        boolean hasRubric = !rubricTask.rubric().isBlank()
+                                                || rubricTask.requirements().stream().anyMatch(r -> !r.rubric().isBlank());
+                                        if (!hasRubric) continue;
+                                %>
+                                    <details class="teacher-rubric">
+                                        <summary>Tiêu chí chấm câu <%= rubricTask.order() %> · Chỉ giảng viên thấy</summary>
+                                        <% if (!rubricTask.rubric().isBlank()) { %>
+                                            <p class="content-text"><%= escape(rubricTask.rubric()) %></p>
+                                        <% } %>
+                                        <% for (var criterion : rubricTask.requirements()) { if (!criterion.rubric().isBlank()) { %>
+                                            <h4>Yêu cầu <%= criterion.order() %></h4>
+                                            <p class="content-text"><%= escape(criterion.rubric()) %></p>
+                                        <% } } %>
+                                    </details>
                                 <% } %>
                             <% } %>
 
@@ -246,12 +286,12 @@
                                 <dd> <%= deadline(assignment.availableFrom()) %> </dd>
                                 <dt> Hạn nộp </dt>
                                 <dd> <%= deadline(assignment.dueAt()) %> </dd>
-                                <dt> Thời gian làm bài </dt>
-                                <dd> <%= assignment.timeLimitMinutes() == null ? "Chưa đặt" : assignment.timeLimitMinutes() + " phút/lượt" %> </dd>
+                                <dt> Làm bài và nộp lại </dt>
+                                <dd>Không giới hạn số lần trong thời gian nhận bài. Chỉ giữ bản nộp cuối cùng.</dd>
 
                                 <% if (assignment.assignmentPurpose() == AssignmentPurpose.PRACTICE) { %>
-                                    <dt> Số lượt làm tối đa </dt>
-                                    <dd> <%= assignment.attemptLimit() == null ? "Chưa đặt" : assignment.attemptLimit() + " lượt" %> </dd>
+                                    <dt> Trạng thái nhận bài </dt>
+                                    <dd><%= assignment.closedAt() == null ? "Theo thời gian mở và hạn nộp" : "Đã khóa vĩnh viễn" %></dd>
                                 <% } %>
 
                                 <% if (assignment.publishedAt() != null) { %>
@@ -272,5 +312,6 @@
 
         </main>
         </div>
+        <script src="<%= escape(base) %>/js/assignment-lifecycle.js" defer></script>
     </body>
 </html>

@@ -37,7 +37,8 @@ public final class StudentClassDAO {
                     WHERE sub.assignment_id=a.assignment_id AND r.student_id=?
                     ORDER BY sub.attempt_number DESC,sub.submission_id DESC LIMIT 1
                 ) latest ON TRUE
-                WHERE a.class_id=? AND a.status IN ('PUBLISHED','CANCELLED') AND a.published_at IS NOT NULL
+                WHERE a.class_id=? AND a.status='PUBLISHED' AND a.published_at IS NOT NULL
+                    AND a.due_at>CURRENT_TIMESTAMP AND a.closed_at IS NULL
                     AND a.assignment_purpose IN ('REGULAR','PRACTICE') AND a.response_type IN ('ESSAY','OBJECTIVE')
                     AND c.status='ACTIVE' AND EXISTS (
                         SELECT 1 FROM class_enrollments e
@@ -144,7 +145,8 @@ public final class StudentClassDAO {
                 FROM visible
                 """
                         + where(filter, args)
-                        + " ORDER BY due_at ASC NULLS LAST,assignment_id DESC LIMIT ? OFFSET ?";
+                        + orderBy(filter)
+                        + " LIMIT ? OFFSET ?";
 
         args.add(StudentClassFilter.PAGE_SIZE);
         args.add((long) (filter.page() - 1) * StudentClassFilter.PAGE_SIZE);
@@ -177,6 +179,16 @@ public final class StudentClassDAO {
         return new ArrayList<>(List.of(now, studentId, classId, studentId));
     }
 
+    private static String orderBy(StudentClassFilter filter) {
+        return switch (filter.sort()) {
+            case "OPEN_DESC" -> " ORDER BY available_from DESC NULLS LAST,assignment_id DESC";
+            case "OPEN_ASC" -> " ORDER BY available_from ASC NULLS LAST,assignment_id DESC";
+            case "DUE_DESC" -> " ORDER BY due_at DESC NULLS LAST,assignment_id DESC";
+            case "DUE_ASC" -> " ORDER BY due_at ASC NULLS LAST,assignment_id DESC";
+            default -> " ORDER BY assignment_id DESC";
+        };
+    }
+
     private static String where(StudentClassFilter filter, List<Object> args) {
         var sql = new StringBuilder(" WHERE 1=1");
 
@@ -191,7 +203,9 @@ public final class StudentClassDAO {
             args.add(filter.responseType());
         }
 
-        if (!filter.status().isEmpty()) {
+        if ("DONE".equals(filter.status())) {
+            sql.append(" AND work_status IN ('SUBMITTED','GRADED','RELEASED')");
+        } else if (!filter.status().isEmpty()) {
             sql.append(" AND work_status=?");
             args.add(filter.status());
         }
