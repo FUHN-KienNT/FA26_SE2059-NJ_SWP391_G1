@@ -49,6 +49,7 @@ public class TeacherSubmissionServlet extends HttpServlet {
 
         try {
             singletonParameters(req);
+            WebSupport.page(req.getParameter("memberPage"));
 
             if (req.getParameter("action") != null)
                 throw new IllegalArgumentException(

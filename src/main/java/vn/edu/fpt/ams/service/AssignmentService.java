@@ -19,6 +19,7 @@ import vn.edu.fpt.ams.util.AssignmentSubmissionAccess;
 /** Workflow boundary; unfinished writes fail closed instead of claiming success. */
 public class AssignmentService {
     private final AssignmentDAO dao;
+    private final GroupAssignmentDAO groups = new GroupAssignmentDAO();
     private final SystemSettingDAO settings = new SystemSettingDAO();
     private final ConnectionProvider connections;
 
@@ -45,7 +46,8 @@ public class AssignmentService {
             if (!dao.isActiveTeacher(connection, teacherId))
                 throw new SecurityException("Cần tài khoản giảng viên đang hoạt động.");
 
-            return dao.findCreatePage(connection, teacherId, classId, false);
+            return groups.enrich(connection, teacherId,
+                    dao.findCreatePage(connection, teacherId, classId, false));
         } catch (SQLException ex) {
             throw new IllegalStateException("Không thể tải biểu mẫu tạo bài tập.", ex);
         }
@@ -74,6 +76,7 @@ public class AssignmentService {
     public long createAssignment(long teacherId, AssignmentForm form, boolean publish) {
         var draft = AssignmentDraftValidator.validate(form);
         Assignment assignment = draft.assignment();
+        GroupAssignmentConfig groupConfig = GroupAssignmentConfig.from(form);
         List<Long> targetIds = form.selectedClassIds();
 
         try (Connection connection = connections.open()) {
@@ -88,6 +91,8 @@ public class AssignmentService {
                         assignment.responseType().name(), "responseType");
                 var context = dao.findCreatePage(connection, teacherId, assignment.classId(), true);
                 authorizeTargets(connection, teacherId, context.subjectId(), targetIds);
+                var selectedGroups = groups.validateSelection(connection, teacherId,
+                        context.subjectId(), targetIds, groupConfig);
                 if (!dao.lockActiveTemplate(connection, assignment.templateId(), context.subjectId()))
                     throw new AssignmentDraftValidator.ValidationException(Map.of("templateId",
                             "Hãy chọn mẫu đang hoạt động thuộc môn học của lớp này."));
@@ -98,7 +103,12 @@ public class AssignmentService {
                 for (long targetId : targetIds) {
                     long id = dao.insertDraft(connection, forClass(assignment, targetId));
                     dao.insertDraftQuestions(connection, id, draft.questions());
-                    if (publish) dao.markPublished(connection, id, now);
+                    groups.saveDraft(connection, id,
+                            groupConfig.forGroups(selectedGroups.getOrDefault(targetId, List.of()), 0));
+                    if (publish) {
+                        groups.freezeTargets(connection, id, now);
+                        dao.markPublished(connection, id, now);
+                    }
                     if (primaryId == 0 || targetId == assignment.classId()) primaryId = id;
                 }
 
@@ -139,6 +149,8 @@ public class AssignmentService {
                 var context =
                         dao.findCreatePage(
                                 connection, teacherId, detail.assignment().classId(), false);
+                context = groups.enrich(connection, teacherId, context);
+                var groupConfig = groups.read(connection, assignmentId);
 
                 if (context.templates().stream()
                         .noneMatch(t -> t.templateId() == detail.assignment().templateId())) {
@@ -161,13 +173,14 @@ public class AssignmentService {
                                     context.className(),
                                     context.subjectCode(),
                                     context.subjectName(),
-                                    List.copyOf(templates), context.eligibleClasses());
+                                    List.copyOf(templates), context.eligibleClasses(),
+                                    context.groupOptions(), context.groupAssignmentsAvailable());
                 }
 
                 connection.commit();
 
                 return new AssignmentEditPage(
-                        context, AssignmentEditSupport.form(detail.assignment(), questions));
+                        context, AssignmentEditSupport.form(detail.assignment(), questions, groupConfig));
             } catch (SQLException | RuntimeException ex) {
                 try {
                     connection.rollback();
@@ -204,6 +217,9 @@ public class AssignmentService {
 
                 requireDraft(stored);
                 var existing = dao.findAllDraftQuestions(connection, assignmentId, true);
+                var storedGroupConfig = groups.read(connection, assignmentId);
+                var groupConfig = GroupAssignmentConfig.from(form);
+                groups.assertRevision(connection, assignmentId, groupConfig.revision());
 
                 if (!form.value("revision").matches("[0-9a-f]{64}"))
                     throw new AssignmentDraftValidator.ValidationException(
@@ -211,7 +227,7 @@ public class AssignmentService {
                                     "revision",
                                     "Hãy mở lại trang chỉnh sửa trước khi lưu bản nháp."));
 
-                if (!AssignmentEditSupport.revision(stored, existing)
+                if (!AssignmentEditSupport.revision(stored, existing, storedGroupConfig)
                         .equals(form.value("revision")))
                     throw new AssignmentEditConflictException(
                             "Bản nháp đã thay đổi sau khi bạn mở trang chỉnh sửa. Hãy tải phiên bản mới nhất trước khi lưu.");
@@ -246,6 +262,10 @@ public class AssignmentService {
 
                 var targetIds = form.selectedClassIds();
                 authorizeTargets(connection, teacherId, context.subjectId(), targetIds);
+                var effectiveClasses = new java.util.TreeSet<>(targetIds);
+                effectiveClasses.add(stored.classId());
+                var selectedGroups = groups.validateSelection(connection, teacherId,
+                        context.subjectId(), List.copyOf(effectiveClasses), groupConfig);
                 boolean creatingCopies = targetIds.stream().anyMatch(id -> id != stored.classId());
                 if (creatingCopies && !dao.lockActiveTemplate(connection,
                         draft.assignment().templateId(), context.subjectId()))
@@ -256,12 +276,22 @@ public class AssignmentService {
                 if (publish) validatePublication(draft.assignment(), draft.questions(), now);
                 dao.updateDraft(connection, assignmentId, draft.assignment());
                 dao.replaceDraftQuestions(connection, assignmentId, existing, draft.questions());
-                if (publish) dao.markPublished(connection, assignmentId, now);
+                groups.saveDraft(connection, assignmentId,
+                        groupConfig.forGroups(selectedGroups.getOrDefault(stored.classId(), List.of()), groupConfig.revision()));
+                if (publish) {
+                    groups.freezeTargets(connection, assignmentId, now);
+                    dao.markPublished(connection, assignmentId, now);
+                }
                 for (long targetId : targetIds) {
                     if (targetId == stored.classId()) continue;
                     long copyId = dao.insertDraft(connection, forClass(draft.assignment(), targetId));
                     dao.insertDraftQuestions(connection, copyId, draft.questions());
-                    if (publish) dao.markPublished(connection, copyId, now);
+                    groups.saveDraft(connection, copyId,
+                            groupConfig.forGroups(selectedGroups.getOrDefault(targetId, List.of()), 0));
+                    if (publish) {
+                        groups.freezeTargets(connection, copyId, now);
+                        dao.markPublished(connection, copyId, now);
+                    }
                 }
 
                 connection.commit();
@@ -373,6 +403,8 @@ public class AssignmentService {
                 List<Assignment> assignments =
                         dao.findForTeacher(connection, teacherId, selected, effective);
                 var creationTimes = dao.creationTimes(connection, teacherId, selected);
+                var groupAssignmentIds = groups.groupAssignmentIds(connection,
+                        assignments.stream().map(Assignment::assignmentId).toList());
                 java.util.Set<Long> submissionAssignmentIds = new java.util.HashSet<>();
 
                 for (Assignment assignment : assignments) {
@@ -389,7 +421,7 @@ public class AssignmentService {
 
                 return new AssignmentListPage(
                         classes, selected, effective, assignments, submissionAssignmentIds,
-                        total, creationTimes);
+                        total, creationTimes, groupAssignmentIds);
             } catch (SQLException | RuntimeException ex) {
                 try {
                     connection.rollback();
@@ -440,6 +472,8 @@ public class AssignmentService {
                                 page.assignment().status() != AssignmentStatus.PUBLISHED
                                         && page.assignment().publishedAt() != null
                                         && dao.hasSubmittedWork(connection, assignmentId));
+                var groupConfig = groups.read(connection, assignmentId);
+                var groupTargets = groups.targets(connection, assignmentId);
 
                 connection.commit();
 
@@ -452,7 +486,7 @@ public class AssignmentService {
                         page.termCode(),
                         page.templateTitle(),
                         questions,
-                        canViewSubmissions);
+                        canViewSubmissions, groupConfig, groupTargets);
             } catch (SQLException | RuntimeException ex) {
                 try {
                     connection.rollback();
@@ -491,6 +525,7 @@ public class AssignmentService {
                                                         "Không tìm thấy bài tập hoặc bạn không có quyền truy cập."));
                 var questions = dao.findAllDraftQuestions(connection, assignmentId, false);
                 var a = detail.assignment();
+                var groupConfig = groups.read(connection, assignmentId);
                 Map<String, String> errors = Map.of();
 
                 if ("publish".equals(action) && a.status() == AssignmentStatus.DRAFT)
@@ -518,7 +553,7 @@ public class AssignmentService {
                 return new AssignmentLifecyclePage(
                         snapshot,
                         action,
-                        AssignmentEditSupport.revision(a, questions),
+                        AssignmentEditSupport.revision(a, questions, groupConfig),
                         errors,
                         count);
             } catch (SQLException | RuntimeException ex) {
@@ -582,7 +617,8 @@ public class AssignmentService {
 
                 var questions = dao.findAllDraftQuestions(connection, assignmentId, true);
 
-                if (!AssignmentEditSupport.revision(a, questions).equals(revision))
+                var groupConfig = groups.read(connection, assignmentId);
+                if (!AssignmentEditSupport.revision(a, questions, groupConfig).equals(revision))
                     throw new AssignmentEditConflictException(
                             "Bài tập đã thay đổi sau khi bạn mở trang xác nhận. Hãy kiểm tra nội dung mới nhất trước khi xác nhận lại.");
 
@@ -595,6 +631,7 @@ public class AssignmentService {
                     if (!errors.isEmpty())
                         throw new AssignmentDraftValidator.ValidationException(errors);
 
+                    groups.freezeTargets(connection, assignmentId, now);
                     dao.markPublished(connection, assignmentId, now);
                 } else if (cancelling) {
                     dao.markCancelled(connection, assignmentId, now);

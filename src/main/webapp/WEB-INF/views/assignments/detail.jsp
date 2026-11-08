@@ -153,6 +153,28 @@
 
                 <div class="detail-layout">
                     <div class="detail-content">
+                        <section class="detail-card" aria-labelledby="assignment-audience-heading">
+                            <h2 id="assignment-audience-heading"><%= data.groupConfig().group() ? "Giao bài theo nhóm" : "Giao bài cá nhân" %></h2>
+                            <% if (data.groupConfig().group()) { %>
+                                <p>Mỗi nhóm dùng chung một bài làm; mọi thành viên đã chốt có thể nộp đại diện.</p>
+                                <p>Hệ số giảng viên: <strong><%= data.groupConfig().teacherWeight().stripTrailingZeros().toPlainString() %>%</strong>
+                                    · Hệ số sinh viên: <strong><%= data.groupConfig().peerWeight().stripTrailingZeros().toPlainString() %>%</strong>.</p>
+                                <p>Điểm cuối từng sinh viên = (điểm giảng viên × hệ số giảng viên + điểm đánh giá đồng đội trung bình × hệ số sinh viên) / 100.</p>
+                                <p>Phiếu đánh giá chưa gửi được bỏ qua. Không nhận phiếu nào thì điểm đánh giá đồng đội bằng 0. Điểm cuối làm tròn hai chữ số thập phân khi công bố.</p>
+                                <% if (data.groupTargets().isEmpty()) { %>
+                                    <p>Tất cả nhóm đang hoạt động của lớp sẽ được chốt cùng thành viên khi công bố.</p>
+                                <% } else { %>
+                                    <ul>
+                                        <% for (var target : data.groupTargets()) { %>
+                                            <li><%= escape(target.name()) %>
+                                                <%= target.frozen() ? " · " + target.memberCount() + " thành viên đã chốt" : " · sẽ chốt thành viên khi công bố" %></li>
+                                        <% } %>
+                                    </ul>
+                                <% } %>
+                            <% } else { %>
+                                <p>Mỗi sinh viên có bài làm và điểm riêng như trước.</p>
+                            <% } %>
+                        </section>
                         <section class="detail-card" aria-labelledby="instructions-heading">
                             <h2 id="instructions-heading"> Nội dung bài tập </h2>
                             <% if (assignment.instructions() != null && !assignment.instructions().isBlank()) { %>

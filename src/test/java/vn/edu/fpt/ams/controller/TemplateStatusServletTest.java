@@ -10,6 +10,24 @@ import vn.edu.fpt.ams.model.*;
 import vn.edu.fpt.ams.service.TemplateService;
 
 class TemplateStatusServletTest {
+  @Test void legacyTeacherTemplateLinkReturnsToAssignedClasses() throws Exception {
+    var request = (HttpServletRequest) Proxy.newProxyInstance(HttpServletRequest.class.getClassLoader(),
+        new Class<?>[]{HttpServletRequest.class}, (proxy, method, args) -> switch (method.getName()) {
+          case "getServletPath" -> "/teacher/templates";
+          case "getContextPath" -> "/ams";
+          default -> throw new UnsupportedOperationException(method.getName());
+        });
+    var redirects = new ArrayList<String>();
+    var response = (HttpServletResponse) Proxy.newProxyInstance(HttpServletResponse.class.getClassLoader(),
+        new Class<?>[]{HttpServletResponse.class}, (proxy, method, args) -> {
+          if (!method.getName().equals("sendRedirect")) throw new UnsupportedOperationException(method.getName());
+          redirects.add((String) args[0]);
+          return null;
+        });
+    new TemplateServlet().doGet(request, response);
+    assertEquals(List.of("/ams/teacher/classes"), redirects);
+  }
+
   @Test void statusPostPreservesFiltersAndReturnsToListAfterSuccessfulWrite() throws Exception {
     for (var target : TemplateStatus.values()) {
       var params = new HashMap<String,String>();

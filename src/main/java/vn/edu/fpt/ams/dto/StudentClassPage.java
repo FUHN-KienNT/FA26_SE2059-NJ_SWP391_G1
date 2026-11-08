@@ -45,5 +45,13 @@ public record StudentClassPage(
             long submissionId,
             int attemptNumber,
             String workStatus,
-            Instant submittedAt) {}
+            Instant submittedAt,
+            String groupName) {
+        public AssignmentRow(long assignmentId, String title, String purpose, String responseType,
+                             BigDecimal maximumScore, Instant availableFrom, Instant dueAt, String status,
+                             long submissionId, int attemptNumber, String workStatus, Instant submittedAt) {
+            this(assignmentId, title, purpose, responseType, maximumScore, availableFrom, dueAt,
+                    status, submissionId, attemptNumber, workStatus, submittedAt, null);
+        }
+    }
 }

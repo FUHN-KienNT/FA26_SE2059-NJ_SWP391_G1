@@ -12,7 +12,15 @@ public record AssignmentCreatePage(
         String subjectCode,
         String subjectName,
         List<TemplateOption> templates,
-        List<vn.edu.fpt.ams.dto.AssignmentClassOption> eligibleClasses) {
+        List<vn.edu.fpt.ams.dto.AssignmentClassOption> eligibleClasses,
+        List<AssignmentGroupOption> groupOptions,
+        boolean groupAssignmentsAvailable) {
+    public AssignmentCreatePage(long classId, long subjectId, String classCode, String className,
+                                String subjectCode, String subjectName, List<TemplateOption> templates,
+                                List<AssignmentClassOption> eligibleClasses) {
+        this(classId, subjectId, classCode, className, subjectCode, subjectName, templates,
+                eligibleClasses, List.of(), false);
+    }
     public AssignmentCreatePage(long classId, long subjectId, String classCode, String className,
                                 String subjectCode, String subjectName, List<TemplateOption> templates) {
         this(classId, subjectId, classCode, className, subjectCode, subjectName, templates, List.of());
@@ -21,6 +29,7 @@ public record AssignmentCreatePage(
     public AssignmentCreatePage {
         templates = List.copyOf(templates);
         eligibleClasses = List.copyOf(eligibleClasses);
+        groupOptions = List.copyOf(groupOptions);
     }
 
     public record TemplateOption(

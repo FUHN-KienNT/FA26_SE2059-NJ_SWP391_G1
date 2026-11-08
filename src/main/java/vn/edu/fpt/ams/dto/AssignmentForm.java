@@ -9,6 +9,12 @@ public record AssignmentForm(Map<String, String> values) {
             List.of(
                     "classId",
                     "targetClassIds",
+                    "deliveryMode",
+                    "groupTargetMode",
+                    "selectedGroupIds",
+                    "teacherWeight",
+                    "peerWeight",
+                    "groupRevision",
                     "templateId",
                     "title",
                     "instructions",
@@ -46,16 +52,16 @@ public record AssignmentForm(Map<String, String> values) {
 
     public static AssignmentForm empty(long classId) {
         return new AssignmentForm(
-                Map.of(
-                        "classId",
-                        Long.toString(classId),
-                        "purpose",
-                        "REGULAR",
-                        "responseType",
-                        "ESSAY",
-                        "tasksJson",
-                        "[]",
-                        "questionsJson",
-                        "[]"));
+                Map.ofEntries(
+                        Map.entry("deliveryMode", "INDIVIDUAL"),
+                        Map.entry("groupTargetMode", "ALL"),
+                        Map.entry("teacherWeight", "70"),
+                        Map.entry("peerWeight", "30"),
+                        Map.entry("groupRevision", "0"),
+                        Map.entry("classId", Long.toString(classId)),
+                        Map.entry("purpose", "REGULAR"),
+                        Map.entry("responseType", "ESSAY"),
+                        Map.entry("tasksJson", "[]"),
+                        Map.entry("questionsJson", "[]")));
     }
 }

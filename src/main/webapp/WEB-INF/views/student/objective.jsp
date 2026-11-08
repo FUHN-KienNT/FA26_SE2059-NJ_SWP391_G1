@@ -49,6 +49,7 @@
                 %>
                     <h1> <%=WebSupport.html(data.assignment().title())%> </h1>
                     <p> Lớp: <%=WebSupport.html(data.classCode())%> · Điểm tối đa: <%=WebSupport.html(data.assignment().maximumScore())%> </p>
+                    <%@ include file="group-context.jspf" %>
                     <div class="work-card">
                         <h2> Thông tin bài tập </h2>
                         <% if (data.assignment().instructions() != null && !data.assignment().instructions().isBlank()) { %>

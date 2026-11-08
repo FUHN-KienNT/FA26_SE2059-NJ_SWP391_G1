@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.Optional;
 import vn.edu.fpt.ams.dto.StudentDashboardDTO.*;
 import vn.edu.fpt.ams.util.Jdbc;
+import vn.edu.fpt.ams.util.GroupAssignmentSchema;
+import vn.edu.fpt.ams.util.GroupStudentAccess;
 
 /** Read-only queries. Every academic query is restricted to the authenticated Student. */
 public final class StudentDashboardDAO {
@@ -69,17 +71,18 @@ public final class StudentDashboardDAO {
 
     public long assignmentCount(Connection c, long student) throws SQLException {
         return Jdbc.scalar(c, "SELECT COUNT(*) FROM assignments a WHERE a.status='PUBLISHED' AND a.assignment_purpose='REGULAR' AND "
-                + ASSIGNMENT_ACCESS, student);
+                + assignmentAccess(c), student);
     }
 
     public long submittedCount(Connection c, long student) throws SQLException {
-        return Jdbc.scalar(c, "SELECT COUNT(*) " + OWNED_SUBMISSIONS
+        return Jdbc.scalar(c, "SELECT COUNT(*) " + ownedSubmissions(c)
                 + " AND sub.status IN ('SUBMITTED','GRADED','RELEASED')", student);
     }
 
     public long releasedCount(Connection c, long student, Instant now) throws SQLException {
-        return Jdbc.scalar(c, "SELECT COUNT(*) " + OWNED_SUBMISSIONS
-                + " AND sub.status='RELEASED' AND sub.released_at<=? AND sub.score IS NOT NULL", student, now);
+        return Jdbc.scalar(c, "SELECT COUNT(*) " + ownedSubmissions(c)
+                + " AND sub.status='RELEASED' AND sub.released_at<=? AND " + score(c)
+                + " IS NOT NULL" + groupReleaseGate(c), student, now);
     }
 
     public List<ClassOverview> classes(Connection c, long student) throws SQLException {
@@ -110,7 +113,7 @@ public final class StudentDashboardDAO {
     public List<OpenAssignment> openAssignments(Connection c, long student, Instant now) throws SQLException {
         String sql = "SELECT a.assignment_id,a.title,c.class_code,a.response_type,a.due_at"
                 + " FROM assignments a JOIN subject_classes c ON c.class_id=a.class_id"
-                + " WHERE a.status='PUBLISHED' AND a.assignment_purpose='REGULAR' AND " + ASSIGNMENT_ACCESS
+                + " WHERE a.status='PUBLISHED' AND a.assignment_purpose='REGULAR' AND " + assignmentAccess(c)
                 + " AND a.available_from<=? AND a.due_at>? ORDER BY a.due_at,a.assignment_id";
         try (var p = Jdbc.statement(c, sql, student, now, now)) {
             p.setMaxRows(PREVIEW_LIMIT);
@@ -124,9 +127,10 @@ public final class StudentDashboardDAO {
     }
 
     public List<ReleasedResult> results(Connection c, long student, Instant now) throws SQLException {
-        String sql = "SELECT a.title,c.class_code,sub.attempt_number,sub.score,sub.released_at,a.assignment_id,sub.submission_id "
-                + OWNED_SUBMISSIONS
-                + " AND sub.status='RELEASED' AND sub.released_at<=? AND sub.score IS NOT NULL"
+        String sql = "SELECT a.title,c.class_code,sub.attempt_number," + score(c) + ",sub.released_at,a.assignment_id,sub.submission_id "
+                + ownedSubmissions(c)
+                + " AND sub.status='RELEASED' AND sub.released_at<=? AND " + score(c) + " IS NOT NULL"
+                + groupReleaseGate(c)
                 + " ORDER BY sub.released_at DESC,sub.submission_id DESC";
 
         try (var p = Jdbc.statement(c, sql, student, now)) {
@@ -148,5 +152,32 @@ public final class StudentDashboardDAO {
                 return out;
             }
         }
+    }
+
+    private static String assignmentAccess(Connection c) throws SQLException {
+        if (!GroupAssignmentSchema.installed(c)) return ASSIGNMENT_ACCESS;
+        return ASSIGNMENT_ACCESS.replace("AND c.class_id=a.class_id)", "AND c.class_id=a.class_id AND "
+                + GroupStudentAccess.audience("a", "r.student_id", "e.enrollment_id") + ")");
+    }
+
+    private static String ownedSubmissions(Connection c) throws SQLException {
+        if (!GroupAssignmentSchema.installed(c)) return OWNED_SUBMISSIONS;
+        return OWNED_SUBMISSIONS.replace("WHERE r.student_id=?", """
+                JOIN users viewer ON viewer.user_id=? AND viewer.role='STUDENT' AND viewer.account_status='ACTIVE'
+                LEFT JOIN assignment_group_results group_result ON group_result.target_id=sub.assignment_group_target_id
+                    AND group_result.submission_id=sub.submission_id AND group_result.student_id=viewer.user_id
+                WHERE
+                """ + GroupStudentAccess.owns("sub", "r.student_id", "viewer.user_id"));
+    }
+
+    private static String score(Connection c) throws SQLException {
+        return GroupAssignmentSchema.installed(c)
+                ? "CASE WHEN sub.assignment_group_target_id IS NULL THEN sub.score ELSE group_result.final_score END"
+                : "sub.score";
+    }
+
+    private static String groupReleaseGate(Connection c) throws SQLException {
+        return GroupAssignmentSchema.installed(c)
+                ? " AND (sub.assignment_group_target_id IS NULL OR group_result.released_at<=CURRENT_TIMESTAMP)" : "";
     }
 }

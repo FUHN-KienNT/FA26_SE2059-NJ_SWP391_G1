@@ -6,6 +6,7 @@ import java.security.*;
 import java.time.*;
 import java.util.*;
 import vn.edu.fpt.ams.dto.AssignmentForm;
+import vn.edu.fpt.ams.dto.GroupAssignmentConfig;
 import vn.edu.fpt.ams.model.*;
 import vn.edu.fpt.ams.util.AssignmentDraftValidator.ValidationException;
 
@@ -134,6 +135,27 @@ public final class AssignmentEditSupport {
         values.put("revision", revision(a, questions));
 
         return new AssignmentForm(values);
+    }
+
+    public static AssignmentForm form(Assignment a, List<Question> questions, GroupAssignmentConfig config) {
+        AssignmentForm base = config.fill(form(a, questions));
+        var values = new HashMap<>(base.values());
+        values.put("revision", revision(a, questions, config));
+        return new AssignmentForm(values);
+    }
+
+    public static String revision(Assignment a, List<Question> questions, GroupAssignmentConfig config) {
+        String base = revision(a, questions);
+        if (!config.group() && config.revision() == 0) return base;
+        try {
+            String policy = new Gson().toJson(List.of(base, config.deliveryMode(), config.targetMode(),
+                    config.teacherWeight().toPlainString(), config.peerWeight().toPlainString(),
+                    Long.toString(config.revision()), config.selectedGroupIds()));
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(policy.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException ex) {
+            throw new IllegalStateException(ex);
+        }
     }
 
     public static String revision(Assignment a, List<Question> questions) {

@@ -71,7 +71,8 @@ public class StudentResultService {
                                     assignmentId,
                                     attempts,
                                     row.attempt(),
-                                    row.attempt().released() ? released(row) : null);
+                                    row.attempt().released() ? released(row) : null,
+                                    1, attempts.size(), row.group());
                 }
 
                 connection.commit();
@@ -193,8 +194,9 @@ public class StudentResultService {
                     try {
                         EssayEvaluationRules.validate(assignment, evaluation, true);
 
-                        if (row.attempt().score() == null
-                                || evaluation.total().compareTo(row.attempt().score()) != 0)
+                        var teacherScore = row.group() == null ? row.attempt().score() : row.group().teacherScore();
+                        if (teacherScore == null
+                                || evaluation.total().compareTo(teacherScore) != 0)
                             throw new IllegalArgumentException("Tổng điểm không khớp.");
                     } catch (IllegalArgumentException ex) {
                         evaluation = emptyEvaluation();

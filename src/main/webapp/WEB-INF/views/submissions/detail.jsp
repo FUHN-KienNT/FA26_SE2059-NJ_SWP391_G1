@@ -60,6 +60,7 @@
 <body class="ams-ui teacher-app">
     <%@ include file="/WEB-INF/views/shared/shell.jspf" %>
     <main class="ams-content submission-page" id="page-content">
+        <%@ include file="/WEB-INF/views/shared/action-notice.jspf" %>
         <nav class="breadcrumb" aria-label="Đường dẫn">
             <a href="<%= escape(base) %>/teacher/dashboard">Bảng điều khiển</a><span>/</span>
             <a href="<%= escape(backUrl) %>">Bài nộp</a><span>/</span><span>Chấm bài</span>
@@ -216,6 +217,7 @@
                     <% } %>
                 </div>
                 <aside class="grading-sidebar" aria-label="Chấm điểm và thông tin bài nộp">
+                    <%@ include file="group-objective-fields.jspf" %>
                     <% if (essayMode && evaluation != null) { %>
                         <section class="detail-card grading-score-card" id="evaluation-heading"><h2>Chấm điểm</h2>
                             <% if (evaluationEditable) { %>
@@ -286,6 +288,7 @@
                     </section>
                 </aside>
             </div>
+            <%@ include file="group-grade.jspf" %>
             <% if (essayMode && evaluationPage != null) {
                 TeacherEvaluationHistory history = evaluationPage.history();
             %>

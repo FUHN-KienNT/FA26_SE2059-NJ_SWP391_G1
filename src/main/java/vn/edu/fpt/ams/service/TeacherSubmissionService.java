@@ -60,7 +60,8 @@ public class TeacherSubmissionService {
                             effective,
                             dao.findForTeacher(connection, teacherId, assignmentId, effective),
                             count,
-                            dao.studentCounts(connection, teacherId, assignmentId));
+                            dao.studentCounts(connection, teacherId, assignmentId),
+                            vn.edu.fpt.ams.util.GroupAssignmentSchema.isGroup(connection,assignmentId));
                 });
     }
 
@@ -100,7 +101,8 @@ public class TeacherSubmissionService {
                     }
 
                     return new TeacherSubmissionDetailPage(
-                            SubmissionContentSnapshot.displayPage(assignment, row), row);
+                            SubmissionContentSnapshot.displayPage(assignment, row), row,
+                            new vn.edu.fpt.ams.dao.GroupGradeDAO().teacherDetail(connection,submissionId));
                 });
     }
 

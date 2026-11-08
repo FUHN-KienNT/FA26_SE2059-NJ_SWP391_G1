@@ -7,6 +7,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.*;
 import java.util.concurrent.Flow;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
 class GeminiAssignmentClientTest {
@@ -177,6 +178,52 @@ class GeminiAssignmentClientTest {
         assertEquals(1, generated.size());
         assertEquals(
                 vietnameseQuestion, generated.get(0).getAsJsonObject().get("title").getAsString());
+    }
+
+    @Test
+    void retriesUnaccentedVietnameseAndKeepsTechnicalText() {
+        String plain = """
+                {"tasks":[{"title":"Phan tich chien luoc kiem thu ung dung web quan ly khach san",
+                "requirements":[{"title":"Xac dinh cac muc tieu va pham vi kiem thu"},
+                {"title":"Explain how SELECT * FROM bookings works"}]}]}
+                """;
+        String accented = """
+                {"tasks":[{"title":"Phân tích chiến lược kiểm thử ứng dụng web quản lý khách sạn",
+                "requirements":[{"title":"Xác định các mục tiêu và phạm vi kiểm thử."},
+                {"title":"Explain how SELECT * FROM bookings works"}]}]}
+                """;
+        var calls = new AtomicInteger();
+        var client = new GeminiAssignmentClient("key", "model", request ->
+                new GeminiAssignmentClient.ProviderResponse(
+                        200, response(calls.incrementAndGet() == 1 ? plain : accented, "STOP")));
+
+        JsonObject task = client.generate("Soạn bài kiểm thử").get(0).getAsJsonObject();
+        JsonArray requirements = task.getAsJsonArray("requirements");
+
+        assertEquals(2, calls.get());
+        assertEquals("Phân tích chiến lược kiểm thử ứng dụng web quản lý khách sạn.",
+                task.get("title").getAsString());
+        assertEquals("Xác định các mục tiêu và phạm vi kiểm thử.",
+                requirements.get(0).getAsJsonObject().get("title").getAsString());
+        assertEquals("Explain how SELECT * FROM bookings works",
+                requirements.get(1).getAsJsonObject().get("title").getAsString());
+    }
+
+    @Test
+    void rejectsAnUnaccentedRequirementAfterOneRetry() {
+        String output = """
+                {"tasks":[{"title":"Phân tích hệ thống.",
+                "requirements":[{"title":"Hãy ve so do use case cho he thong."}]}]}
+                """;
+        var calls = new AtomicInteger();
+        var client = new GeminiAssignmentClient("key", "model", request -> {
+            calls.incrementAndGet();
+            return new GeminiAssignmentClient.ProviderResponse(200, response(output, "STOP"));
+        });
+
+        assertTrue(assertThrows(GeminiAssignmentClient.ProviderException.class,
+                () -> client.generate("Soạn câu hỏi UML")).getMessage().contains("thiếu dấu"));
+        assertEquals(2, calls.get());
     }
 
     @Test

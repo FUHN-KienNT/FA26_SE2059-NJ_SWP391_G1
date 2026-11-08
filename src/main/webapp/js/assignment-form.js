@@ -184,6 +184,26 @@
         return (cents / 100).toFixed(2);
     }
 
+    function groupWeight(value) {
+        const text = String(value ?? '');
+        if (!/^[0-9]{1,3}(?:\.[0-9]{1,2})?$/.test(text)) return null;
+        const [whole, fraction = ''] = text.split('.');
+        const amount = Number(whole) * 100 + Number(fraction.padEnd(2, '0'));
+        return amount <= 10000 ? amount : null;
+    }
+
+    function groupSettingsError() {
+        if (byId('deliveryMode')?.value !== 'GROUP') return null;
+        const teacher = groupWeight(byId('teacherWeight')?.value);
+        const peer = groupWeight(byId('peerWeight')?.value);
+        if (teacher == null || peer == null)
+            return 'Hệ số điểm từ 0 đến 100%, có tối đa hai chữ số thập phân.';
+        if (teacher + peer !== 10000) return 'Tổng hệ số giảng viên và sinh viên phải bằng 100%.';
+        if (byId('groupTargetMode')?.value === 'SELECTED' && !byId('selected-group-ids')?.value)
+            return 'Chọn ít nhất một nhóm cho mỗi lớp được giao bài.';
+        return null;
+    }
+
     function scoreInput(input, preview = false) {
         input.type = 'text';
         input.inputMode = 'decimal';
@@ -1015,6 +1035,12 @@
             byId('client-form-error').focus();
         }
 
+        const groupError = groupSettingsError();
+        if (groupError) {
+            reject(groupError);
+            return;
+        }
+
         if (responseType === 'OBJECTIVE') {
             const pending = pendingObjectivePoints();
 
@@ -1095,6 +1121,32 @@
     if (publishButton) publishButton.disabled = saveButton.disabled;
 
     const classChoices = Array.from(form.querySelectorAll('[data-target-class]'));
+    const groupChoices = Array.from(form.querySelectorAll('[data-target-group]'));
+    const initiallyUnavailableGroups = new Set(groupChoices.filter(choice => choice.disabled));
+
+    function syncGroupSettings() {
+        const fields = byId('group-assignment-fields');
+        if (!fields) return;
+        const group = byId('deliveryMode').value === 'GROUP';
+        const selected = byId('groupTargetMode').value === 'SELECTED';
+        fields.hidden = !group;
+        fields.disabled = !group;
+        byId('group-assignment-choices').hidden = !selected;
+        const classes = new Set(classChoices.filter(choice => choice.checked).map(choice => choice.value));
+        if (!classes.size || editing) classes.add(form.dataset.currentClassId);
+        groupChoices.forEach(choice => {
+            const visible = classes.has(choice.dataset.groupClass);
+            choice.disabled = initiallyUnavailableGroups.has(choice) || !visible;
+            const row = choice.closest('[data-group-choice-row]');
+            if (row) row.hidden = !visible;
+        });
+        if (groupChoices.length) byId('selected-group-ids').value = groupChoices
+            .filter(choice => choice.checked && !choice.disabled).map(choice => choice.value).join(',');
+        const teacher = groupWeight(byId('teacherWeight').value), peer = groupWeight(byId('peerWeight').value);
+        byId('group-score-summary').textContent = teacher != null && peer != null
+            ? `Điểm cuối = (điểm giảng viên × ${formatPoints(teacher)}% + điểm đồng đội trung bình × ${formatPoints(peer)}%) / 100. Tổng hệ số: ${formatPoints(teacher + peer)}%.`
+            : 'Nhập hai hệ số hợp lệ, tổng bằng 100%.';
+    }
     function syncClassChoices() {
         const selected = classChoices.filter(item => item.checked);
         byId('target-class-ids').value = selected.map(item => item.value).join(',');
@@ -1105,8 +1157,13 @@
     if (classChoices.length) syncClassChoices();
     classChoices.forEach(choice => choice.addEventListener('change', () => {
         syncClassChoices();
+        syncGroupSettings();
         dirty = true;
     }));
+    syncGroupSettings();
+    ['deliveryMode', 'groupTargetMode', 'teacherWeight', 'peerWeight'].forEach(id =>
+        byId(id)?.addEventListener('change', syncGroupSettings));
+    groupChoices.forEach(choice => choice.addEventListener('change', syncGroupSettings));
 
     window.addEventListener('pageshow', () => {
         saveButton.disabled = saveButton.dataset.canSave !== 'true';

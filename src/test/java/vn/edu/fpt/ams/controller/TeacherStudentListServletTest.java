@@ -11,6 +11,22 @@ import vn.edu.fpt.ams.model.*;
 import vn.edu.fpt.ams.service.*;
 
 class TeacherStudentListServletTest {
+    @Test void oldEnrollmentLinksOpenTheClassListOrTheSelectedRoster() throws Exception {
+        var h = new Harness();
+        h.path = "/teacher/enrollments";
+        h.classServlet().doGet(h.request(), h.response());
+        assertEquals("/ams/teacher/classes", h.redirect);
+
+        h.params.put("classId", "9");
+        h.classServlet().doGet(h.request(), h.response());
+        assertEquals("/ams/teacher/students?classId=9", h.redirect);
+
+        h.params.put("classId", "9&classId=99");
+        h.classServlet().doGet(h.request(), h.response());
+        assertEquals("/ams/teacher/classes", h.redirect);
+        assertEquals(0, h.rosterReads);
+    }
+
     /** Filters apply to the list without broadening the authenticated teacher's scope. */
     @Test void filtersAndReturnLinkPreserveContext() throws Exception {
         var h = new Harness();
@@ -126,7 +142,7 @@ class TeacherStudentListServletTest {
             params.put("csrf", "fixture-token");
             session.put("csrf", "fixture-token");
         }
-        long teacher; int status=200, rosterReads; String view; String path = "/teacher/classes"; boolean updated;
+        long teacher; int status=200, rosterReads; String view, redirect; String path = "/teacher/classes"; boolean updated;
         /** Supply deterministic classes and enrollment failures without a live database. */
         TeacherStudentListServlet servlet() {
             return new TeacherStudentListServlet(new EnrollmentService() {
@@ -168,6 +184,7 @@ class TeacherStudentListServletTest {
             });
             return (HttpServletRequest) Proxy.newProxyInstance(HttpServletRequest.class.getClassLoader(),new Class<?>[]{HttpServletRequest.class},(p,m,a)->switch(m.getName()) {
                 case "getServletPath" -> path; case "getSession" -> state; case "getParameter" -> params.get(a[0]);
+                case "getContextPath" -> "/ams";
                 case "setAttribute" -> { attributes.put((String)a[0],a[1]); yield null; }
                 case "getRequestDispatcher" -> { view=(String)a[0]; yield Proxy.newProxyInstance(RequestDispatcher.class.getClassLoader(),new Class<?>[]{RequestDispatcher.class},(d,n,b)->null); }
                 default -> null;
@@ -175,7 +192,11 @@ class TeacherStudentListServletTest {
         }
         /** Capture rejected HTTP requests without a servlet container. */
         HttpServletResponse response() {
-            return (HttpServletResponse) Proxy.newProxyInstance(HttpServletResponse.class.getClassLoader(),new Class<?>[]{HttpServletResponse.class},(p,m,a)->{if(m.getName().equals("sendError"))status=(int)a[0];return null;});
+            return (HttpServletResponse) Proxy.newProxyInstance(HttpServletResponse.class.getClassLoader(),new Class<?>[]{HttpServletResponse.class},(p,m,a)->{
+                if(m.getName().equals("sendError")) status=(int)a[0];
+                if(m.getName().equals("sendRedirect")) redirect=(String)a[0];
+                return null;
+            });
         }
     }
 }

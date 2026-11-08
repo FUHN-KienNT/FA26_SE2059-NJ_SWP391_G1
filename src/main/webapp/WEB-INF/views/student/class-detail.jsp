@@ -130,6 +130,7 @@
                             <a class="<%="DONE".equals(classFilter.status())?"active":""%>" href="<%=WebSupport.html(StudentClassView.pageUrl(classContext, classroom.classId(), classFilter.withStatus("DONE"),1))%>">Đã làm</a>
                             <a class="<%="IN_PROGRESS".equals(classFilter.status())?"active":""%>" href="<%=WebSupport.html(StudentClassView.pageUrl(classContext, classroom.classId(), classFilter.withStatus("IN_PROGRESS"),1))%>">Lưu nháp</a>
                             <a href="<%=classContext%>/student/results">Bài làm đã nộp / xuất file</a>
+                            <a href="<%=classContext%>/student/peer-reviews">Đánh giá đồng đội</a>
                         </nav>
 
                         <form class="class-filters" method="get"
@@ -201,7 +202,9 @@
 
                                         <% for (var assignment : classPage.assignments()) { %>
                                             <tr>
-                                                <th scope="row" class="class-assignment-title"><%=WebSupport.html(assignment.title())%></th>
+                                                <th scope="row" class="class-assignment-title"><%=WebSupport.html(assignment.title())%>
+                                                    <small><%=assignment.groupName() == null ? "Bài cá nhân" : "Bài nhóm · " + WebSupport.html(assignment.groupName())%></small>
+                                                </th>
                                                 <td><%=WebSupport.html(Vietnamese.label(assignment.responseType()))%><small><%=WebSupport.html(Vietnamese.label(assignment.purpose()))%></small></td>
                                                 <td><%=assignment.maximumScore() == null ? "Chưa đặt" : WebSupport.html(assignment.maximumScore().stripTrailingZeros().toPlainString())%></td>
                                                 <td><span class="class-time-label">Mở:</span> <%=WebSupport.html(AssignmentListView.deadline(assignment.availableFrom()))%><small><span

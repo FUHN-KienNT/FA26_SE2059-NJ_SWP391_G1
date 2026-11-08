@@ -19,7 +19,15 @@ public record StudentObjectivePage(
         Instant serverTime,
         Map<Long, List<String>> selected,
         long answerRevision,
-        String essayContent) {
+        String essayContent,
+        StudentGroupContext group) {
+    public StudentObjectivePage(
+            Assignment assignment, String classCode, long submissionId, int attemptNumber,
+            SubmissionStatus status, Instant deadline, List<Item> questions, Instant serverTime,
+            Map<Long, List<String>> selected, long answerRevision, String essayContent) {
+        this(assignment, classCode, submissionId, attemptNumber, status, deadline, questions,
+                serverTime, selected, answerRevision, essayContent, null);
+    }
     public StudentObjectivePage(
             Assignment assignment,
             String classCode,
@@ -42,7 +50,7 @@ public record StudentObjectivePage(
                 serverTime,
                 selected,
                 answerRevision,
-                null);
+                null, null);
     }
 
     public StudentObjectivePage {

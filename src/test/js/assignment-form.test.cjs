@@ -12,6 +12,7 @@ function harness({
     maximum = '10',
     templates = [],
     instructions = '',
+    groupSettings = {},
     fetchResult,
     status = 200
 } = {}) {
@@ -165,7 +166,13 @@ function harness({
         templateId: '1',
         instructions,
         'submit-mode': 'draft',
-        attemptLimit: ''
+        attemptLimit: '',
+        deliveryMode: 'INDIVIDUAL',
+        groupTargetMode: 'ALL',
+        'selected-group-ids': '',
+        teacherWeight: '70',
+        peerWeight: '30',
+        ...groupSettings
     };
 
     Object.entries(values).forEach(([id, value]) => {
@@ -422,6 +429,29 @@ test('Objective retains one-blank autofill and exact-total validation', async ()
     });
     assert.equal((await mismatch.submit()).prevented, true);
     assert.match(mismatch.ids.get('client-form-error').textContent, /phải bằng/);
+});
+
+test('group scoring accepts zero contribution weights and exact hundred-percent totals', async () => {
+    for (const [teacherWeight, peerWeight] of [['70', '30'], ['0', '100'], ['100', '0'], ['70.25', '29.75']]) {
+        const h = harness({tasks: [task()], groupSettings: {deliveryMode: 'GROUP', teacherWeight, peerWeight}});
+        assert.equal((await h.submit()).prevented, false);
+    }
+});
+
+test('group authoring rejects invalid percentages and a selected audience without groups', async () => {
+    const total = harness({tasks: [task()], groupSettings: {deliveryMode: 'GROUP', teacherWeight: '69.99'}});
+    assert.equal((await total.submit()).prevented, true);
+    assert.match(total.ids.get('client-form-error').textContent, /phải bằng 100/);
+    const precision = harness({tasks: [task()], groupSettings: {deliveryMode: 'GROUP', teacherWeight: '70.001'}});
+    assert.equal((await precision.submit()).prevented, true);
+    const audience = harness({tasks: [task()], groupSettings: {deliveryMode: 'GROUP', groupTargetMode: 'SELECTED'}});
+    assert.equal((await audience.submit()).prevented, true);
+    assert.match(audience.ids.get('client-form-error').textContent, /ít nhất một nhóm/);
+});
+
+test('individual delivery ignores stale group-only percentages and checkbox selection', async () => {
+    const h = harness({tasks: [task()], groupSettings: {deliveryMode: 'INDIVIDUAL', teacherWeight: '', peerWeight: '', groupTargetMode: 'SELECTED'}});
+    assert.equal((await h.submit()).prevented, false);
 });
 
 test('import validates files before upload and sends CSRF only after explicit request', async () => {

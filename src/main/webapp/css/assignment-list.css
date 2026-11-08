@@ -487,3 +487,9 @@ summary {
         gap: 7px
     }
 }
+.assignment-title small {
+    display: block;
+    margin-top: 5px;
+    color: #526987;
+    font-weight: 400;
+}

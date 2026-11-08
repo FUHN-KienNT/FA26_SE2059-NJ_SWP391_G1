@@ -1,0 +1,43 @@
+<%@ page pageEncoding="UTF-8" %>
+<% if(!essayMode && data.group()!=null) {
+    var objectiveGroup=data.group();
+    boolean groupConflict=Boolean.TRUE.equals(request.getAttribute("groupGradeConflict"));
+    String objectiveScore=request.getAttribute("groupScoreInput")==null?
+        (submission.score()==null?"":submission.score().toPlainString()):request.getAttribute("groupScoreInput").toString();
+    String objectiveFeedback=request.getAttribute("groupFeedbackInput")==null?
+        (submission.feedback()==null?"":submission.feedback()):request.getAttribute("groupFeedbackInput").toString();
+%>
+    <section class="detail-card"><h2>Chấm và công bố điểm bài nhóm</h2>
+        <% if(request.getAttribute("groupGradeError")!=null) { %><p class="notice error" role="alert"><%=escape(request.getAttribute("groupGradeError"))%></p><% } %>
+        <% if(!objectiveGroup.gradingOpen()) { %><p>Chỉ chấm sau hạn nộp hoặc sau khi khóa nhận bài và lượt làm mới nhất đã được tiếp nhận.</p>
+        <% } else if(groupConflict) { %><p>Dữ liệu vừa thay đổi. <a href="<%=escape(detailUrl)%>">Tải lại bản mới nhất</a> trước khi lưu.</p>
+        <% } else { %>
+            <p>Điểm chấm tự động là gợi ý ban đầu. Giảng viên kiểm tra và công bố để tính điểm cuối cho từng thành viên.</p>
+            <form method="post" action="<%=escape(base)%>/teacher/group-grades">
+                <input type="hidden" name="csrf" value="<%=escape(WebSupport.csrf(request))%>">
+                <input type="hidden" name="assignmentId" value="<%=assignment.assignmentId()%>">
+                <input type="hidden" name="submissionId" value="<%=submission.submissionId()%>">
+                <input type="hidden" name="revision" value="<%=objectiveGroup.revision()%>">
+                <input type="hidden" name="confirmRelease" value="yes">
+                <input type="hidden" name="search" value="<%=escape(filters.search())%>">
+                <input type="hidden" name="status" value="<%=escape(filters.statusValue())%>">
+                <input type="hidden" name="page" value="<%=filters.page()%>">
+                <label for="group-teacher-score">Điểm giáo viên / <%=escape(assignment.maximumScore())%> *</label>
+                <input id="group-teacher-score" type="text" name="score" inputmode="decimal" required pattern="[0-9]{1,3}(\.[0-9]{1,2})?" value="<%=escape(objectiveScore)%>">
+                <label for="group-teacher-feedback">Nhận xét chung</label>
+                <textarea id="group-teacher-feedback" name="feedback" rows="4" maxlength="5000"><%=escape(objectiveFeedback)%></textarea>
+                <% if(released) { %><label for="group-change-reason">Lý do sửa điểm đã công bố *</label>
+                    <textarea id="group-change-reason" name="changeReason" rows="3" maxlength="2000" required><%=escape(request.getAttribute("groupReasonInput"))%></textarea>
+                <% } %>
+                <div class="evaluation-actions">
+                    <button class="button" type="reset">Khôi phục điểm và nhận xét đã lưu</button>
+                    <% if(released) { %><button class="button primary" type="submit" name="action" value="revise" data-confirm-publish="evaluation">Lưu sửa điểm đã công bố</button>
+                    <% } else { %><button class="button" type="submit" name="action" value="save">Lưu điểm giáo viên</button>
+                        <button class="button primary" type="submit" name="action" value="publish" data-confirm-publish="evaluation">Công bố điểm</button>
+                    <% } %>
+                    <button class="button" type="submit" name="action" value="restore" <%=released?"data-confirm-publish=\"evaluation\"":""%>>Khôi phục bản chấm trước</button>
+                </div>
+            </form>
+        <% } %>
+    </section>
+<% } %>

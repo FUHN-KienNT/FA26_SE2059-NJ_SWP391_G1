@@ -55,7 +55,7 @@
             <div class="page-heading">
                 <div>
                     <h1> Bài nộp </h1>
-                    <p> Theo dõi sinh viên trong lớp: chưa làm, đang làm và đã nộp bài. </p>
+                    <p> Theo dõi bài làm trong lớp: chưa làm, đang làm và đã nộp bài. </p>
                 </div>
                 <a class="button" href="<%= escape(backUrl) %>">Về chi tiết bài tập</a>
             </div>
@@ -99,8 +99,7 @@
                             <dd> <%= escape(TeacherSubmissionView.score(assignment.maximumScore())) %> điểm </dd>
                         </div>
                     </dl>
-                    <p><strong><%= data.totalStudents() %> sinh viên trong danh sách lớp</strong>. Thống kê theo lượt làm gần nhất; các
-                        lượt cũ vẫn được giữ trong bảng.</p>
+                    <p><strong><%= data.totalStudents() %> <%=data.groupMode()?"nhóm được giao bài":"sinh viên trong danh sách lớp"%></strong>. Thống kê theo bài nộp mới nhất đã tiếp nhận.</p>
                     <div class="actions roster-summary" aria-label="Thống kê trạng thái sinh viên">
                         <%
                             for (String workStatus :
@@ -123,8 +122,7 @@
                         <% } %>
 
                     </div>
-                    <p class="submission-note">Danh sách gồm sinh viên chưa làm, đang làm và đã nộp. Chỉ bài đã nộp mới mở
-                        được nội dung. Mỗi trang tối đa 12 dòng; dùng nút chuyển trang bên dưới để xem tiếp.</p>
+                    <p class="submission-note">Danh sách gồm các <%=data.groupMode()?"nhóm":"sinh viên"%> chưa làm, đang làm và đã nộp. Chỉ bài đã nộp mới mở được nội dung. Mỗi trang tối đa 10 dòng.</p>
 
                     <% if (assignment.status() == AssignmentStatus.CANCELLED) { %>
                         <p class="submission-note"> Bài tập đã bị hủy. Các lượt làm và kết quả trước đó được giữ để tham khảo.
@@ -135,7 +133,7 @@
 
                 <form class="filters submission-filters" method="get" action="<%= escape(base) %>/teacher/submissions">
                     <input type="hidden" name="assignmentId" value="<%= assignment.assignmentId() %>">
-                    <label for="search"> Tìm sinh viên <input
+                    <label for="search"> <%=data.groupMode()?"Tìm nhóm hoặc thành viên":"Tìm sinh viên"%> <input
                             type="search"
                             id="search"
                             name="search"
@@ -166,7 +164,7 @@
                             chưa làm bài. Thời điểm nộp theo giờ Việt Nam, UTC+07. </caption>
                         <thead>
                             <tr>
-                                <th scope="col"> Sinh viên </th>
+                                <th scope="col"> <%=data.groupMode()?"Nhóm":"Sinh viên"%> </th>
                                 <th scope="col"> Lượt làm </th>
                                 <th scope="col"> Nộp lúc <small>(UTC+07)</small>
                                 </th>

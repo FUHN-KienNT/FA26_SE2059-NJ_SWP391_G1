@@ -367,3 +367,36 @@
 #client-form-error:empty {
     display: none;
 }
+.assignment-create #group-assignment-fields {
+    border: 1px solid #cfdced;
+    border-radius: 8px;
+    margin: 18px 0;
+    padding: 18px;
+    background: #f7faff;
+}
+
+.assignment-create #group-assignment-fields legend {
+    padding: 0 8px;
+    font-weight: 700;
+    color: #173553;
+}
+
+.assignment-create #group-assignment-choices {
+    max-height: 280px;
+    overflow: auto;
+    margin: 12px 0;
+}
+
+.assignment-create [data-group-choice-row] {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 10px 0;
+}
+
+.assignment-create [data-group-choice-row] input[type="checkbox"] {
+    width: auto;
+    min-height: 0;
+    margin: 3px 0 0;
+    flex-shrink: 0;
+}

@@ -106,6 +106,7 @@ public class TeacherEvaluationService {
                     var currentAssignment = assignments.findDetailForTeacher(connection, teacherId, assignmentId)
                             .orElseThrow(() -> new NoSuchElementException("Không tìm thấy bài tập."));
                     requireGradingOpen(currentAssignment.assignment(), assignments.currentTime(connection));
+                    new vn.edu.fpt.ams.dao.GroupGradeDAO().requireFinalSubmission(connection, submissionId);
 
                     if (blocked == null)
                         EssayEvaluationRules.validate(
@@ -173,6 +174,7 @@ public class TeacherEvaluationService {
 
                 requireAccepted(submission);
                 requireGradingOpen(assignment, assignments.currentTime(connection));
+                new vn.edu.fpt.ams.dao.GroupGradeDAO().requireFinalSubmission(connection, submissionId);
                 var saved = evaluations.read(connection, assignmentId, submissionId);
 
                 if (saved.revision() != revision)
@@ -254,6 +256,8 @@ public class TeacherEvaluationService {
                 evaluations.journal(connection, assignmentId, submissionId, detail.row().studentId(),
                         teacherId, action, changeReason, stored, next, submission.score(), nextScore,
                         submission.status().name(), nextStatus);
+                if("RELEASED".equals(nextStatus))
+                    new vn.edu.fpt.ams.dao.GroupGradeDAO().publish(connection,submissionId);
                 connection.commit();
             } catch (SQLException | RuntimeException ex) {
                 rollback(connection, ex);
@@ -335,7 +339,8 @@ public class TeacherEvaluationService {
                             assignment.canViewSubmissions());
 
         return new TeacherSubmissionDetailPage(
-                SubmissionContentSnapshot.displayPage(assignment, row), row);
+                SubmissionContentSnapshot.displayPage(assignment, row), row,
+                new vn.edu.fpt.ams.dao.GroupGradeDAO().teacherDetail(connection,submissionId));
     }
 
     private static void requireAccepted(Submission submission) {

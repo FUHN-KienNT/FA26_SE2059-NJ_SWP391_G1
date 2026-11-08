@@ -10,8 +10,7 @@ if("admin".equals(uiArea)) uiLinks = new String[][]{{"/admin/dashboard","Bảng 
 else if("expert".equals(uiArea)) uiLinks = new String[][]{{"/expert/dashboard","Bảng điều khiển"},{"/expert/classes","Môn học và lớp"},{"/expert/templates","Mẫu bài tập"}};
 else if("teacher".equals(uiArea)) uiLinks = new String[][]{
     {"/teacher/dashboard","Bảng điều khiển"},
-    {"/teacher/classes","Lớp phụ trách"},
-    {"/teacher/templates","Mẫu bài tập"}
+    {"/teacher/classes","Lớp phụ trách"}
 };
 else uiLinks = new String[][]{{"/student/dashboard","Bảng điều khiển"},{"/student/subjects","Môn học"},{"/student/classes","Lớp của tôi"}};
 %>

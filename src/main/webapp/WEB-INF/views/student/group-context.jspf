@@ -1,0 +1,12 @@
+<%@ page pageEncoding="UTF-8" %>
+<% if (data.group() != null) { %>
+    <section class="work-card" aria-label="Bài tập nhóm">
+        <h2>Bài tập nhóm · <%=WebSupport.html(data.group().groupName())%></h2>
+        <p><%=data.group().memberCount()%> thành viên cùng dùng một bài làm. Một thành viên đại diện nộp bài cho cả nhóm.
+            Hãy phối hợp trước khi sửa; nếu bản nháp đã được người khác cập nhật, bạn cần tải lại trang.</p>
+        <p>Điểm mỗi thành viên = (điểm giáo viên × <%=WebSupport.html(data.group().teacherWeight())%>%
+            + điểm đồng đội trung bình × <%=WebSupport.html(data.group().peerWeight())%>%) / 100.</p>
+        <p><a href="<%=base%>/student/peer-reviews?targetId=<%=data.group().targetId()%>">Đánh giá đồng đội</a>
+            · Mở sau hạn nộp hoặc khi giảng viên khóa bài; đóng khi công bố điểm. Chưa nhận đánh giá nào thì phần điểm đồng đội bằng 0.</p>
+    </section>
+<% } %>

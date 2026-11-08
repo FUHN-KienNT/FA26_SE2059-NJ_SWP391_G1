@@ -17,7 +17,7 @@
         <link rel="stylesheet" href="<%=base%>/css/app.css">
         <%@ include file="/WEB-INF/views/shared/assets.jspf" %>
 
-        <link rel="stylesheet" href="<%=base%>/css/student-result.css?v=20261108-pagination">
+        <link rel="stylesheet" href="<%=base%>/css/student-result.css?v=20261108-group-summary">
         <link rel="stylesheet" href="<%=base%>/css/submission-diagram.css">
         <script src="<%=base%>/js/submission-diagram.js" defer></script>
     </head>
@@ -46,6 +46,32 @@
                     <% } %>
 
                 </header>
+
+                <p><a class="ams-button" href="<%=base%>/student/peer-reviews">Đánh giá đồng đội</a></p>
+
+                <% if (resultPage.groupResult() != null) { var groupScore = resultPage.groupResult(); %>
+                    <section class="result-card" aria-labelledby="group-result-title">
+                        <h2 id="group-result-title">Điểm cá nhân · <%=WebSupport.html(groupScore.groupName())%></h2>
+                        <dl class="result-group-metrics">
+                            <div>
+                                <dt>Điểm giáo viên cho bài chung</dt>
+                                <dd><%=WebSupport.html(TeacherSubmissionView.score(groupScore.teacherScore()))%></dd>
+                            </div>
+                            <div>
+                                <dt>Điểm đồng đội trung bình</dt>
+                                <dd><%=WebSupport.html(TeacherSubmissionView.score(groupScore.peerScore().setScale(2, java.math.RoundingMode.HALF_UP)))%></dd>
+                            </div>
+                            <div>
+                                <dt>Tỉ trọng giáo viên / sinh viên</dt>
+                                <dd><%=WebSupport.html(groupScore.teacherWeight())%>% / <%=WebSupport.html(groupScore.peerWeight())%>%</dd>
+                            </div>
+                            <div>
+                                <dt>Đánh giá đã nhận</dt>
+                                <dd><%=groupScore.receivedReviews()%> / <%=groupScore.eligibleReviews()%></dd>
+                            </div>
+                        </dl>
+                    </section>
+                <% } %>
 
                 <% if (selected != null) { %>
                     <p><a class="ams-button" href="<%=base%>/student/results?assignmentId=<%=selected.assignmentId()%>&amp;submissionId=<%=selected.submissionId()%>&amp;download=1">Xuất bài làm của tôi</a></p>

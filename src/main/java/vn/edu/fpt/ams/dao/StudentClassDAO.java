@@ -12,6 +12,8 @@ import vn.edu.fpt.ams.dto.StudentClassPage.AssignmentRow;
 import vn.edu.fpt.ams.dto.StudentClassPage.ClassInfo;
 import vn.edu.fpt.ams.dto.StudentClassPage.Counts;
 import vn.edu.fpt.ams.util.Jdbc;
+import vn.edu.fpt.ams.util.GroupAssignmentSchema;
+import vn.edu.fpt.ams.util.GroupStudentAccess;
 
 /** Read-only, student-scoped queries for My Class Detail. */
 public final class StudentClassDAO {
@@ -107,7 +109,7 @@ public final class StudentClassDAO {
     public Counts counts(Connection c, long studentId, long classId, Instant now)
             throws SQLException {
         String sql =
-                VISIBLE_ASSIGNMENTS
+                visibleAssignments(c)
                         + """
                 SELECT COUNT(*),
                     COUNT(*) FILTER (WHERE status='PUBLISHED' AND available_from<=? AND due_at>?),
@@ -128,7 +130,7 @@ public final class StudentClassDAO {
             Connection c, long studentId, long classId, Instant now, StudentClassFilter filter)
             throws SQLException {
         var args = arguments(studentId, classId, now);
-        String sql = VISIBLE_ASSIGNMENTS + "SELECT COUNT(*) FROM visible" + where(filter, args);
+        String sql = visibleAssignments(c) + "SELECT COUNT(*) FROM visible" + where(filter, args);
 
         return Jdbc.scalar(c, sql, args.toArray());
     }
@@ -136,14 +138,16 @@ public final class StudentClassDAO {
     public List<AssignmentRow> assignments(
             Connection c, long studentId, long classId, Instant now, StudentClassFilter filter)
             throws SQLException {
+        boolean groups = GroupAssignmentSchema.installed(c);
         var args = arguments(studentId, classId, now);
         String sql =
-                VISIBLE_ASSIGNMENTS
+                visibleAssignments(c)
                         + """
                 SELECT assignment_id,title,assignment_purpose,response_type,maximum_score,available_from,due_at,
                     status,submission_id,attempt_number,work_status,submitted_at
+                GROUP_NAME_COLUMN
                 FROM visible
-                """
+                """.replace("GROUP_NAME_COLUMN", groups ? ",group_name" : "")
                         + where(filter, args)
                         + orderBy(filter)
                         + " LIMIT ? OFFSET ?";
@@ -169,7 +173,7 @@ public final class StudentClassDAO {
                                 r.getLong(9),
                                 r.getInt(10),
                                 r.getString(11),
-                                instant(r, 12)));
+                                instant(r, 12), groups ? r.getString("group_name") : null));
 
             return out;
         }
@@ -177,6 +181,23 @@ public final class StudentClassDAO {
 
     private static ArrayList<Object> arguments(long studentId, long classId, Instant now) {
         return new ArrayList<>(List.of(now, studentId, classId, studentId));
+    }
+
+    private static String visibleAssignments(Connection c) throws SQLException {
+        if (!GroupAssignmentSchema.installed(c)) return VISIBLE_ASSIGNMENTS;
+        return VISIBLE_ASSIGNMENTS
+                .replace("FROM assignments a", "FROM assignments a CROSS JOIN (SELECT ?::bigint AS student_id) viewer")
+                .replace("a.available_from,a.due_at,a.status,", "a.available_from,a.due_at,a.status,"
+                        + "(SELECT display_target.group_name FROM assignment_group_targets display_target"
+                        + " JOIN assignment_group_members display_member ON display_member.target_id=display_target.target_id"
+                        + " WHERE display_target.assignment_id=a.assignment_id AND display_target.frozen_at IS NOT NULL"
+                        + " AND display_member.student_id=viewer.student_id LIMIT 1) AS group_name,")
+                .replace("WHERE sub.assignment_id=a.assignment_id AND r.student_id=?",
+                        "WHERE sub.assignment_id=a.assignment_id AND "
+                        + GroupStudentAccess.owns("sub", "r.student_id", "viewer.student_id"))
+                .replace("AND e.status='ACTIVE' AND r.status='ACTIVE')",
+                        "AND e.status='ACTIVE' AND r.status='ACTIVE' AND "
+                        + GroupStudentAccess.audience("a", "r.student_id", "e.enrollment_id") + ")");
     }
 
     private static String orderBy(StudentClassFilter filter) {

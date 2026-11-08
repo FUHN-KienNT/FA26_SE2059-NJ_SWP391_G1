@@ -1,0 +1,26 @@
+<%@ page pageEncoding="UTF-8" %>
+<% if(data.group()!=null) { var gradingGroup=data.group(); %>
+    <section class="detail-card" id="group-results"><h2>Điểm của từng thành viên · <%=escape(gradingGroup.groupName())%></h2>
+        <p>Giáo viên <%=escape(gradingGroup.teacherWeight())%>% · Đánh giá đồng đội <%=escape(gradingGroup.peerWeight())%>%. Điểm cuối = (điểm giáo viên × hệ số giáo viên + điểm đồng đội trung bình × hệ số sinh viên) / tổng hệ số.</p>
+        <p>Chưa nhận đánh giá nào thì điểm đồng đội bằng 0. Công bố điểm sẽ khóa đánh giá của cả nhóm; sửa điểm giáo viên sau đó sẽ cập nhật lại điểm từng thành viên và được ghi nhật ký.</p>
+        <%
+            int groupPages=Math.max(1,(gradingGroup.members().size()+9)/10);
+            int groupMemberPage=Math.min(WebSupport.page(request.getParameter("memberPage")),groupPages);
+            int groupStart=(groupMemberPage-1)*10;
+        %>
+        <div class="table-scroll"><table><caption><%=released?"Kết quả đã công bố":"Điểm dự kiến, sinh viên chưa thấy"%></caption>
+            <thead><tr><th>Thành viên</th><th>Điểm giáo viên</th><th>Điểm đồng đội</th><th>Đánh giá đã nhận</th><th>Điểm cuối</th></tr></thead><tbody>
+            <% for(var member:gradingGroup.members().subList(groupStart,Math.min(groupStart+10,gradingGroup.members().size()))) {
+                java.math.BigDecimal memberFinal=released?member.finalScore():submission.score()==null?null:
+                    vn.edu.fpt.ams.util.GroupScoreRules.finalScoreFromTotals(submission.score(),member.peerSum(),member.receivedReviews(),gradingGroup.teacherWeight(),gradingGroup.peerWeight());
+            %><tr>
+                <td><%=escape(member.name())%></td>
+                <td><%=submission.score()==null?"Chưa chấm":escape(TeacherSubmissionView.score(submission.score()))%></td>
+                <td><%=escape(TeacherSubmissionView.score(member.peerScore().setScale(2,java.math.RoundingMode.HALF_UP)))%></td>
+                <td><%=member.receivedReviews()%> / <%=member.eligibleReviews()%></td>
+                <td><%=memberFinal==null?"Chưa có":escape(TeacherSubmissionView.score(memberFinal))%></td>
+            </tr><% } %>
+            </tbody></table></div>
+        <ams:pagination currentPage="<%=groupMemberPage%>" totalPages="<%=groupPages%>" baseUrl='<%=detailUrl+"#group-results"%>' pageParameter="memberPage" ariaLabel="Trang điểm thành viên"/>
+    </section>
+<% } %>

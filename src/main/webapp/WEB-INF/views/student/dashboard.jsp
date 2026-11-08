@@ -19,6 +19,7 @@
             <p>Xin chào <strong><%=WebSupport.html(dashboard.fullName())%></strong>. Theo dõi lớp, bài tập và kết quả học tập của bạn.</p>
         </div>
         <div class="student-heading-actions">
+            <a class="ams-button" href="${pageContext.request.contextPath}/student/peer-reviews">Đánh giá đồng đội</a>
             <a class="primary-button" href="${pageContext.request.contextPath}/student/subjects">Xem và đăng ký môn học</a>
             <a class="student-secondary-link" href="${pageContext.request.contextPath}/student/subjects?view=enrolled">Môn đã đăng ký</a>
         </div>

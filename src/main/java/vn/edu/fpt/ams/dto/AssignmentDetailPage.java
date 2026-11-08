@@ -14,7 +14,15 @@ public record AssignmentDetailPage(
         String termCode,
         String templateTitle,
         List<Question> questions,
-        boolean canViewSubmissions) {
+        boolean canViewSubmissions,
+        GroupAssignmentConfig groupConfig,
+        List<AssignmentGroupTarget> groupTargets) {
+    public AssignmentDetailPage(Assignment assignment, String classCode, String className,
+            String subjectCode, String subjectName, String termCode, String templateTitle,
+            List<Question> questions, boolean canViewSubmissions) {
+        this(assignment, classCode, className, subjectCode, subjectName, termCode, templateTitle,
+                questions, canViewSubmissions, GroupAssignmentConfig.individual(), List.of());
+    }
     public AssignmentDetailPage(
             Assignment assignment,
             String classCode,
@@ -38,5 +46,7 @@ public record AssignmentDetailPage(
 
     public AssignmentDetailPage {
         questions = List.copyOf(questions);
+        if (groupConfig == null) groupConfig = GroupAssignmentConfig.individual();
+        groupTargets = List.copyOf(groupTargets);
     }
 }

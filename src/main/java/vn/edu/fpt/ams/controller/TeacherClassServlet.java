@@ -11,7 +11,7 @@ import vn.edu.fpt.ams.dto.TeacherClassSummary;
 import vn.edu.fpt.ams.service.TeacherDashboardService;
 
 /** Read-only class screens for the current Teacher. */
-@WebServlet({"/teacher/classes", "/teacher/classes/detail"})
+@WebServlet({"/teacher/classes", "/teacher/classes/detail", "/teacher/enrollments"})
 public class TeacherClassServlet extends HttpServlet {
     private final TeacherDashboardService service;
 
@@ -28,6 +28,10 @@ public class TeacherClassServlet extends HttpServlet {
     /** Render a searchable class list or the details of one assigned class. */
     @Override protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
+        if ("/teacher/enrollments".equals(request.getServletPath())) {
+            redirectLegacyEnrollment(request, response);
+            return;
+        }
         long teacherId = (Long) request.getSession().getAttribute("userId");
         try {
             if ("/teacher/classes/detail".equals(request.getServletPath())) {
@@ -52,6 +56,22 @@ public class TeacherClassServlet extends HttpServlet {
         } catch (IllegalArgumentException ex) {
             response.sendError(HttpServletResponse.SC_BAD_REQUEST, ex.getMessage());
         }
+    }
+
+    /** Keep saved links to the old class and student list usable. */
+    private static void redirectLegacyEnrollment(HttpServletRequest request, HttpServletResponse response)
+            throws IOException {
+        String rawId = request.getParameter("classId");
+        String destination = "/teacher/classes";
+        if (rawId != null && !rawId.isBlank()) {
+            try {
+                long classId = Long.parseLong(rawId.strip());
+                if (classId > 0) destination = "/teacher/students?classId=" + classId;
+            } catch (NumberFormatException ignored) {
+                // An old link with an invalid class ID can still open the class list.
+            }
+        }
+        response.sendRedirect(request.getContextPath() + destination);
     }
 
     /** Read a bounded filter value from the request. */

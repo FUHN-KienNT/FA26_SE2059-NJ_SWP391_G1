@@ -6,10 +6,17 @@ import java.time.ZoneOffset;
 import java.util.*;
 import vn.edu.fpt.ams.model.*;
 import vn.edu.fpt.ams.util.ObjectiveAnswerGrader;
+import vn.edu.fpt.ams.util.GroupAssignmentSchema;
+import vn.edu.fpt.ams.util.GroupStudentAccess;
+import vn.edu.fpt.ams.dto.StudentGroupContext;
 
 /** Student membership is checked at this persistence boundary for every operation. */
 public class StudentObjectiveDAO {
-    public record Owned(Assignment assignment, long enrollmentId, String classCode) {}
+    public record Owned(Assignment assignment, long enrollmentId, String classCode, StudentGroupContext group) {
+        public Owned(Assignment assignment, long enrollmentId, String classCode) {
+            this(assignment, enrollmentId, classCode, null);
+        }
+    }
 
     private static final String MEMBERSHIP =
             """
@@ -23,17 +30,18 @@ public class StudentObjectiveDAO {
             """;
 
     public List<Owned> list(Connection connection, long studentId) throws SQLException {
+        boolean groups = GroupAssignmentSchema.installed(connection);
         try (var s =
                 connection.prepareStatement(
-                        "SELECT a.*,e.enrollment_id,c.class_code "
-                                + MEMBERSHIP
+                        selection(groups)
+                                + membership(groups)
                                 + " AND a.due_at>CURRENT_TIMESTAMP AND a.closed_at IS NULL ORDER BY a.assignment_id DESC")) {
             s.setLong(1, studentId);
 
             try (var rows = s.executeQuery()) {
                 List<Owned> result = new ArrayList<>();
 
-                while (rows.next()) result.add(map(rows));
+                while (rows.next()) result.add(map(rows, groups));
 
                 return result;
             }
@@ -42,10 +50,11 @@ public class StudentObjectiveDAO {
 
     public Owned owned(Connection connection, long studentId, long assignmentId, boolean lock)
             throws SQLException {
+        boolean groups = GroupAssignmentSchema.installed(connection);
         try (var s =
                 connection.prepareStatement(
-                        "SELECT a.*,e.enrollment_id,c.class_code "
-                                + MEMBERSHIP
+                        selection(groups)
+                                + membership(groups)
                                 + " AND a.assignment_id=?"
                                 + (lock ? " FOR UPDATE OF a" : ""))) {
             s.setLong(1, studentId);
@@ -56,28 +65,55 @@ public class StudentObjectiveDAO {
                     throw new NoSuchElementException(
                             "Không tìm thấy bài tập hoặc bạn không có quyền truy cập.");
 
-                return map(rows);
+                return map(rows, groups);
             }
         }
     }
 
-    private Owned map(ResultSet rows) throws SQLException {
+    private static String selection(boolean groups) {
+        return groups ? "SELECT a.*,COALESCE(gt.owner_enrollment_id,e.enrollment_id) AS work_enrollment_id,c.class_code,"
+                + "gt.target_id AS group_target_id,gt.group_name,gs.teacher_weight,gs.peer_weight,"
+                + "(SELECT count(*) FROM assignment_group_members count_member WHERE count_member.target_id=gt.target_id) AS member_count "
+                : "SELECT a.*,e.enrollment_id AS work_enrollment_id,c.class_code ";
+    }
+
+    private static String membership(boolean groups) {
+        if (!groups) return MEMBERSHIP;
+        return MEMBERSHIP.replace("WHERE u.user_id=?", """
+                LEFT JOIN assignment_group_settings gs ON gs.assignment_id=a.assignment_id
+                LEFT JOIN assignment_group_targets gt ON gt.assignment_id=a.assignment_id
+                    AND gs.delivery_mode='GROUP' AND gt.frozen_at IS NOT NULL
+                LEFT JOIN assignment_group_members gm ON gm.target_id=gt.target_id
+                    AND gm.student_id=u.user_id AND gm.enrollment_id=e.enrollment_id
+                WHERE u.user_id=?
+                """) + " AND (COALESCE(gs.delivery_mode,'INDIVIDUAL')<>'GROUP'"
+                + " OR (gm.student_id IS NOT NULL AND gt.owner_enrollment_id IS NOT NULL)) ";
+    }
+
+    private Owned map(ResultSet rows, boolean groups) throws SQLException {
+        StudentGroupContext group = null;
+        if (groups && rows.getObject("group_target_id") != null)
+            group = new StudentGroupContext(rows.getLong("group_target_id"), rows.getString("group_name"),
+                    rows.getInt("member_count"), rows.getBigDecimal("teacher_weight"), rows.getBigDecimal("peer_weight"));
         return new Owned(
                 AssignmentDAO.mapAssignment(rows),
-                rows.getLong("enrollment_id"),
-                rows.getString("class_code"));
+                rows.getLong("work_enrollment_id"),
+                rows.getString("class_code"), group);
     }
 
     public List<Submission> attempts(Connection connection, long studentId, long assignmentId)
             throws SQLException {
-        try (var align = connection.prepareStatement("""
+        boolean groups = GroupAssignmentSchema.installed(connection);
+        String ownership = groups ? GroupStudentAccess.owns("sub", "r.student_id", "viewer.student_id") : "r.student_id=?";
+        String viewer = groups ? " CROSS JOIN (SELECT ?::bigint AS student_id) viewer " : " ";
+        try (var align = connection.prepareStatement(("""
                 UPDATE submissions sub SET deadline_at=a.due_at
                 FROM assignments a,class_enrollments e,subject_registrations r
                 WHERE sub.assignment_id=a.assignment_id AND sub.enrollment_id=e.enrollment_id
-                  AND r.registration_id=e.registration_id AND r.student_id=?
+                  AND r.registration_id=e.registration_id AND OWNERSHIP
                   AND a.assignment_id=? AND sub.status='IN_PROGRESS'
                   AND a.due_at>sub.started_at AND sub.deadline_at IS DISTINCT FROM a.due_at
-                """)) {
+                """).replace("WHERE sub.assignment_id", viewer + "WHERE sub.assignment_id").replace("OWNERSHIP", ownership))) {
             align.setLong(1, studentId);
             align.setLong(2, assignmentId);
             align.executeUpdate();
@@ -89,8 +125,8 @@ public class StudentObjectiveDAO {
                 SELECT sub.* FROM submissions sub
                 JOIN class_enrollments e ON e.enrollment_id=sub.enrollment_id
                 JOIN subject_registrations r ON r.registration_id=e.registration_id
-                WHERE r.student_id=? AND sub.assignment_id=? ORDER BY sub.attempt_number,sub.submission_id FOR UPDATE OF sub
-                """)) {
+                WHERE OWNERSHIP AND sub.assignment_id=? ORDER BY sub.attempt_number,sub.submission_id FOR UPDATE OF sub
+                """.replace("WHERE OWNERSHIP", viewer + "WHERE " + ownership))) {
             s.setLong(1, studentId);
             s.setLong(2, assignmentId);
 
@@ -108,18 +144,21 @@ public class StudentObjectiveDAO {
             Connection connection, Owned owned, int attempt, Instant now, Instant deadline)
             throws SQLException {
         long id;
+        boolean group = owned.group() != null;
 
         try (var s =
                 connection.prepareStatement(
                         """
-                INSERT INTO submissions(assignment_id,enrollment_id,attempt_number,started_at,deadline_at)
-                VALUES(?,?,?,?,?) RETURNING submission_id
-                """)) {
+                INSERT INTO submissions(assignment_id,enrollment_id,attempt_number,started_at,deadline_atGROUP_COLUMN)
+                VALUES(?,?,?,?,?GROUP_VALUE) RETURNING submission_id
+                """.replace("GROUP_COLUMN", group ? ",assignment_group_target_id" : "")
+                        .replace("GROUP_VALUE", group ? ",?" : ""))) {
             s.setLong(1, owned.assignment().assignmentId());
             s.setLong(2, owned.enrollmentId());
             s.setInt(3, attempt);
             s.setObject(4, now.atOffset(ZoneOffset.UTC));
             s.setObject(5, deadline.atOffset(ZoneOffset.UTC));
+            if (group) s.setLong(6, owned.group().targetId());
 
             try (var rows = s.executeQuery()) {
                 rows.next();
@@ -202,12 +241,14 @@ public class StudentObjectiveDAO {
             Instant gradedAt,
             ObjectiveAnswerGrader.Result grade)
             throws SQLException {
+        boolean groups = GroupAssignmentSchema.installed(connection);
         try (var s =
                 connection.prepareStatement(
                         """
                 UPDATE submissions SET answer=?::jsonb,answer_revision=answer_revision+1,score=?,status='RELEASED',submitted_at=?,graded_at=?,released_at=?,graded_by=NULL
                 WHERE submission_id=? AND status='IN_PROGRESS'
-                """)) {
+                """.replace("status='RELEASED'", groups ? "status=CASE WHEN assignment_group_target_id IS NULL THEN 'RELEASED' ELSE 'GRADED' END" : "status='RELEASED'")
+                        .replace("released_at=?", groups ? "released_at=CASE WHEN assignment_group_target_id IS NULL THEN ? ELSE NULL END" : "released_at=?"))) {
             s.setString(1, grade.answerJson());
             s.setBigDecimal(2, grade.score());
             s.setObject(3, submittedAt.atOffset(ZoneOffset.UTC));
@@ -252,10 +293,12 @@ public class StudentObjectiveDAO {
 
     public void releaseObjective(Connection connection, long submissionId, Instant now,
             ObjectiveAnswerGrader.Result grade) throws SQLException {
+        boolean groups = GroupAssignmentSchema.installed(connection);
         try (var statement = connection.prepareStatement("""
                 UPDATE submissions SET answer=?::jsonb,score=?,status='RELEASED',graded_at=?,released_at=?,graded_by=NULL
                 WHERE submission_id=? AND status='SUBMITTED'
-                """)) {
+                """.replace("status='RELEASED'", groups ? "status=CASE WHEN assignment_group_target_id IS NULL THEN 'RELEASED' ELSE 'GRADED' END" : "status='RELEASED'")
+                        .replace("released_at=?", groups ? "released_at=CASE WHEN assignment_group_target_id IS NULL THEN ? ELSE NULL END" : "released_at=?"))) {
             statement.setString(1, grade.answerJson());
             statement.setBigDecimal(2, grade.score());
             statement.setObject(3, now.atOffset(ZoneOffset.UTC));

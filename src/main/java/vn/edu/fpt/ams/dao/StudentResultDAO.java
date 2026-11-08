@@ -8,6 +8,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import vn.edu.fpt.ams.dto.StudentResultPage;
+import vn.edu.fpt.ams.dto.StudentGroupResult;
+import vn.edu.fpt.ams.util.GroupAssignmentSchema;
+import vn.edu.fpt.ams.util.GroupStudentAccess;
 
 /** Historical access follows the original enrollment, never a student's current class membership. */
 public class StudentResultDAO {
@@ -56,7 +59,15 @@ public class StudentResultDAO {
             String answer,
             String feedback,
             String evaluation,
-            long revision) {}
+            long revision,
+            StudentGroupResult group) {
+        public Row(StudentResultPage.Attempt attempt, java.math.BigDecimal maximumScore,
+                   String assignmentSnapshot, String questionsSnapshot, String content, String answer,
+                   String feedback, String evaluation, long revision) {
+            this(attempt, maximumScore, assignmentSnapshot, questionsSnapshot, content, answer,
+                    feedback, evaluation, revision, null);
+        }
+    }
 
     public void requireStudent(Connection connection, long studentId) throws SQLException {
         try (var statement =
@@ -73,11 +84,12 @@ public class StudentResultDAO {
 
     public List<StudentResultPage.Attempt> history(
             Connection connection, long studentId, long assignmentId) throws SQLException {
+        boolean groups = GroupAssignmentSchema.installed(connection);
         try (var statement =
                 connection.prepareStatement(
-                        SUMMARY
+                        summary(groups)
                                 + " "
-                                + OWNED
+                                + owned(groups, false)
                                 + " ORDER BY sub.attempt_number DESC,sub.submission_id DESC LIMIT 1")) {
             statement.setLong(1, studentId);
             statement.setLong(2, assignmentId);
@@ -95,18 +107,20 @@ public class StudentResultDAO {
     public Optional<Row> detail(
             Connection connection, long studentId, long assignmentId, long submissionId)
             throws SQLException {
+        boolean groups = GroupAssignmentSchema.installed(connection);
         String sql =
-                SUMMARY
+                summary(groups)
                         + ",a.maximum_score"
-                        + visible("snapshot.assignment_data", "assignment_snapshot")
-                        + visible("snapshot.questions_data", "questions_snapshot")
-                        + visible("sub.content", "visible_content")
-                        + visible("sub.answer", "visible_answer")
-                        + visible("sub.feedback", "visible_feedback")
-                        + visible("sub.evaluation", "visible_evaluation")
-                        + visible("sub.evaluation_revision", "visible_revision")
+                        + visible(groups, "snapshot.assignment_data", "assignment_snapshot")
+                        + visible(groups, "snapshot.questions_data", "questions_snapshot")
+                        + visible(groups, "sub.content", "visible_content")
+                        + visible(groups, "sub.answer", "visible_answer")
+                        + visible(groups, "sub.feedback", "visible_feedback")
+                        + visible(groups, "sub.evaluation", "visible_evaluation")
+                        + visible(groups, "sub.evaluation_revision", "visible_revision")
+                        + groupFields(groups)
                         + " "
-                        + OWNED
+                        + owned(groups, false)
                         + " AND sub.submission_id=?";
 
         try (var statement = connection.prepareStatement(sql)) {
@@ -127,16 +141,17 @@ public class StudentResultDAO {
                                 rows.getString("visible_answer"),
                                 rows.getString("visible_feedback"),
                                 rows.getString("visible_evaluation"),
-                                rows.getLong("visible_revision")));
+                                rows.getLong("visible_revision"), groups ? group(rows) : null));
             }
         }
     }
 
     public List<StudentResultPage.Attempt> catalog(
             Connection connection, long studentId, int page) throws SQLException {
+        boolean groups = GroupAssignmentSchema.installed(connection);
         String sql = "SELECT * FROM ("
-                + SUMMARY.replace("SELECT sub.submission_id", "SELECT DISTINCT ON (a.assignment_id) sub.submission_id")
-                + " " + CATALOG_OWNED
+                + summary(groups).replace("SELECT sub.submission_id", "SELECT DISTINCT ON (a.assignment_id) sub.submission_id")
+                + " " + owned(groups, true)
                 + " ORDER BY a.assignment_id DESC,sub.attempt_number DESC,sub.submission_id DESC) latest"
                 + " ORDER BY submitted_at DESC,submission_id DESC LIMIT " + StudentResultPage.PAGE_SIZE + " OFFSET ?";
 
@@ -155,8 +170,9 @@ public class StudentResultDAO {
     }
 
     public long countCatalog(Connection connection, long studentId) throws SQLException {
+        boolean groups = GroupAssignmentSchema.installed(connection);
         try (var statement = connection.prepareStatement(
-                "SELECT count(DISTINCT a.assignment_id) " + CATALOG_OWNED)) {
+                "SELECT count(DISTINCT a.assignment_id) " + owned(groups, true))) {
             statement.setLong(1, studentId);
 
             try (var rows = statement.executeQuery()) {
@@ -171,9 +187,10 @@ public class StudentResultDAO {
     public Optional<Row> exportRow(
             Connection connection, long studentId, long assignmentId, long submissionId)
             throws SQLException {
-        String sql = SUMMARY + ",a.maximum_score,snapshot.assignment_data AS assignment_snapshot,"
+        boolean groups = GroupAssignmentSchema.installed(connection);
+        String sql = summary(groups) + ",a.maximum_score,snapshot.assignment_data AS assignment_snapshot,"
                 + "snapshot.questions_data AS questions_snapshot,sub.content AS visible_content,"
-                + "sub.answer AS visible_answer " + OWNED + " AND sub.submission_id=?";
+                + "sub.answer AS visible_answer " + owned(groups, false) + " AND sub.submission_id=?";
 
         try (var statement = connection.prepareStatement(sql)) {
             statement.setLong(1, studentId);
@@ -191,8 +208,52 @@ public class StudentResultDAO {
         }
     }
 
-    private static String visible(String column, String alias) {
-        return ", CASE WHEN " + RELEASED + " THEN " + column + " END AS " + alias;
+    private static String released(boolean groups) {
+        return groups ? "(" + RELEASED + " AND (sub.assignment_group_target_id IS NULL"
+                + " OR (group_result.student_id IS NOT NULL AND group_result.released_at<=CURRENT_TIMESTAMP)))"
+                : RELEASED;
+    }
+
+    private static String summary(boolean groups) {
+        if (!groups) return SUMMARY;
+        return SUMMARY.replace(RELEASED, released(true))
+                .replace("THEN sub.score", "THEN CASE WHEN sub.assignment_group_target_id IS NULL THEN sub.score ELSE group_result.final_score END")
+                .replace("THEN sub.released_at", "THEN CASE WHEN sub.assignment_group_target_id IS NULL THEN sub.released_at ELSE group_result.released_at END");
+    }
+
+    private static String owned(boolean groups, boolean catalog) {
+        String sql = catalog ? CATALOG_OWNED : OWNED;
+        if (!groups) return sql;
+        return sql.replace("JOIN users u ON u.user_id=r.student_id", "JOIN users u ON u.user_id=?")
+                .replace("WHERE u.user_id=?", """
+                        LEFT JOIN assignment_group_targets group_target ON group_target.target_id=sub.assignment_group_target_id
+                        LEFT JOIN assignment_group_results group_result ON group_result.target_id=group_target.target_id
+                            AND group_result.submission_id=sub.submission_id AND group_result.student_id=u.user_id
+                        WHERE
+                        """ + GroupStudentAccess.owns("sub", "r.student_id", "u.user_id"));
+    }
+
+    private static String visible(boolean groups, String column, String alias) {
+        return ", CASE WHEN " + released(groups) + " THEN " + column + " END AS " + alias;
+    }
+
+    private static String groupFields(boolean groups) {
+        if (!groups) return "";
+        return visible(true, "group_target.group_name", "group_name")
+                + visible(true, "group_result.teacher_score", "group_teacher_score")
+                + visible(true, "group_result.peer_score", "group_peer_score")
+                + visible(true, "group_result.teacher_weight", "group_teacher_weight")
+                + visible(true, "group_result.peer_weight", "group_peer_weight")
+                + visible(true, "group_result.received_reviews", "group_received_reviews")
+                + visible(true, "group_result.eligible_reviews", "group_eligible_reviews");
+    }
+
+    private static StudentGroupResult group(ResultSet rows) throws SQLException {
+        if (rows.getString("group_name") == null) return null;
+        return new StudentGroupResult(rows.getString("group_name"), rows.getBigDecimal("group_teacher_score"),
+                rows.getBigDecimal("group_peer_score"), rows.getBigDecimal("group_teacher_weight"),
+                rows.getBigDecimal("group_peer_weight"), rows.getInt("group_received_reviews"),
+                rows.getInt("group_eligible_reviews"));
     }
 
     private static StudentResultPage.Attempt attempt(ResultSet rows) throws SQLException {

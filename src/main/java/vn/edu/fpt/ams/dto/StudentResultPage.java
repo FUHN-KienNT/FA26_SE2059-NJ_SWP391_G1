@@ -9,12 +9,17 @@ import vn.edu.fpt.ams.util.TeacherSubmissionView;
 /** Only explicitly released evaluations can populate detail; pending attempts contain metadata only. */
 public record StudentResultPage(
         long assignmentId, List<Attempt> attempts, Attempt selected, Released detail,
-        int catalogPage, long catalogTotal) {
+        int catalogPage, long catalogTotal, StudentGroupResult groupResult) {
     public static final int PAGE_SIZE = 10;
 
     public StudentResultPage(
             long assignmentId, List<Attempt> attempts, Attempt selected, Released detail) {
-        this(assignmentId, attempts, selected, detail, 1, attempts.size());
+        this(assignmentId, attempts, selected, detail, 1, attempts.size(), null);
+    }
+
+    public StudentResultPage(long assignmentId, List<Attempt> attempts, Attempt selected, Released detail,
+                             int catalogPage, long catalogTotal) {
+        this(assignmentId, attempts, selected, detail, catalogPage, catalogTotal, null);
     }
 
     public StudentResultPage {

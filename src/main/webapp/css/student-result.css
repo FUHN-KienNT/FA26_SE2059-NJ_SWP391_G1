@@ -71,6 +71,29 @@
     margin: 20px 0 12px
 }
 
+.result-group-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+    gap: 16px;
+    margin: 0;
+}
+
+.result-group-metrics > div {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 4px;
+}
+
+.result-group-metrics dt {
+    color: #556279;
+}
+
+.result-group-metrics dd {
+    margin: 0;
+    font-weight: 700;
+}
+
 .result-summary {
     display: grid;
     grid-template-columns: minmax(180px, 1fr) 2fr;

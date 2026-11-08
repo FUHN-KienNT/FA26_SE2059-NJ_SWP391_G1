@@ -158,7 +158,9 @@
                             %>
 
                                 <tr>
-                                    <td class="assignment-title"> <%= escape(assignment.title()) %> </td>
+                                    <td class="assignment-title"> <%= escape(assignment.title()) %>
+                                        <small><%= data.groupAssignmentIds().contains(assignment.assignmentId()) ? "Bài tập nhóm" : "Bài tập cá nhân" %></small>
+                                    </td>
                                     <td> <%= label(assignment.assignmentPurpose()) %> </td>
                                     <td> <%= label(assignment.responseType()) %> </td>
                                     <td class="deadline"> <%= data.creationTimes().containsKey(assignment.assignmentId()) ? deadline(data.creationTimes().get(assignment.assignmentId())) : "Chưa ghi nhận" %> </td>

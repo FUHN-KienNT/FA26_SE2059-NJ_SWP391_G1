@@ -215,8 +215,10 @@ DROP DATABASE $databaseIdentifier;
         "overflow_batches", "questions", "student_invitations", "subject_classes",
         "subject_experts", "subject_registrations", "subject_terms", "subjects",
         "submissions", "teacher_subjects", "users",
-        "submission_content_snapshots", "student_email_verifications", "staff_password_resets",
-        "system_settings"
+        "submission_content_snapshots", "submission_evaluation_history", "student_email_verifications",
+        "staff_password_resets", "system_settings", "project_groups", "project_group_members",
+        "assignment_group_settings", "assignment_group_targets", "assignment_group_members",
+        "assignment_peer_reviews", "assignment_group_results"
     )
     $actualTables = @(Invoke-Psql -Executable $psql -Database $DatabaseName -User $DatabaseUser `
         -Password $applicationPassword -Sql "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY table_name;")

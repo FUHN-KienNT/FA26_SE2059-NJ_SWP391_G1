@@ -11,7 +11,15 @@ public record AssignmentListPage(
         List<Assignment> assignments,
         Set<Long> submissionAssignmentIds,
         long totalCount,
-        java.util.Map<Long, java.time.Instant> creationTimes) {
+        java.util.Map<Long, java.time.Instant> creationTimes,
+        Set<Long> groupAssignmentIds) {
+    public AssignmentListPage(List<AssignmentClassOption> classes, Long selectedClassId,
+            AssignmentListFilter filter, List<Assignment> assignments,
+            Set<Long> submissionAssignmentIds, long totalCount,
+            java.util.Map<Long, java.time.Instant> creationTimes) {
+        this(classes, selectedClassId, filter, assignments, submissionAssignmentIds, totalCount,
+                creationTimes, Set.of());
+    }
     public AssignmentListPage(List<AssignmentClassOption> classes, Long selectedClassId,
             AssignmentListFilter filter, List<Assignment> assignments,
             Set<Long> submissionAssignmentIds) {
@@ -32,6 +40,7 @@ public record AssignmentListPage(
         assignments = List.copyOf(assignments);
         submissionAssignmentIds = Set.copyOf(submissionAssignmentIds);
         creationTimes = java.util.Map.copyOf(creationTimes);
+        groupAssignmentIds = Set.copyOf(groupAssignmentIds);
     }
 
     public long totalPages() {

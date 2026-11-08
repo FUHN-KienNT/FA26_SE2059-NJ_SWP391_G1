@@ -29,7 +29,7 @@
                 else if(account.role()==UserRole.TEACHER){
                 %>
                 <p>
-                    <a href="${pageContext.request.contextPath}/teacher/templates">Mẫu bài tập</a>
+                    <a href="${pageContext.request.contextPath}/teacher/classes">Lớp phụ trách</a>
                 </p>
                 <%
                 }

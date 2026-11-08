@@ -33,7 +33,7 @@ public class TemplateServlet extends HttpServlet {
   protected void doGet(HttpServletRequest req, HttpServletResponse res)
       throws ServletException, IOException {
     if (req.getServletPath().startsWith("/teacher/")) {
-      res.sendRedirect(req.getContextPath() + "/teacher/enrollments");
+      res.sendRedirect(req.getContextPath() + "/teacher/classes");
       return;
     }
     String view = "/WEB-INF/views/assignment-templates/list.jsp";

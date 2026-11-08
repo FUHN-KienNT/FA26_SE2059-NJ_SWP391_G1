@@ -7,7 +7,13 @@ public record TeacherSubmissionListPage(
         TeacherSubmissionFilter filter,
         List<TeacherSubmissionRow> submissions,
         long totalCount,
-        java.util.Map<String, Long> studentCounts) {
+        java.util.Map<String, Long> studentCounts,
+        boolean groupMode) {
+    public TeacherSubmissionListPage(AssignmentDetailPage assignment, TeacherSubmissionFilter filter,
+            List<TeacherSubmissionRow> submissions, long totalCount,
+            java.util.Map<String, Long> studentCounts) {
+        this(assignment,filter,submissions,totalCount,studentCounts,false);
+    }
     public TeacherSubmissionListPage(
             AssignmentDetailPage assignment,
             TeacherSubmissionFilter filter,

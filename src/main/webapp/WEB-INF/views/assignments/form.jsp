@@ -56,7 +56,7 @@
         <%@ include file="/WEB-INF/views/shared/assets.jspf" %>
 
         <link rel="stylesheet" href="<%= html(base) %>/css/assignment-form.css?v=20261108-authoring">
-        <script src="<%= html(base) %>/js/assignment-form.js?v=20261108-authoring" defer></script>
+        <script src="<%= html(base) %>/js/assignment-form.js?v=20261108-group-authoring" defer></script>
     </head>
     <body class="ams-ui teacher-app">
         <%@ include file="/WEB-INF/views/shared/shell.jspf" %>
@@ -140,11 +140,14 @@
                     data-edit="<%= editing %>" data-edit-conflict="<%= editConflict %>"
                     data-authoring-url="<%= html(base) %>/teacher/assignment-authoring"
                     data-saved-response-type="<%= html(savedResponseType) %>"
+                    data-current-class-id="<%= context.classId() %>"
                     data-saved-essay-content="<%= savedEssayContent %>"
                     data-saved-objective-content="<%= savedObjectiveContent %>">
                     <input type="hidden" name="action" value="<%= editing ? "update" : "create" %>">
                     <input type="hidden" id="submit-mode" name="submitMode" value="draft">
                     <input type="hidden" id="target-class-ids" name="targetClassIds" value="<%= html(form.value("targetClassIds")) %>">
+                    <input type="hidden" id="selected-group-ids" name="selectedGroupIds" value="<%= html(form.value("selectedGroupIds")) %>">
+                    <input type="hidden" name="groupRevision" value="<%= html(form.value("groupRevision").isBlank() ? "0" : form.value("groupRevision")) %>">
                     <input type="hidden" name="csrf" value="<%= html(WebSupport.csrf(request)) %>">
                     <input type="hidden" name="classId" value="<%= context.classId() %>">
 
@@ -172,6 +175,56 @@
                         </details>
                         <small class="field-error" id="targetClassIds-error"><%= html(errors.get("targetClassIds")) %></small>
                         <p class="form-hint"><%= editing ? "Bản nháp hiện tại luôn được cập nhật. Các lớp khác được chọn sẽ nhận bản sao mới của đề." : "Có thể chọn nhiều lớp cùng môn. Khi không chọn lớp nào, đề được giao cho lớp đang mở." %></p>
+                        <label for="deliveryMode">Đối tượng nhận bài *</label>
+                        <select id="deliveryMode" name="deliveryMode">
+                            <option value="INDIVIDUAL" <%= !"GROUP".equals(form.value("deliveryMode")) ? "selected" : "" %>>Cá nhân — mỗi sinh viên làm bài riêng</option>
+                            <option value="GROUP" <%= "GROUP".equals(form.value("deliveryMode")) ? "selected" : "" %>
+                                <%= context.groupAssignmentsAvailable() || "GROUP".equals(form.value("deliveryMode")) ? "" : "disabled" %>>Theo nhóm — các thành viên dùng chung một bài làm</option>
+                        </select>
+                        <small class="field-error" id="deliveryMode-error"><%= html(errors.get("deliveryMode")) %></small>
+                        <small class="field-error" id="groupRevision-error"><%= html(errors.get("groupRevision")) %></small>
+                        <% if (!context.groupAssignmentsAvailable()) { %>
+                            <p class="form-hint">Chức năng giao bài nhóm chưa sẵn sàng trên cấu trúc dữ liệu hiện tại.</p>
+                        <% } %>
+                        <fieldset id="group-assignment-fields" <%= "GROUP".equals(form.value("deliveryMode")) ? "" : "hidden disabled" %>>
+                            <legend>Giao bài và tính điểm theo nhóm</legend>
+                            <p class="form-hint">Mỗi nhóm dùng chung một bài nộp. Mọi thành viên đã được chốt đều có thể lưu hoặc nộp đại diện; hệ thống kiểm tra phiên bản để tránh ghi đè bài của nhau.</p>
+                            <label for="groupTargetMode">Nhóm nhận bài *</label>
+                            <select id="groupTargetMode" name="groupTargetMode">
+                                <option value="ALL" <%= !"SELECTED".equals(form.value("groupTargetMode")) ? "selected" : "" %>>Tất cả nhóm đang hoạt động trong các lớp được giao</option>
+                                <option value="SELECTED" <%= "SELECTED".equals(form.value("groupTargetMode")) ? "selected" : "" %>>Chọn một hoặc nhiều nhóm</option>
+                            </select>
+                            <small class="field-error" id="groupTargetMode-error"><%= html(errors.get("groupTargetMode")) %></small>
+                            <div id="group-assignment-choices" <%= "SELECTED".equals(form.value("groupTargetMode")) ? "" : "hidden" %>>
+                                <% for (var group : context.groupOptions()) { %>
+                                    <label data-group-choice-row data-group-class="<%= group.classId() %>">
+                                        <input type="checkbox" data-target-group data-group-class="<%= group.classId() %>" value="<%= group.groupId() %>"
+                                            <%= java.util.Arrays.asList(form.value("selectedGroupIds").split(",")).contains(Long.toString(group.groupId())) ? "checked" : "" %>
+                                            <%= group.memberCount() > 0 ? "" : "disabled" %>>
+                                        <span><%= html(group.classCode()) %> · <%= html(group.name()) %> · <%= group.memberCount() %> thành viên</span>
+                                    </label>
+                                <% } %>
+                                <% if (context.groupOptions().isEmpty()) { %>
+                                    <p>Chưa có nhóm đang hoạt động. Hãy tạo nhóm và thêm thành viên trong chi tiết lớp.</p>
+                                <% } %>
+                            </div>
+                            <small class="field-error" id="selectedGroupIds-error"><%= html(errors.get("selectedGroupIds")) %></small>
+                            <p class="form-hint">Khi công bố, hệ thống chốt nhóm và thành viên đang học. Các thay đổi nhóm sau đó không tự đổi người nhận bài hoặc điểm đã chốt.</p>
+                            <div class="form-grid">
+                                <div>
+                                    <label for="teacherWeight">Hệ số điểm giảng viên (%) *</label>
+                                    <input id="teacherWeight" name="teacherWeight" type="number" min="0" max="100" step="0.01" required value="<%= html(form.value("teacherWeight")) %>">
+                                    <small class="field-error" id="teacherWeight-error"><%= html(errors.get("teacherWeight")) %></small>
+                                </div>
+                                <div>
+                                    <label for="peerWeight">Hệ số điểm sinh viên (%) *</label>
+                                    <input id="peerWeight" name="peerWeight" type="number" min="0" max="100" step="0.01" required value="<%= html(form.value("peerWeight")) %>">
+                                    <small class="field-error" id="peerWeight-error"><%= html(errors.get("peerWeight")) %></small>
+                                </div>
+                            </div>
+                            <p id="group-score-summary" class="form-hint" role="status">Tổng hai hệ số phải bằng 100%. Điểm cuối = (điểm giảng viên × hệ số giảng viên + điểm đánh giá trung bình từ các thành viên khác × hệ số sinh viên) / 100.</p>
+                            <p class="form-hint">Đánh giá đồng đội mở sau hạn nộp hoặc khi khóa nhận bài, và đóng khi giảng viên công bố điểm. Phiếu chưa gửi được bỏ qua; sinh viên chưa nhận phiếu nào có điểm đánh giá đồng đội bằng 0.</p>
+                        </fieldset>
                         <label for="templateId"> Mẫu bài tập * </label>
                         <select id="templateId" name="templateId" required aria-describedby="templateId-error">
                             <option value=""> Chọn mẫu bài tập </option>

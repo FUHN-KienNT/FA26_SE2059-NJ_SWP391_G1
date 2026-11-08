@@ -39,7 +39,7 @@ public class StudentObjectiveService {
         return transaction(c -> dao.list(c, studentId).stream()
                 .map(owned -> new StudentObjectiveDAO.Owned(
                         studentAssignment(owned.assignment(), false),
-                        owned.enrollmentId(), owned.classCode()))
+                        owned.enrollmentId(), owned.classCode(), owned.group()))
                 .toList());
     }
 
@@ -82,7 +82,7 @@ public class StudentObjectiveService {
                                 now,
                                 Map.of(),
                                 dao.revision(c, submissionId),
-                                content);
+                                content, owned.group());
                     }
 
                     var questions =
@@ -502,7 +502,7 @@ public class StudentObjectiveService {
                 attempt == null || attempt.status() != SubmissionStatus.IN_PROGRESS
                         ? Map.of()
                         : ObjectiveAnswerGrader.selections(attempt.answer()),
-                revision);
+                revision, null, owned.group());
     }
 
     private static Assignment studentAssignment(Assignment assignment, boolean includeQuestions) {
